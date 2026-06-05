@@ -175,7 +175,7 @@ hr { border-color: #e2e8f0 !important; margin: 1rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── ⚙️ gear icon top-right ───────────────────────────────────
+# ── ⚙️ gear icon + hide settings from sidebar ────────────────
 st.markdown("""
 <style>
 .gear-fab {
@@ -192,11 +192,25 @@ st.markdown("""
     color: #475569 !important;
     box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     transition: all 0.15s;
-    cursor: pointer;
 }
 .gear-fab:hover { background:#1E3A8A; color:white !important; border-color:#1E3A8A; }
 </style>
 <a href="/系統設定" target="_self" class="gear-fab" title="系統設定">⚙️</a>
+<script>
+(function() {
+    function hide() {
+        var links = document.querySelectorAll('[data-testid="stSidebarNavLink"]');
+        links.forEach(function(a) {
+            if (a.textContent.indexOf('系統設定') !== -1) {
+                var li = a.closest('li');
+                if (li) li.style.cssText = 'display:none!important';
+            }
+        });
+    }
+    hide();
+    new MutationObserver(hide).observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # ── 檢查設定是否完成 ─────────────────────────────────────────
