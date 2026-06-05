@@ -40,6 +40,7 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
             for i in range(1, 6):
                 t = row.get(f"underlying_{i}")
                 if t and isinstance(t, str):
+                    t = t.lstrip("$").strip().upper()
                     if t not in _all_tickers:
                         _all_tickers.append(t)
                     if t not in _sn_info:
@@ -96,7 +97,8 @@ if not sns_df.empty:
         col = f"underlying_{i}"
         if col in sns_df.columns:
             vals = sns_df[col].dropna().tolist()
-            tickers_from_sn += [v for v in vals if isinstance(v, str) and v.strip()]
+            tickers_from_sn += [v.lstrip("$").strip().upper()
+                    for v in vals if isinstance(v, str) and v.strip()]
 tickers_from_sn = sorted(set(tickers_from_sn))
 
 st.markdown("---")
