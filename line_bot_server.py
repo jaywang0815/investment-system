@@ -97,18 +97,23 @@ def reply(reply_token: str, text: str) -> None:
 def _check_stock(ticker: str) -> str:
     try:
         import yfinance as yf
-        stock = yf.Ticker(ticker)
-        info = stock.fast_info
+        hist = yf.download(ticker, period="5d", interval="1d",
+                           progress=False, auto_adjust=True)
 
-        price = info.last_price
-        prev_close = info.previous_close
-        if not price:
+        if hist.empty:
             return f"找不到「{ticker}」的資料\n請確認股票代號是否正確"
+
+        price = float(hist["Close"].iloc[-1])
+        prev_close = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
 
         change = price - prev_close
         change_pct = (change / prev_close * 100) if prev_close else 0
         arrow = "▲" if change >= 0 else "▼"
         sign = "+" if change >= 0 else ""
+
+        # 52週高低
+        high52 = float(hist["High"].max())
+        low52 = float(hist["Low"].min())
 
         # 檢查是否為系統內持有的標的
         sns = get_sns("active")
@@ -123,38 +128,31 @@ def _check_stock(ticker: str) -> str:
                         perf = price / init
                         status = ""
                         if ko and perf >= ko:
-                            status = " ✅ KO觸發"
+                            status = " [KO觸發]"
                         elif ki and perf <= ki:
-                            status = " 🔴 KI觸發"
+                            status = " [KI觸發]"
                         elif ko and perf >= ko * 0.97:
-                            status = " 🟡 接近KO"
+                            status = " [接近KO]"
                         elif ki and perf <= ki * 1.1:
-                            status = " ⚠️ 接近KI"
+                            status = " [接近KI]"
                         related.append(
                             f"  {s.get('product_code','—')} "
                             f"({perf*100:.1f}%){status}"
                         )
 
         lines = [
-            f"📈 {ticker}",
+            f"[{ticker}] 股票報價",
             f"現價: ${price:.2f}",
             f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
+            f"近5日: ${low52:.2f} – ${high52:.2f}",
         ]
-
-        try:
-            high52 = info.year_high
-            low52 = info.year_low
-            if high52 and low52:
-                lines.append(f"52週: ${low52:.2f} – ${high52:.2f}")
-        except Exception:
-            pass
 
         if related:
             lines.append("")
-            lines.append("📌 相關持倉:")
+            lines.append("相關持倉:")
             lines.extend(related[:5])
 
-        lines.append(f"\n🕐 資料約延遲15分鐘")
+        lines.append(f"\n(資料約延遲15分鐘)")
         return "\n".join(lines)
 
     except Exception as e:
