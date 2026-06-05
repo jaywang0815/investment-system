@@ -204,47 +204,76 @@ def handle_command(text: str, user_id: str = "") -> str:
         sns = get_sns("active")
         customers = get_customers()
         total_usd = sum(c.get("usd_amount", 0) or 0 for c in customers)
+        today_date = date.today()
+
+        # ดึงราคาทุก ticker ในครั้งเดียว
+        all_tickers = list(set(
+            s.get(f"underlying_{i}")
+            for s in sns for i in range(1, 6)
+            if isinstance(s.get(f"underlying_{i}"), str)
+        ))
+        prices = {t: get_stock_price(t) for t in all_tickers}
 
         lines = [
             f"📊 每日投資報告",
             f"🗓️ {today}",
             "─────────────",
-            f"👥 客戶總數: {len(customers)} 人",
+            f"👥 客戶: {len(customers)} 人",
             f"📊 有效商品: {len(sns)} 筆",
             f"💰 總額度: USD {total_usd:,.0f}",
             "",
-            "📅 所有商品比價日:"
+            "📋 商品狀況:",
         ]
 
-        today_str = str(date.today())
-        # 所有有觀察日的商品，排序後顯示
-        with_date = sorted(
-            [s for s in sns if s.get("observation_date")],
-            key=lambda s: s["observation_date"]
-        )
-        no_date = [s for s in sns if not s.get("observation_date")]
+        for sn in sorted(sns, key=lambda s: s.get("observation_date") or ""):
+            code = sn.get("product_code", "—")
+            obs = str(sn.get("observation_date") or "")[:10]
+            try:
+                days_left = (date.fromisoformat(obs) - today_date).days if obs else 0
+                badge = "🔴" if days_left <= 3 else "🟡" if days_left <= 7 else "🟢"
+                days_str = f"剩{days_left}天"
+            except Exception:
+                badge = "🟢"
+                days_str = ""
 
-        if with_date or no_date:
-            for s in with_date:
-                obs = s["observation_date"][:10]
-                code = s.get("product_code", "—")
-                tickers = "/".join(
-                    s.get(f"underlying_{i}", "")
-                    for i in range(1, 6)
-                    if s.get(f"underlying_{i}")
-                )
-                mark = "📌" if obs >= today_str else "✅"
-                lines.append(f"{mark} {obs} {code} ({tickers})")
-            for s in no_date:
-                code = s.get("product_code", "—")
-                tickers = "/".join(
-                    s.get(f"underlying_{i}", "")
-                    for i in range(1, 6)
-                    if s.get(f"underlying_{i}")
-                )
-                lines.append(f"📌 —/—/— {code} ({tickers})")
-        else:
-            lines.append("  無商品資料")
+            # คำนวณ worst performance + KO/KI status
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
+            worst_pct = None
+            detail_lines = []
+            for i in range(1, 6):
+                ticker = sn.get(f"underlying_{i}")
+                init_p = sn.get(f"initial_price_{i}")
+                if not ticker or not init_p or init_p <= 0:
+                    continue
+                curr = prices.get(ticker)
+                if curr:
+                    pct = curr / init_p
+                    if worst_pct is None or pct < worst_pct:
+                        worst_pct = pct
+                    chg = (pct - 1) * 100
+                    arrow = "▲" if chg >= 0 else "▼"
+                    ko_s = (" 🟢KO" if ko and pct >= ko else " 🟡近KO" if ko and pct >= ko * 0.95 else "")
+                    ki_s = (" 🔴KI" if ki and pct <= ki else " 🟠近KI" if ki and pct <= ki * 1.05 else "")
+                    detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
+
+            if worst_pct is None:
+                overall = "❓"
+            elif ko and worst_pct >= ko:
+                overall = "🟢 KO觸發"
+            elif ko and worst_pct >= ko * 0.95:
+                overall = "🟡 接近KO"
+            elif ki and worst_pct <= ki:
+                overall = "🔴 KI觸發"
+            elif ki and worst_pct <= ki * 1.05:
+                overall = "🟠 接近KI"
+            else:
+                overall = "✅ 正常"
+
+            lines.append(f"\n{overall} {code}")
+            if obs:
+                lines.append(f"  {badge} 比價: {obs} ({days_str})")
+            lines.extend(detail_lines)
 
         lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
         return "\n".join(lines)
