@@ -109,6 +109,7 @@ with tab2:
             fund_amount = st.number_input("FUND 金額", min_value=0, step=100000, value=0)
 
         notes = st.text_area("備註", placeholder="輸入備註...")
+        line_user_id = st.text_input("LINE User ID", placeholder="Uxxxxxxxxx (讓客戶傳 myid 給 Bot 取得)")
 
         submitted = st.form_submit_button("➕ 新增客戶", type="primary")
 
@@ -125,6 +126,7 @@ with tab2:
                     "ctbc_position": ctbc_position or None,
                     "fund_amount": fund_amount or None,
                     "notes": notes.strip() or None,
+                    "line_user_id": line_user_id.strip() or None,
                 }
                 result = create_customer(data)
                 if result:
@@ -177,6 +179,15 @@ with tab3:
                 new_pi = st.checkbox("PI見簽", value=bool(selected_row.get("pi_signed")))
                 new_ordered = st.checkbox("已下單", value=bool(selected_row.get("ordered")))
                 new_notes = st.text_area("備註", value=selected_row.get("notes") or "")
+                new_line_id = st.text_input(
+                    "LINE User ID",
+                    value=selected_row.get("line_user_id") or "",
+                    placeholder="Uxxxxxxxxx"
+                )
+                if new_line_id:
+                    st.caption("✅ 已連結 LINE — 將收到價格警示通知")
+                else:
+                    st.caption("⚠️ 尚未連結 LINE — 讓客戶傳 myid 給 Bot 取得")
 
                 if st.form_submit_button("💾 儲存變更"):
                     update_customer(customer_id, {
@@ -188,6 +199,7 @@ with tab3:
                         "pi_signed": new_pi,
                         "ordered": new_ordered,
                         "notes": new_notes or None,
+                        "line_user_id": new_line_id.strip() or None,
                     })
                     st.success("✅ 更新成功")
                     st.rerun()
