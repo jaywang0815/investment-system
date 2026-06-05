@@ -34,10 +34,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── 檢查設定是否完成 ─────────────────────────────────────────
-import os
-from pathlib import Path
-_secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
-_setup_complete = _secrets_path.exists()
+try:
+    _setup_complete = bool(st.secrets.get("SUPABASE_URL") and st.secrets.get("SUPABASE_KEY"))
+except Exception:
+    _setup_complete = False
 
 if not _setup_complete:
     st.markdown("## 🏦 投資管理系統")
