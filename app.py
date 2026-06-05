@@ -258,7 +258,7 @@ if _use_google_auth:
     except Exception:
         pass
 
-if not _google_logged_in:
+if not st.session_state.authenticated and not _google_logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
@@ -266,26 +266,47 @@ if not _google_logged_in:
         st.markdown("## 結構型商品投資管理系統")
         st.markdown("---")
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔐 使用 Google 帳號登入", use_container_width=True, type="primary"):
-            st.login("google")
+
+        if _use_google_auth:
+            if st.button("🔐 使用 Google 帳號登入", use_container_width=True, type="primary"):
+                st.login("google")
+            st.markdown("<div style='text-align:center; color:#94a3b8; margin: 8px 0;'>— หรือ —</div>", unsafe_allow_html=True)
+
+        pw_input = st.text_input("รหัสผ่าน", type="password", placeholder="輸入密碼後按 Enter", label_visibility="collapsed")
+        if st.button("🔑 ล็อคอินด้วยรหัสผ่าน", use_container_width=True):
+            if pw_input:
+                correct = False
+                if _admin_password_plain and pw_input == _admin_password_plain:
+                    correct = True
+                elif _admin_password_hash and _check_password(pw_input, _admin_password_hash):
+                    correct = True
+                if correct:
+                    st.session_state.authenticated = True
+                    _set_cookie()
+                    st.rerun()
+                else:
+                    st.error("❌ 密碼錯誤")
+
         st.markdown("<br>", unsafe_allow_html=True)
         st.caption("本系統僅供授權人員使用")
     st.stop()
 
 # ── 權限檢查 ──────────────────────────────────────────────────
-try:
-    allowed = st.secrets.get("allowed_emails", [])
-    if allowed and st.user.email not in allowed:
-        st.error(f"❌ 帳號 **{st.user.email}** 無存取權限")
-        if st.button("登出"):
-            st.logout()
-        st.stop()
-except Exception:
-    pass
+if _use_google_auth and _google_logged_in:
+    try:
+        allowed = st.secrets.get("allowed_emails", [])
+        if allowed and st.user.email not in allowed:
+            st.error(f"❌ 帳號 **{st.user.email}** 無存取權限")
+            if st.button("登出"):
+                st.logout()
+            st.stop()
+    except Exception:
+        pass
 
 # ── ซ่อน 系統設定 สำหรับ non-admin ──────────────────────────────
 _ADMIN_EMAIL = "pmjatu1508@gmail.com"
 _is_admin = (
+    st.session_state.get("authenticated") or
     getattr(getattr(st, "user", None), "email", "") == _ADMIN_EMAIL
 )
 if not _is_admin:
@@ -306,13 +327,20 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     st.markdown("---")
 
-    try:
-        st.markdown(f"👤 &nbsp;**{st.user.name}**")
-        st.caption(st.user.email)
-    except Exception:
-        st.markdown("👤 &nbsp;**已登入**")
-    if st.button("登出", use_container_width=True):
-        st.logout()
+    if _use_google_auth and _google_logged_in:
+        try:
+            st.markdown(f"👤 &nbsp;**{st.user.name}**")
+            st.caption(st.user.email)
+        except Exception:
+            st.markdown("👤 &nbsp;**已登入**")
+        if st.button("登出", use_container_width=True):
+            st.logout()
+    else:
+        st.markdown("👤 &nbsp;**管理員**")
+        if st.button("登出", use_container_width=True):
+            st.session_state.authenticated = False
+            _del_cookie()
+            st.rerun()
     st.markdown("---")
 
 # ── 主頁面 ────────────────────────────────────────────────────
