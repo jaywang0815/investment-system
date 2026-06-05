@@ -213,28 +213,38 @@ def handle_command(text: str, user_id: str = "") -> str:
             f"📊 有效商品: {len(sns)} 筆",
             f"💰 總額度: USD {total_usd:,.0f}",
             "",
-            "📅 近期比價日:"
+            "📅 所有商品比價日:"
         ]
 
-        today_date = date.today()
-        from datetime import timedelta
-        upcoming = [s for s in sns if s.get("observation_date") and
-                    s["observation_date"] >= str(today_date) and
-                    s["observation_date"] <= str(today_date + timedelta(days=14))]
+        today_str = str(date.today())
+        # 所有有觀察日的商品，排序後顯示
+        with_date = sorted(
+            [s for s in sns if s.get("observation_date")],
+            key=lambda s: s["observation_date"]
+        )
+        no_date = [s for s in sns if not s.get("observation_date")]
 
-        if upcoming:
-            for s in upcoming[:5]:
+        if with_date or no_date:
+            for s in with_date:
                 obs = s["observation_date"][:10]
                 code = s.get("product_code", "—")
-                _nums = ["①","②","③","④","⑤"]
-                tstr = " ".join(
-                    f"{_nums[i-1]}{s.get(f'underlying_{i}')}"
+                tickers = "/".join(
+                    s.get(f"underlying_{i}", "")
                     for i in range(1, 6)
                     if s.get(f"underlying_{i}")
                 )
-                lines.append(f"  📌 {obs} | {code} ({tstr})")
+                mark = "📌" if obs >= today_str else "✅"
+                lines.append(f"{mark} {obs} {code} ({tickers})")
+            for s in no_date:
+                code = s.get("product_code", "—")
+                tickers = "/".join(
+                    s.get(f"underlying_{i}", "")
+                    for i in range(1, 6)
+                    if s.get(f"underlying_{i}")
+                )
+                lines.append(f"📌 —/—/— {code} ({tickers})")
         else:
-            lines.append("  近期無比價日")
+            lines.append("  無商品資料")
 
         lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
         return "\n".join(lines)
@@ -307,9 +317,8 @@ def handle_command(text: str, user_id: str = "") -> str:
             if not sn:
                 continue
             code = sn.get("product_code", "—")
-            _nums = ["①","②","③","④","⑤"]
-            tstr = " ".join(
-                f"{_nums[i-1]}{sn.get(f'underlying_{i}')}"
+            tstr = "/".join(
+                sn.get(f"underlying_{i}")
                 for i in range(1, 6)
                 if sn.get(f"underlying_{i}")
             )
