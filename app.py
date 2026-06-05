@@ -270,111 +270,32 @@ if not st.session_state.authenticated and not _google_logged_in:
 
     st.markdown("""
     <style>
-    /* ── PIN login: centered content ────────────────── */
-    .main .block-container {
-        padding: 2rem 1rem 1rem 1rem !important;
-    }
-    /* Force PIN rows horizontal + centered */
-    [data-testid="stHorizontalBlock"] {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        justify-content: center !important;
-        gap: 10px !important;
-        max-width: 260px !important;
-        margin: 0 auto !important;
-    }
-    [data-testid="column"] {
-        flex: 0 0 auto !important;
-        width: clamp(58px, 22vw, 76px) !important;
-        min-width: 0 !important;
-        padding: 0 !important;
-    }
-    /* Circular PIN buttons — fixed size */
-    div[data-testid="stButton"] > button {
-        border-radius: 50% !important;
-        width: clamp(54px, 20vw, 72px) !important;
-        height: clamp(54px, 20vw, 72px) !important;
-        font-size: clamp(1rem, 5vw, 1.35rem) !important;
-        font-weight: 600 !important;
-        background: #f1f5f9 !important;
-        border: 1px solid #e2e8f0 !important;
-        color: #1e293b !important;
-        padding: 0 !important;
-        margin: 0 auto 6px auto !important;
-        display: block !important;
-    }
-    div[data-testid="stButton"] > button:hover {
-        background: #1E3A8A !important; color: white !important;
-    }
-    .pin-title    { font-size:1.5rem; font-weight:700; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.2rem; }
-    .pin-subtitle { font-size:0.85rem; color:#64748b; text-align:center; display:block; margin-bottom:1.2rem; }
-    .pin-dots     { font-size:2rem; letter-spacing:0.8rem; margin:0.8rem 0 1rem 0; text-align:center; display:block; }
-    .pin-error    { color:#ef4444; font-size:0.85rem; margin-top:0.3rem; text-align:center; display:block; }
+    .main .block-container { max-width: 360px !important; margin: 0 auto !important; padding-top: 4rem !important; }
+    .pin-title    { font-size:1.6rem; font-weight:700; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.3rem; }
+    .pin-subtitle { font-size:0.9rem; color:#64748b; text-align:center; display:block; margin-bottom:2rem; }
+    .pin-error    { color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }
     </style>
     """, unsafe_allow_html=True)
 
-    # Title & dots — no outer columns, centered by CSS max-width
     st.markdown('<div class="pin-title">🏦 DOUU WORK</div>', unsafe_allow_html=True)
     st.markdown('<div class="pin-subtitle">輸入 PIN 碼解鎖</div>', unsafe_allow_html=True)
 
-    dots = "●" * len(entered) + "○" * (pin_len - len(entered))
-    dot_color = "#ef4444" if st.session_state.pin_error else "#1E3A8A"
-    st.markdown(f'<div class="pin-dots" style="color:{dot_color}">{dots}</div>', unsafe_allow_html=True)
-
     if st.session_state.pin_error:
-        st.markdown('<div class="pin-error">❌ PIN 不正確</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pin-error">❌ PIN 不正確，請重試</div>', unsafe_allow_html=True)
 
-    # Keyboard input
     typed = st.text_input("PIN", value="", max_chars=pin_len,
                           type="password", placeholder="輸入 PIN 後按 Enter",
                           label_visibility="collapsed",
                           key="pin_keyboard")
     if typed:
-        st.session_state.pin_input = typed
-        if len(typed) == pin_len:
-            if typed == correct_pin:
-                st.session_state.authenticated = True
-                st.session_state.pin_input = ""
-                st.session_state.pin_error = False
-                _set_cookie()
-                st.rerun()
-            else:
-                st.session_state.pin_error = True
-                st.session_state.pin_input = ""
-                st.rerun()
-
-    # PIN button grid — 3 columns stay horizontal via CSS above
-    rows = [["1","2","3"], ["4","5","6"], ["7","8","9"], ["⌫","0","✓"]]
-    for row in rows:
-        c1, c2, c3 = st.columns(3)
-        for col_obj, num in zip([c1, c2, c3], row):
-            with col_obj:
-                if st.button(num, key=f"pin_{num}", use_container_width=True):
-                    if num == "⌫":
-                        st.session_state.pin_input = entered[:-1]
-                        st.session_state.pin_error = False
-                    elif num == "✓":
-                        if entered == correct_pin:
-                            st.session_state.authenticated = True
-                            st.session_state.pin_input = ""
-                            st.session_state.pin_error = False
-                            _set_cookie()
-                        else:
-                            st.session_state.pin_error = True
-                            st.session_state.pin_input = ""
-                    else:
-                        new_pin = entered + num
-                        st.session_state.pin_input = new_pin
-                        st.session_state.pin_error = False
-                        if len(new_pin) == pin_len:
-                            if new_pin == correct_pin:
-                                st.session_state.authenticated = True
-                                st.session_state.pin_input = ""
-                                _set_cookie()
-                            else:
-                                st.session_state.pin_error = True
-                                st.session_state.pin_input = ""
-                    st.rerun()
+        if typed == correct_pin:
+            st.session_state.authenticated = True
+            st.session_state.pin_error = False
+            _set_cookie()
+            st.rerun()
+        elif len(typed) >= pin_len:
+            st.session_state.pin_error = True
+            st.rerun()
 
     st.stop()
 
