@@ -88,17 +88,6 @@ with tab1:
 
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-        # 客戶 Portal 連結
-        st.markdown("---")
-        st.subheader("🔗 客戶入口連結")
-        st.caption("可將下方連結傳給客戶，讓客戶自行查看投資狀況")
-        if "portal_token" in customers_df.columns and "name" in customers_df.columns:
-            for _, row in customers_df.head(10).iterrows():
-                token = row.get("portal_token", "")
-                name = row.get("name", "")
-                if token:
-                    portal_url = f"?page=portal&token={token}"
-                    st.text(f"{name}: {portal_url}")
 
 # ──────────────────────────────────────────────────────────────
 # Tab 2: 新增客戶
