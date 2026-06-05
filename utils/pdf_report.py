@@ -70,7 +70,18 @@ def _generate_price_chart(ticker: str, initial_price: float,
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
+        import matplotlib.font_manager as fm
         import yfinance as yf
+
+        # 載入中文字型
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        font_path = os.path.join(base_dir, "assets", "NotoSansTC-Regular.ttf")
+        if os.path.exists(font_path):
+            prop = fm.FontProperties(fname=font_path, size=8)
+            prop_small = fm.FontProperties(fname=font_path, size=6)
+        else:
+            prop = fm.FontProperties(size=8)
+            prop_small = fm.FontProperties(size=6)
 
         hist = yf.Ticker(ticker).history(period="6mo")
         if hist.empty:
@@ -91,13 +102,13 @@ def _generate_price_chart(ticker: str, initial_price: float,
             if strike_pct:
                 sp = initial_price * strike_pct
                 ax.axhline(sp, color="#3B82F6", linestyle=":", linewidth=0.8,
-                           label=f"執行價 ${sp:,.0f}")
+                           label=f"Strike ${sp:,.0f}")
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
         ax.xaxis.set_major_locator(mdates.MonthLocator())
         ax.tick_params(labelsize=6)
-        ax.legend(fontsize=6, loc="upper left", framealpha=0.7)
-        ax.set_title(f"{ticker}  近6個月走勢", fontsize=8)
+        ax.legend(prop=prop_small, loc="upper left", framealpha=0.7)
+        ax.set_title(f"{ticker}  6-Month Price", fontproperties=prop)
         ax.grid(True, alpha=0.3, linewidth=0.5)
         fig.tight_layout(pad=0.5)
 
