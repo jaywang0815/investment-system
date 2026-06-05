@@ -104,8 +104,8 @@ with c2:
     has_auth = bool(existing.get("auth", {}).get("google", {}).get("client_id"))
     st.metric("Gmail 登入", "✅ 已設定" if has_auth else "❌ 未設定")
 with c3:
-    has_line = bool(existing.get("LINE_NOTIFY_TOKEN"))
-    st.metric("LINE Notify", "✅ 已設定" if has_line else "❌ 未設定")
+    has_line = bool(existing.get("LINE_CHANNEL_ACCESS_TOKEN"))
+    st.metric("LINE Bot 推播", "✅ 已設定" if has_line else "❌ 未設定")
 with c4:
     has_email = bool(existing.get("allowed_emails"))
     st.metric("授權帳號", "✅ 已設定" if has_email else "❌ 未設定")
@@ -135,16 +135,12 @@ with st.expander("📖 取得各項設定的說明", expanded=not setup_done):
         """)
     with col2:
         st.markdown("""
-        **LINE Notify:**
-        1. 前往 [notify-bot.line.me/my](https://notify-bot.line.me/my/)
-        2. Generate token → 選擇群組或 1:1 聊天
-        3. 複製 token
-
-        **LINE Bot (選填):**
+        **LINE Bot (推播通知):**
         1. 前往 [developers.line.biz](https://developers.line.biz)
         2. 建立 Messaging API channel
         3. 複製 Channel Secret 和 Access Token
         4. Webhook URL: `https://你的伺服器/webhook`
+        5. 在 LINE 對 Bot 傳 `myid` → 複製 User ID 加入管理員
         """)
 
 # ── Section 1: Supabase ───────────────────────────────────────
@@ -212,37 +208,81 @@ cookie_secret = st.text_input(
 )
 
 # ── Section 3: LINE ───────────────────────────────────────────
-st.markdown("### 3️⃣ LINE 通知設定")
+st.markdown("### 3️⃣ LINE Bot 推播設定")
+st.caption("LINE Notify ปิดให้บริการแล้ว — ใช้ LINE Messaging API แทน")
 col1, col2 = st.columns(2)
 with col1:
-    line_notify_token = st.text_input(
-        "LINE Notify Token",
-        value=existing.get("LINE_NOTIFY_TOKEN", ""),
-        type="password",
-        placeholder="每日報告通知用 (必填)"
-    )
-    if line_notify_token:
-        if st.button("🧪 測試 LINE Notify"):
-            with st.spinner("測試中..."):
-                ok, msg = test_line_notify(line_notify_token)
-            if ok:
-                st.success(msg)
-            else:
-                st.error(msg)
-
-with col2:
     line_channel_secret = st.text_input(
         "LINE Channel Secret",
         value=existing.get("LINE_CHANNEL_SECRET", ""),
         type="password",
-        placeholder="LINE Bot 用 (選填)"
+        placeholder="LINE Bot Channel Secret"
     )
+with col2:
     line_channel_token = st.text_input(
         "LINE Channel Access Token",
         value=existing.get("LINE_CHANNEL_ACCESS_TOKEN", ""),
         type="password",
-        placeholder="LINE Bot 用 (選填)"
+        placeholder="LINE Bot Access Token"
     )
+
+# ── LINE 管理員清單 ────────────────────────────────────────────
+st.markdown("#### 推播管理員")
+st.caption("收到 KO/KI 警示和日報的 LINE 帳號 — 在 LINE 對 Bot 傳 `myid` 取得 User ID")
+
+try:
+    from utils.database import get_supabase_client
+    _sb = get_supabase_client()
+    _admins = _sb.table("admins").select("*").execute().data or []
+except Exception:
+    _admins = []
+
+if _admins:
+    for adm in _admins:
+        ca, cb = st.columns([3, 1])
+        with ca:
+            st.text(f"👤 {adm.get('name','—')}  |  {adm.get('line_user_id','')}")
+        with cb:
+            if st.button("移除", key=f"del_adm_{adm.get('id')}"):
+                try:
+                    _sb.table("admins").delete().eq("id", adm["id"]).execute()
+                    st.rerun()
+                except Exception as e:
+                    st.error(str(e))
+else:
+    st.info("尚無管理員 — 請新增")
+
+with st.form("add_admin_form", clear_on_submit=True):
+    ca, cb, cc = st.columns([2, 3, 1])
+    with ca:
+        new_adm_name = st.text_input("名稱", placeholder="例: Jay")
+    with cb:
+        new_adm_id = st.text_input("LINE User ID", placeholder="Uxxxxxxxxxxxxxxxx")
+    with cc:
+        st.markdown("<br>", unsafe_allow_html=True)
+        add_adm = st.form_submit_button("新增")
+    if add_adm and new_adm_name and new_adm_id:
+        try:
+            _sb.table("admins").insert({"name": new_adm_name,
+                                        "line_user_id": new_adm_id}).execute()
+            st.success(f"已新增 {new_adm_name}")
+            st.rerun()
+        except Exception as e:
+            st.error(str(e))
+
+# 測試推播
+if _admins and existing.get("LINE_CHANNEL_ACCESS_TOKEN"):
+    if st.button("🧪 測試推播 (發給所有管理員)"):
+        from utils.line_service import push_line_message
+        ok_count = 0
+        for adm in _admins:
+            uid = adm.get("line_user_id", "")
+            if uid:
+                ok = push_line_message(uid, [{"type": "text",
+                    "text": "✅ DOUU WORK 推播測試成功！"}])
+                if ok:
+                    ok_count += 1
+        st.success(f"已推播給 {ok_count}/{len(_admins)} 位管理員")
 
 # ── Section 4: Google Sheets (optional) ──────────────────────
 st.markdown("### 4️⃣ Google Sheets 同步 (選填)")
@@ -289,8 +329,6 @@ with col_save:
                 }
             }
 
-            if line_notify_token:
-                new_secrets["LINE_NOTIFY_TOKEN"] = line_notify_token
             if line_channel_secret:
                 new_secrets["LINE_CHANNEL_SECRET"] = line_channel_secret
             if line_channel_token:
@@ -313,7 +351,7 @@ with col_reset:
 if setup_done:
     with st.expander("📄 查看目前設定檔內容"):
         safe_preview = existing.copy()
-        for key in ["SUPABASE_KEY", "LINE_NOTIFY_TOKEN", "LINE_CHANNEL_SECRET",
+        for key in ["SUPABASE_KEY", "LINE_CHANNEL_SECRET",
                     "LINE_CHANNEL_ACCESS_TOKEN"]:
             if key in safe_preview:
                 val = str(safe_preview[key])
