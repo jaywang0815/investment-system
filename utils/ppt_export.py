@@ -292,6 +292,7 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
 def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
     try:
         import yfinance as yf
+        ticker = ticker.lstrip("$").strip().upper()
         hist = yf.Ticker(ticker).history(period=period)
         if hist.empty or len(hist) < 10:
             print(f"[chart] {ticker}: not enough data ({len(hist)} rows)")
