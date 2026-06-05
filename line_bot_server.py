@@ -94,9 +94,17 @@ def reply(reply_token: str, text: str) -> None:
 
 
 # ── 指令處理 ──────────────────────────────────────────────────
-def handle_command(text: str) -> str:
+def handle_command(text: str, user_id: str = "") -> str:
     text = text.strip()
     today = date.today().strftime("%Y/%m/%d")
+
+    # myid — 回傳自己的 LINE User ID
+    if text.lower() in ["myid", "my id", "我的id", "id"]:
+        return (
+            f"🔑 您的 LINE User ID:\n\n"
+            f"{user_id}\n\n"
+            f"請將此 ID 傳給管理員，即可接收投資通知。"
+        )
 
     # 幫助
     if text in ["幫助", "help", "說明", "?", "？"]:
@@ -284,8 +292,9 @@ async def webhook(request: Request):
         if event.get("type") == "message" and event["message"].get("type") == "text":
             reply_token = event.get("replyToken", "")
             user_text = event["message"].get("text", "").strip()
+            user_id = event.get("source", {}).get("userId", "")
 
-            response_text = handle_command(user_text)
+            response_text = handle_command(user_text, user_id)
             reply(reply_token, response_text)
 
     return JSONResponse({"status": "ok"})
