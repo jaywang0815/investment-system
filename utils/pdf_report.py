@@ -64,56 +64,94 @@ def _clean(text) -> str:
 def _generate_price_chart(ticker: str, initial_price: float,
                           ko_barrier: float, ki_barrier: float,
                           strike_pct: float, width_mm: float = 155) -> bytes | None:
-    """Download 6-month history and plot price chart with KO/KI lines"""
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
-        import matplotlib.font_manager as fm
+        import matplotlib.patches as mpatches
         import yfinance as yf
-
-        # 載入中文字型
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        font_path = os.path.join(base_dir, "assets", "NotoSansTC-Regular.ttf")
-        if os.path.exists(font_path):
-            prop = fm.FontProperties(fname=font_path, size=8)
-            prop_small = fm.FontProperties(fname=font_path, size=6)
-        else:
-            prop = fm.FontProperties(size=8)
-            prop_small = fm.FontProperties(size=6)
+        import numpy as np
 
         hist = yf.Ticker(ticker).history(period="6mo")
         if hist.empty:
             return None
 
-        fig, ax = plt.subplots(figsize=(width_mm / 25.4, 2.5))
-        ax.plot(hist.index, hist["Close"], color="#1E3A8A", linewidth=1.2, label=ticker)
+        closes = hist["Close"]
+        dates  = hist.index
 
+        # ── 畫布設定 ──────────────────────────────────────────
+        fig, ax = plt.subplots(figsize=(width_mm / 25.4, 3.0),
+                               facecolor="#F8FAFC")
+        ax.set_facecolor("#F8FAFC")
+
+        # ── 價格線 + 陰影 ─────────────────────────────────────
+        ax.plot(dates, closes, color="#1E3A8A", linewidth=1.5, zorder=4)
+        ax.fill_between(dates, closes, closes.min() * 0.97,
+                        alpha=0.12, color="#3B82F6", zorder=3)
+
+        # ── KO / KI / 執行價 水平線 ────────────────────────────
+        barrier_lines = []
         if initial_price and initial_price > 0:
             if ko_barrier:
-                ko_price = initial_price * ko_barrier
-                ax.axhline(ko_price, color="#16A34A", linestyle="--", linewidth=0.9,
-                           label=f"KO {ko_barrier*100:.0f}% (${ko_price:,.0f})")
+                kop = initial_price * ko_barrier
+                ax.axhline(kop, color="#16A34A", linestyle="--",
+                           linewidth=1.4, zorder=5, alpha=0.9)
+                ax.text(dates[-1], kop, f" KO ${kop:,.0f}",
+                        color="#16A34A", fontsize=6.5, va="center", zorder=6,
+                        bbox=dict(boxstyle="round,pad=0.15", fc="#F0FDF4", ec="#16A34A", lw=0.5))
+                barrier_lines.append(mpatches.Patch(color="#16A34A", label=f"KO {ko_barrier*100:.0f}%  ${kop:,.0f}"))
             if ki_barrier:
-                ki_price = initial_price * ki_barrier
-                ax.axhline(ki_price, color="#DC2626", linestyle="--", linewidth=0.9,
-                           label=f"KI {ki_barrier*100:.0f}% (${ki_price:,.0f})")
+                kip = initial_price * ki_barrier
+                ax.axhline(kip, color="#DC2626", linestyle="--",
+                           linewidth=1.4, zorder=5, alpha=0.9)
+                ax.text(dates[-1], kip, f" KI ${kip:,.0f}",
+                        color="#DC2626", fontsize=6.5, va="center", zorder=6,
+                        bbox=dict(boxstyle="round,pad=0.15", fc="#FEF2F2", ec="#DC2626", lw=0.5))
+                barrier_lines.append(mpatches.Patch(color="#DC2626", label=f"KI {ki_barrier*100:.0f}%  ${kip:,.0f}"))
             if strike_pct:
                 sp = initial_price * strike_pct
-                ax.axhline(sp, color="#3B82F6", linestyle=":", linewidth=0.8,
-                           label=f"Strike ${sp:,.0f}")
+                ax.axhline(sp, color="#6366F1", linestyle=":",
+                           linewidth=1.1, zorder=5, alpha=0.85)
+                barrier_lines.append(mpatches.Patch(color="#6366F1", label=f"Strike ${sp:,.0f}"))
 
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+            # ── KI 危險帶背景 ───────────────────────────────────
+            if ki_barrier:
+                ax.axhspan(0, initial_price * ki_barrier,
+                           alpha=0.06, color="#DC2626", zorder=2)
+
+        # ── 最新收盤標記 ──────────────────────────────────────
+        last_price = float(closes.iloc[-1])
+        ax.annotate(f"${last_price:,.2f}",
+                    xy=(dates[-1], last_price),
+                    xytext=(-38, 8), textcoords="offset points",
+                    fontsize=7, color="white", zorder=7,
+                    bbox=dict(boxstyle="round,pad=0.3", fc="#1E3A8A", ec="none"),
+                    arrowprops=dict(arrowstyle="-", color="#1E3A8A", lw=0.8))
+
+        # ── 軸設定 ────────────────────────────────────────────
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
         ax.xaxis.set_major_locator(mdates.MonthLocator())
-        ax.tick_params(labelsize=6)
-        ax.legend(prop=prop_small, loc="upper left", framealpha=0.7)
-        ax.set_title(f"{ticker}  6-Month Price", fontproperties=prop)
-        ax.grid(True, alpha=0.3, linewidth=0.5)
-        fig.tight_layout(pad=0.5)
+        ax.tick_params(labelsize=6.5, colors="#475569")
+        for spine in ax.spines.values():
+            spine.set_edgecolor("#CBD5E1")
+            spine.set_linewidth(0.5)
+        ax.grid(True, alpha=0.4, linewidth=0.4, color="#CBD5E1")
+        ax.set_axisbelow(True)
+
+        # ── 標題 & 圖例 ───────────────────────────────────────
+        ax.set_title(f"{ticker}  —  6-Month Performance",
+                     fontsize=9, color="#1E3A8A", fontweight="bold", pad=6)
+        if barrier_lines:
+            ax.legend(handles=barrier_lines, fontsize=6,
+                      loc="upper left", framealpha=0.85,
+                      edgecolor="#CBD5E1", labelcolor="#1E293B")
+
+        fig.tight_layout(pad=0.6)
 
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=120, bbox_inches="tight")
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                    facecolor=fig.get_facecolor())
         plt.close(fig)
         buf.seek(0)
         return buf.read()
