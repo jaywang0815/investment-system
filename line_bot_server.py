@@ -337,13 +337,25 @@ def handle_command(text: str, user_id: str = "") -> str:
             ko_str = f"KO {ko*100:.0f}%" if ko else ""
             ki_str = f"KI {ki*100:.0f}%" if ki else ""
             barrier_str = "  ".join(b for b in [ko_str, ki_str] if b)
+            exit_date = str(sn.get("exit_date") or "")[:10]
+            temp_set = sn.get("temp_settlement")
+            chu = sn.get("chu") or ""
+            order_amt = sn.get("total_order_amount")
 
             lines.append(f"📌 {code}")
             lines.append(f"   標的: {tstr}")
             lines.append(f"   金額: USD {amount:,.0f}{coupon_str}")
+            if order_amt:
+                lines.append(f"   下單金: USD {order_amt:,.0f}")
             if barrier_str:
                 lines.append(f"   障礙: {barrier_str}")
             lines.append(f"   比價: {obs}{worst_str}")
+            if exit_date:
+                lines.append(f"   出場日: {exit_date}")
+            if temp_set:
+                lines.append(f"   暫結: {temp_set:,.0f}")
+            if chu:
+                lines.append(f"   CHU: {chu}")
             lines.append("")
 
         if len(investments) > 5:
