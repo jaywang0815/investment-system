@@ -99,11 +99,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
     story.append(Paragraph(
         "結構型商品投資報表",
         _style("Title", fontSize=22, fontName=FONT_BOLD, textColor=BLUE_DARK,
-               alignment=1, spaceAfter=2)
-    ))
-    story.append(Paragraph(
-        "Structured Notes Investment Report",
-        _style("Subtitle", fontSize=9, textColor=GRAY, alignment=1, spaceAfter=6)
+               alignment=1, spaceAfter=6)
     ))
     story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK, spaceAfter=10))
 
