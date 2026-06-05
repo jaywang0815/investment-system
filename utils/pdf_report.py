@@ -4,6 +4,7 @@ PDF 報表產生模組 - 繁體中文
 """
 import io
 import os
+import re
 from datetime import date, datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -50,6 +51,15 @@ RED        = colors.HexColor("#DC2626")
 GREEN      = colors.HexColor("#16A34A")
 ORANGE     = colors.HexColor("#EA580C")
 WHITE      = colors.white
+
+_EMOJI_RE = re.compile(
+    "[\U0001F300-\U0001FFFF\U00002600-\U000027BF\U0000FE00-\U0000FE0F]+",
+    flags=re.UNICODE,
+)
+
+def _clean(text) -> str:
+    """Strip emoji characters that the font cannot render"""
+    return _EMOJI_RE.sub("", str(text) if text is not None else "").strip()
 
 def _style(name, **kw):
     kw.setdefault("fontName", FONT)
@@ -286,7 +296,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W):
                 f"${d['strike_price']:,.2f}" if d.get("strike_price") else "—",
                 f"${d['ko_price']:,.2f}" if d.get("ko_price") else "無",
                 f"${d['ki_price']:,.2f}" if d.get("ki_price") else "無",
-                f"{d['ko_status']} {d['ki_status']}",
+                _clean(f"{d['ko_status']} {d['ki_status']}"),
             ]
             price_rows.append(row)
 
