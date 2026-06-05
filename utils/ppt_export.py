@@ -8,7 +8,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -51,59 +50,117 @@ def _rect(slide, left, top, width, height, fill_rgb):
     return shape
 
 
-def _make_chart_png(ticker: str, period: str = "3mo") -> bytes | None:
+def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
     try:
         import yfinance as yf
+        import mplfinance as mpf
+        import numpy as np
+
         hist = yf.Ticker(ticker).history(period=period)
-        if hist.empty:
+        if hist.empty or len(hist) < 30:
             return None
 
-        close = hist["Close"]
-        up = close.iloc[-1] >= close.iloc[0]
-        color = "#16A34A" if up else "#DC2626"
-        chg = (close.iloc[-1] / close.iloc[0] - 1) * 100
-        sign = "+" if chg >= 0 else ""
+        hist.index = hist.index.tz_localize(None)
+        ohlcv = hist[["Open", "High", "Low", "Close", "Volume"]].copy()
+        close = ohlcv["Close"]
 
-        fig, (ax1, ax2) = plt.subplots(
-            2, 1, figsize=(11, 5.5),
-            gridspec_kw={"height_ratios": [3, 1]},
-            facecolor="white"
+        # ── RSI (14) ──────────────────────────────────────────────
+        delta = close.diff()
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+        rsi = 100 - (100 / (1 + gain / loss))
+
+        # ── MACD (12, 26, 9) ──────────────────────────────────────
+        macd_line   = close.ewm(span=12, adjust=False).mean() - \
+                      close.ewm(span=26, adjust=False).mean()
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        macd_hist   = macd_line - signal_line
+        hist_colors = ["#26a69a" if v >= 0 else "#ef5350"
+                       for v in macd_hist.fillna(0)]
+
+        # ── Price info for title ──────────────────────────────────
+        last  = close.iloc[-1]
+        prev  = close.iloc[-2] if len(close) > 1 else last
+        chg   = last - prev
+        chg_p = chg / prev * 100
+        sign  = "+" if chg >= 0 else ""
+        title_str = (f"\n{ticker}   ${last:,.2f}   "
+                     f"{sign}{chg:.2f} ({sign}{chg_p:.2f}%)")
+
+        # ── mplfinance style (TradingView light) ─────────────────
+        mc = mpf.make_marketcolors(
+            up="#26a69a", down="#ef5350",
+            wick={"up": "#26a69a", "down": "#ef5350"},
+            edge={"up": "#26a69a", "down": "#ef5350"},
+            volume={"up": "#26a69a", "down": "#ef5350"},
         )
-        # Price
-        ax1.set_facecolor("white")
-        ax1.plot(hist.index, close, color=color, linewidth=2)
-        ax1.fill_between(hist.index, close, close.min() * 0.995,
-                         alpha=0.12, color=color)
-        ax1.set_title(
-            f"{ticker}   ${close.iloc[-1]:,.2f}   {sign}{chg:.1f}%  (3 months)",
-            fontsize=13, color="#1E3A8A", pad=8, fontweight="bold"
+        style = mpf.make_mpf_style(
+            marketcolors=mc,
+            gridstyle="--",
+            gridcolor="#E2E8F0",
+            gridaxis="both",
+            facecolor="white",
+            figcolor="white",
+            rc={
+                "axes.labelcolor": "#64748B",
+                "xtick.color": "#64748B",
+                "ytick.color": "#64748B",
+                "font.size": 9,
+            },
         )
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
-        ax1.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
-        ax1.grid(axis="y", color="#E2E8F0", linewidth=0.8)
-        ax1.spines[["top", "right"]].set_visible(False)
-        ax1.tick_params(colors="#64748B", labelsize=9)
-        ax1.yaxis.tick_right()
-        ax1.set_xlim(hist.index[0], hist.index[-1])
 
-        # Volume
-        ax2.set_facecolor("white")
-        ax2.bar(hist.index, hist["Volume"], color=color, alpha=0.45, width=0.8)
-        ax2.spines[["top", "right"]].set_visible(False)
-        ax2.tick_params(colors="#64748B", labelsize=8)
-        ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
-        ax2.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
-        ax2.set_xlim(hist.index[0], hist.index[-1])
-        ax2.set_ylabel("Vol", color="#94A3B8", fontsize=8)
+        # ── Extra indicators ──────────────────────────────────────
+        apds = [
+            # RSI overbought/oversold reference lines
+            mpf.make_addplot([70] * len(rsi), panel=2,
+                             color="#E2E8F0", linestyle="--", width=0.7),
+            mpf.make_addplot([30] * len(rsi), panel=2,
+                             color="#E2E8F0", linestyle="--", width=0.7),
+            mpf.make_addplot(rsi, panel=2, color="#9333ea",
+                             width=1.4, ylabel="RSI 14"),
+            # MACD
+            mpf.make_addplot(macd_hist, panel=3, type="bar",
+                             color=hist_colors, alpha=0.7, ylabel="MACD"),
+            mpf.make_addplot(macd_line,   panel=3, color="#3B82F6", width=1.2),
+            mpf.make_addplot(signal_line, panel=3, color="#F97316", width=1.2),
+        ]
 
-        plt.tight_layout(pad=1.2)
+        fig, axes = mpf.plot(
+            ohlcv,
+            type="candle",
+            style=style,
+            volume=True,
+            addplot=apds,
+            returnfig=True,
+            figsize=(14, 9),
+            panel_ratios=(4, 1.2, 1.5, 1.5),
+            title=title_str,
+        )
+
+        # Title colour
+        axes[0].title.set_color("#1E3A8A")
+        axes[0].title.set_fontsize(13)
+        axes[0].title.set_fontweight("bold")
+
+        # RSI shaded zones
+        rsi_ax = axes[4]  # panel 2 = axes index 4 (candle,vol,rsi,macd)
+        try:
+            rsi_ax.axhspan(70, 100, alpha=0.07, color="#ef5350", zorder=0)
+            rsi_ax.axhspan(0, 30,   alpha=0.07, color="#26a69a", zorder=0)
+            rsi_ax.set_ylim(0, 100)
+        except Exception:
+            pass
+
+        fig.tight_layout(pad=1.0)
         buf = io.BytesIO()
-        plt.savefig(buf, format="png", dpi=150,
+        fig.savefig(buf, format="png", dpi=150,
                     bbox_inches="tight", facecolor="white")
         plt.close(fig)
         buf.seek(0)
         return buf.read()
-    except Exception:
+
+    except Exception as e:
+        print(f"[chart error] {ticker}: {e}")
         return None
 
 
