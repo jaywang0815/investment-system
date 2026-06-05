@@ -190,7 +190,7 @@ def main():
 
     # ส่งให้ admin ทุกคน — 1 ข้อความรวม
     if admin_ids:
-        admin_msg = build_batch_alert_msg(admin_alerts, "管理員")
+        admin_msg = build_batch_alert_msg(admin_alerts, "Douu小幫手")
         for aid in admin_ids:
             push_line(aid, admin_msg)
             print(f"  Sent batch to admin ({aid[:8]}...)")
