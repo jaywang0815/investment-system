@@ -270,95 +270,111 @@ if not st.session_state.authenticated and not _google_logged_in:
 
     st.markdown("""
     <style>
-    .pin-container { text-align: center; padding: 2rem 0 1rem 0; }
-    .pin-title { font-size: 1.5rem; font-weight: 700; color: #1E3A8A; margin-bottom: 0.3rem; text-align: center; width: 100%; display: block; }
-    .pin-subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem; text-align: center; width: 100%; display: block; }
-    .pin-error { color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; text-align: center; width: 100%; display: block; }
-    .pin-dots { font-size: 2rem; letter-spacing: 0.8rem; margin: 1rem 0 1.5rem 0; color: #1E3A8A; text-align: center; width: 100%; display: block; }
+    /* ── PIN login: narrow & centered ───────────────── */
+    .main .block-container {
+        max-width: 300px !important;
+        padding: 2rem 1rem 1rem 1rem !important;
+        margin: 0 auto !important;
+    }
+    /* Force columns to stay horizontal on mobile */
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 8px !important;
+    }
+    [data-testid="column"] {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+    }
+    /* Circular PIN buttons — responsive size */
     div[data-testid="stButton"] > button {
         border-radius: 50% !important;
-        width: 72px !important; height: 72px !important;
-        font-size: 1.4rem !important; font-weight: 600 !important;
+        width: 100% !important;
+        aspect-ratio: 1 / 1 !important;
+        min-height: 58px !important;
+        font-size: clamp(1rem, 6vw, 1.4rem) !important;
+        font-weight: 600 !important;
         background: #f1f5f9 !important;
         border: 1px solid #e2e8f0 !important;
         color: #1e293b !important;
-        margin: 4px auto !important;
+        padding: 0 !important;
+        margin: 0 auto 6px auto !important;
         display: block !important;
     }
     div[data-testid="stButton"] > button:hover {
         background: #1E3A8A !important; color: white !important;
     }
+    .pin-title    { font-size:1.5rem; font-weight:700; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.2rem; }
+    .pin-subtitle { font-size:0.85rem; color:#64748b; text-align:center; display:block; margin-bottom:1.2rem; }
+    .pin-dots     { font-size:2rem; letter-spacing:0.8rem; margin:0.8rem 0 1rem 0; text-align:center; display:block; }
+    .pin-error    { color:#ef4444; font-size:0.85rem; margin-top:0.3rem; text-align:center; display:block; }
     </style>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        st.markdown('<div class="pin-container">', unsafe_allow_html=True)
-        st.markdown('<div class="pin-title">🏦 投資管理系統</div>', unsafe_allow_html=True)
-        st.markdown('<div class="pin-subtitle">輸入 PIN 碼解鎖</div>', unsafe_allow_html=True)
+    # Title & dots — no outer columns, centered by CSS max-width
+    st.markdown('<div class="pin-title">🏦 投資管理系統</div>', unsafe_allow_html=True)
+    st.markdown('<div class="pin-subtitle">輸入 PIN 碼解鎖</div>', unsafe_allow_html=True)
 
-        # แสดงจุด
-        dots = "●" * len(entered) + "○" * (pin_len - len(entered))
-        dot_color = "#ef4444" if st.session_state.pin_error else "#1E3A8A"
-        st.markdown(f'<div class="pin-dots" style="color:{dot_color}">{dots}</div>', unsafe_allow_html=True)
+    dots = "●" * len(entered) + "○" * (pin_len - len(entered))
+    dot_color = "#ef4444" if st.session_state.pin_error else "#1E3A8A"
+    st.markdown(f'<div class="pin-dots" style="color:{dot_color}">{dots}</div>', unsafe_allow_html=True)
 
-        if st.session_state.pin_error:
-            st.markdown('<div class="pin-error">❌ PIN ไม่ถูกต้อง</div>', unsafe_allow_html=True)
+    if st.session_state.pin_error:
+        st.markdown('<div class="pin-error">❌ PIN 不正確</div>', unsafe_allow_html=True)
 
-        # keyboard input
-        typed = st.text_input("PIN", value="", max_chars=pin_len,
-                              type="password", placeholder="輸入 PIN 後按 Enter",
-                              label_visibility="collapsed",
-                              key="pin_keyboard")
-        if typed:
-            st.session_state.pin_input = typed
-            if len(typed) == pin_len:
-                if typed == correct_pin:
-                    st.session_state.authenticated = True
-                    st.session_state.pin_input = ""
-                    st.session_state.pin_error = False
-                    _set_cookie()
-                    st.rerun()
-                else:
-                    st.session_state.pin_error = True
-                    st.session_state.pin_input = ""
-                    st.rerun()
+    # Keyboard input
+    typed = st.text_input("PIN", value="", max_chars=pin_len,
+                          type="password", placeholder="輸入 PIN 後按 Enter",
+                          label_visibility="collapsed",
+                          key="pin_keyboard")
+    if typed:
+        st.session_state.pin_input = typed
+        if len(typed) == pin_len:
+            if typed == correct_pin:
+                st.session_state.authenticated = True
+                st.session_state.pin_input = ""
+                st.session_state.pin_error = False
+                _set_cookie()
+                st.rerun()
+            else:
+                st.session_state.pin_error = True
+                st.session_state.pin_input = ""
+                st.rerun()
 
-        # ปุ่ม PIN pad
-        rows = [["1","2","3"], ["4","5","6"], ["7","8","9"], ["⌫","0","✓"]]
-        for row in rows:
-            c1, c2, c3 = st.columns(3)
-            for col_obj, num in zip([c1, c2, c3], row):
-                with col_obj:
-                    if st.button(num, key=f"pin_{num}", use_container_width=True):
-                        if num == "⌫":
-                            st.session_state.pin_input = entered[:-1]
+    # PIN button grid — 3 columns stay horizontal via CSS above
+    rows = [["1","2","3"], ["4","5","6"], ["7","8","9"], ["⌫","0","✓"]]
+    for row in rows:
+        c1, c2, c3 = st.columns(3)
+        for col_obj, num in zip([c1, c2, c3], row):
+            with col_obj:
+                if st.button(num, key=f"pin_{num}", use_container_width=True):
+                    if num == "⌫":
+                        st.session_state.pin_input = entered[:-1]
+                        st.session_state.pin_error = False
+                    elif num == "✓":
+                        if entered == correct_pin:
+                            st.session_state.authenticated = True
+                            st.session_state.pin_input = ""
                             st.session_state.pin_error = False
-                        elif num == "✓":
-                            if entered == correct_pin:
+                            _set_cookie()
+                        else:
+                            st.session_state.pin_error = True
+                            st.session_state.pin_input = ""
+                    else:
+                        new_pin = entered + num
+                        st.session_state.pin_input = new_pin
+                        st.session_state.pin_error = False
+                        if len(new_pin) == pin_len:
+                            if new_pin == correct_pin:
                                 st.session_state.authenticated = True
                                 st.session_state.pin_input = ""
-                                st.session_state.pin_error = False
                                 _set_cookie()
                             else:
                                 st.session_state.pin_error = True
                                 st.session_state.pin_input = ""
-                        else:
-                            new_pin = entered + num
-                            st.session_state.pin_input = new_pin
-                            st.session_state.pin_error = False
-                            # auto-submit เมื่อครบ
-                            if len(new_pin) == pin_len:
-                                if new_pin == correct_pin:
-                                    st.session_state.authenticated = True
-                                    st.session_state.pin_input = ""
-                                    _set_cookie()
-                                else:
-                                    st.session_state.pin_error = True
-                                    st.session_state.pin_input = ""
-                        st.rerun()
+                    st.rerun()
 
-        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 # ── 權限檢查 ──────────────────────────────────────────────────
