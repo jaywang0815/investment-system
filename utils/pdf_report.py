@@ -46,8 +46,8 @@ ORANGE     = colors.HexColor("#EA580C")
 WHITE      = colors.white
 
 def _style(name, **kw):
-    base = ParagraphStyle(name, fontName=FONT, **kw)
-    return base
+    kw.setdefault("fontName", FONT)
+    return ParagraphStyle(name, **kw)
 
 # ============================================================
 # 主函數: 產生客戶投資報表 PDF
