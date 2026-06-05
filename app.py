@@ -307,6 +307,20 @@ if _use_google_auth and _google_logged_in:
     except Exception:
         pass
 
+# ── ซ่อน 系統設定 สำหรับ non-admin ──────────────────────────────
+_ADMIN_EMAIL = "pmjatu1508@gmail.com"
+_is_admin = (
+    st.session_state.get("authenticated") or
+    (bool(_use_google_auth and _google_logged_in) and
+     getattr(getattr(st, "user", None), "email", "") == _ADMIN_EMAIL)
+)
+if not _is_admin:
+    st.markdown("""
+    <style>
+    [data-testid="stSidebarNav"] ul li:first-child { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
 # ── 側邊欄 ────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
