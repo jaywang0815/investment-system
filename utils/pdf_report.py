@@ -163,14 +163,16 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
         ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
         ("FONTSIZE", (0, 0), (-1, 0), 10),
-        ("FONTSIZE", (0, 1), (-1, -1), 16),
+        ("FONTSIZE", (0, 1), (-1, -1), 14),
         ("BACKGROUND", (0, 0), (-1, 0), BLUE_DARK),
         ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
         ("BACKGROUND", (0, 1), (-1, -1), BLUE_LIGHT),
         ("TEXTCOLOR", (0, 1), (-1, -1), BLUE_DARK),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ROWHEIGHT", (0, 1), (-1, -1), 18*mm),
+        ("ROWHEIGHT", (0, 1), (-1, -1), 14*mm),
+        ("TOPPADDING", (0, 1), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
         ("GRID", (0, 0), (-1, -1), 0.5, WHITE),
         ("ROUNDEDCORNERS", [3, 3, 3, 3]),
     ]))
@@ -192,12 +194,8 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
     # ── 頁尾 ────────────────────────────────────────────────
     story.append(HRFlowable(width="100%", thickness=1, color=GRAY, spaceAfter=4))
     story.append(Paragraph(
-        f"本報表由投資管理系統自動產生 · 報表日期: {report_date} · 資料來源: Yahoo Finance",
+        f"報表日期: {report_date}",
         _style("Footer", fontSize=8, textColor=GRAY, alignment=1)
-    ))
-    story.append(Paragraph(
-        "[!] 本報表僅供參考，不構成任何投資建議。實際損益以銀行確認為準。",
-        _style("Disclaimer", fontSize=8, textColor=ORANGE, alignment=1)
     ))
 
     doc.build(story)
