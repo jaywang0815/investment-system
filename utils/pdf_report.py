@@ -99,10 +99,19 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
 
     # ── 客戶資訊區 ──────────────────────────────────────────
     report_date = date.today().strftime("%Y 年 %m 月 %d 日")
+
+    def _fmt_usd(val):
+        try:
+            v = float(val)
+            import math
+            return "—" if math.isnan(v) or v == 0 else f"USD {v:,.0f}"
+        except (TypeError, ValueError):
+            return "—"
+
     info_data = [
         ["客戶姓名", customer.get("name", "—"), "報表日期", report_date],
-        ["美元總額度", f"USD {customer.get('usd_amount', 0):,.0f}" if customer.get('usd_amount') else "—",
-         "中信部位", f"USD {customer.get('ctbc_position', 0):,.0f}" if customer.get('ctbc_position') else "—"],
+        ["美元總額度", _fmt_usd(customer.get("usd_amount")),
+         "中信部位",  _fmt_usd(customer.get("ctbc_position"))],
     ]
     info_table = Table(info_data, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
     info_table.setStyle(TableStyle([
