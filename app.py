@@ -305,6 +305,25 @@ if not st.session_state.authenticated and not _google_logged_in:
         if st.session_state.pin_error:
             st.markdown('<div class="pin-error">❌ PIN ไม่ถูกต้อง</div>', unsafe_allow_html=True)
 
+        # keyboard input
+        typed = st.text_input("PIN", value="", max_chars=pin_len,
+                              type="password", placeholder="輸入 PIN 後按 Enter",
+                              label_visibility="collapsed",
+                              key="pin_keyboard")
+        if typed:
+            st.session_state.pin_input = typed
+            if len(typed) == pin_len:
+                if typed == correct_pin:
+                    st.session_state.authenticated = True
+                    st.session_state.pin_input = ""
+                    st.session_state.pin_error = False
+                    _set_cookie()
+                    st.rerun()
+                else:
+                    st.session_state.pin_error = True
+                    st.session_state.pin_input = ""
+                    st.rerun()
+
         # ปุ่ม PIN pad
         rows = [["1","2","3"], ["4","5","6"], ["7","8","9"], ["⌫","0","✓"]]
         for row in rows:
