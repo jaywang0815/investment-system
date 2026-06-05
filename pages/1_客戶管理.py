@@ -127,9 +127,9 @@ st.markdown("")
 
 # ── Filter customers ───────────────────────────────────────────
 if search:
-    mask = customers_df["name"].str.contains(search, case=False, na=False)
+    mask = customers_df["name"].str.contains(search, case=False, na=False, regex=False)
     if "notes" in customers_df.columns:
-        mask |= customers_df["notes"].str.contains(search, case=False, na=False)
+        mask |= customers_df["notes"].str.contains(search, case=False, na=False, regex=False)
     filtered_df = customers_df[mask]
     st.caption(f"搜尋「{search}」— 找到 {len(filtered_df)} 位客戶")
 else:
