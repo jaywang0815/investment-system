@@ -35,6 +35,138 @@ except Exception:
     DB_READY = False
     st.warning("⚠️ 資料庫未連線 — 仍可預覽資料，但無法匯入。請先完成「系統設定」。")
 
+def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip_duplicates: bool, force_month: str = None):
+    """執行匯入到 Supabase"""
+    from utils.database import get_supabase
+    sb = get_supabase()
+
+    total_customers = 0
+    total_sns = 0
+    total_investments = 0
+    errors = []
+
+    existing_customers = {}
+    try:
+        resp = sb.table("customers").select("id,name").execute()
+        existing_customers = {c["name"]: c["id"] for c in (resp.data or [])}
+    except Exception:
+        pass
+
+    progress = st.progress(0)
+    status = st.empty()
+
+    for file_idx, parsed in enumerate(parsed_list):
+        if import_customers:
+            customers = parsed.get("customers", [])
+            for cust in customers:
+                name = cust["name"]
+                if skip_duplicates and name in existing_customers:
+                    status.text(f"跳過重複客戶: {name}")
+                    continue
+                try:
+                    resp = sb.table("customers").insert(cust).execute()
+                    if resp.data:
+                        existing_customers[name] = resp.data[0]["id"]
+                        total_customers += 1
+                        status.text(f"✅ 新增客戶: {name}")
+                except Exception as e:
+                    errors.append(f"客戶 {name}: {e}")
+
+        if import_sns:
+            all_sns = []
+            for month_label, month_sns in parsed.get("sn_by_month", {}).items():
+                for sn in month_sns:
+                    if force_month:
+                        sn["month_label"] = force_month
+                    all_sns.append(sn)
+
+            total_sn_count = len(all_sns)
+            for sn_idx, sn in enumerate(all_sns):
+                progress.progress((sn_idx + 1) / max(total_sn_count, 1))
+                investments = sn.pop("investments", [])
+                code = sn["product_code"]
+
+                sn_id = None
+                if skip_duplicates:
+                    try:
+                        resp = sb.table("structured_notes").select("id").eq("product_code", code).execute()
+                        if resp.data:
+                            sn_id = resp.data[0]["id"]
+                            status.text(f"跳過重複商品: {code}")
+                    except Exception:
+                        pass
+
+                if sn_id is None:
+                    try:
+                        resp = sb.table("structured_notes").insert(sn).execute()
+                        if resp.data:
+                            sn_id = resp.data[0]["id"]
+                            total_sns += 1
+                            status.text(f"✅ 新增 SN: {code}")
+                    except Exception as e:
+                        errors.append(f"SN {code}: {e}")
+                        continue
+
+                if sn_id:
+                    for inv in investments:
+                        cname = inv["customer_name"]
+                        amount = inv["amount_usd"]
+                        customer_id = existing_customers.get(cname)
+                        if not customer_id:
+                            name_clean = cname.replace("*", "").replace("＊", "").strip()
+                            for k, v in existing_customers.items():
+                                k_clean = k.replace("*", "").replace("＊", "").strip()
+                                if name_clean in k_clean or k_clean in name_clean:
+                                    customer_id = v
+                                    break
+                        if not customer_id:
+                            try:
+                                resp = sb.table("customers").insert({"name": cname}).execute()
+                                if resp.data:
+                                    customer_id = resp.data[0]["id"]
+                                    existing_customers[cname] = customer_id
+                            except Exception:
+                                pass
+                        if customer_id:
+                            try:
+                                sb.table("investments").insert({
+                                    "customer_id": customer_id,
+                                    "sn_id": sn_id,
+                                    "amount_usd": amount
+                                }).execute()
+                                total_investments += 1
+                            except Exception as e:
+                                if "duplicate" not in str(e).lower():
+                                    errors.append(f"投資記錄 {cname}→{code}: {e}")
+
+    progress.progress(1.0)
+    status.empty()
+
+    st.markdown("---")
+    st.markdown("### 📊 匯入結果")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("新增客戶", f"{total_customers} 人")
+    with c2:
+        st.metric("新增 SN 商品", f"{total_sns} 筆")
+    with c3:
+        st.metric("新增投資記錄", f"{total_investments} 筆")
+    with c4:
+        st.metric("錯誤", f"{len(errors)} 個")
+
+    if errors:
+        with st.expander(f"⚠️ {len(errors)} 個錯誤"):
+            for e in errors:
+                st.text(f"• {e}")
+    else:
+        st.success("✅ 匯入完成，無錯誤！")
+        st.balloons()
+
+    st.session_state.pop("parsed_data", None)
+    st.session_state.pop("parsed_data_list", None)
+    st.session_state.pop("use_existing", None)
+
+
 tab1, tab2 = st.tabs(["📁 上傳並匯入", "📋 月份管理"])
 
 # ═══════════════════════════════════════════════════════════════
@@ -207,155 +339,6 @@ with tab1:
         else:
             if st.button("🚀 確認匯入", type="primary", use_container_width=True):
                 _do_import(parsed_list, import_customers, import_sns, skip_duplicates, force_month)
-
-
-def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip_duplicates: bool, force_month: str = None):
-    """執行匯入到 Supabase"""
-    from utils.database import get_supabase
-    sb = get_supabase()
-
-    total_customers = 0
-    total_sns = 0
-    total_investments = 0
-    errors = []
-
-    # 取得現有的客戶名單 (用來比對重複)
-    existing_customers = {}
-    try:
-        resp = sb.table("customers").select("id,name").execute()
-        existing_customers = {c["name"]: c["id"] for c in (resp.data or [])}
-    except Exception:
-        pass
-
-    progress = st.progress(0)
-    status = st.empty()
-
-    for file_idx, parsed in enumerate(parsed_list):
-        filename = parsed.get("_filename", "")
-
-        # ── 匯入客戶 ────────────────────────────────────────
-        if import_customers:
-            customers = parsed.get("customers", [])
-            for cust in customers:
-                name = cust["name"]
-                if skip_duplicates and name in existing_customers:
-                    status.text(f"跳過重複客戶: {name}")
-                    continue
-                try:
-                    resp = sb.table("customers").insert(cust).execute()
-                    if resp.data:
-                        existing_customers[name] = resp.data[0]["id"]
-                        total_customers += 1
-                        status.text(f"✅ 新增客戶: {name}")
-                except Exception as e:
-                    errors.append(f"客戶 {name}: {e}")
-
-        # ── 匯入 SN 商品 ─────────────────────────────────────
-        if import_sns:
-            all_sns = []
-            for month_label, month_sns in parsed.get("sn_by_month", {}).items():
-                for sn in month_sns:
-                    if force_month:
-                        sn["month_label"] = force_month
-                    all_sns.append(sn)
-
-            total_sn_count = len(all_sns)
-            for sn_idx, sn in enumerate(all_sns):
-                progress.progress((sn_idx + 1) / max(total_sn_count, 1))
-
-                investments = sn.pop("investments", [])
-                code = sn["product_code"]
-
-                # 檢查是否已存在
-                sn_id = None
-                if skip_duplicates:
-                    try:
-                        resp = sb.table("structured_notes").select("id").eq("product_code", code).execute()
-                        if resp.data:
-                            sn_id = resp.data[0]["id"]
-                            status.text(f"跳過重複商品: {code}")
-                    except Exception:
-                        pass
-
-                if sn_id is None:
-                    try:
-                        resp = sb.table("structured_notes").insert(sn).execute()
-                        if resp.data:
-                            sn_id = resp.data[0]["id"]
-                            total_sns += 1
-                            status.text(f"✅ 新增 SN: {code}")
-                    except Exception as e:
-                        errors.append(f"SN {code}: {e}")
-                        continue
-
-                # 匯入投資記錄
-                if sn_id:
-                    for inv in investments:
-                        cname = inv["customer_name"]
-                        amount = inv["amount_usd"]
-
-                        # 找客戶 ID
-                        customer_id = existing_customers.get(cname)
-                        if not customer_id:
-                            # 模糊比對 (去掉 * ＊)
-                            name_clean = cname.replace("*", "").replace("＊", "").strip()
-                            for k, v in existing_customers.items():
-                                k_clean = k.replace("*", "").replace("＊", "").strip()
-                                if name_clean in k_clean or k_clean in name_clean:
-                                    customer_id = v
-                                    break
-
-                        if not customer_id:
-                            # 自動建立客戶
-                            try:
-                                resp = sb.table("customers").insert({"name": cname}).execute()
-                                if resp.data:
-                                    customer_id = resp.data[0]["id"]
-                                    existing_customers[cname] = customer_id
-                            except Exception:
-                                pass
-
-                        if customer_id:
-                            try:
-                                sb.table("investments").insert({
-                                    "customer_id": customer_id,
-                                    "sn_id": sn_id,
-                                    "amount_usd": amount
-                                }).execute()
-                                total_investments += 1
-                            except Exception as e:
-                                if "duplicate" not in str(e).lower():
-                                    errors.append(f"投資記錄 {cname}→{code}: {e}")
-
-    progress.progress(1.0)
-    status.empty()
-
-    # ── 結果顯示 ───────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📊 匯入結果")
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("新增客戶", f"{total_customers} 人")
-    with c2:
-        st.metric("新增 SN 商品", f"{total_sns} 筆")
-    with c3:
-        st.metric("新增投資記錄", f"{total_investments} 筆")
-    with c4:
-        st.metric("錯誤", f"{len(errors)} 個")
-
-    if errors:
-        with st.expander(f"⚠️ {len(errors)} 個錯誤"):
-            for e in errors:
-                st.text(f"• {e}")
-    else:
-        st.success("✅ 匯入完成，無錯誤！")
-        st.balloons()
-
-    # 清除快取
-    st.session_state.pop("parsed_data", None)
-    st.session_state.pop("parsed_data_list", None)
-    st.session_state.pop("use_existing", None)
 
 
 # ═══════════════════════════════════════════════════════════════
