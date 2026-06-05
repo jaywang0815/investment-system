@@ -201,33 +201,29 @@ st.markdown("""
 }
 </style>
 <a href="/系統設定" target="_self" class="gear-fab" title="系統設定">⚙️</a>
+<style>
+/* ซ่อนด้วย CSS สำหรับ browser รองรับ :has() */
+li:has([data-testid="stSidebarNavLink"][href*="%E8%A8%AD%E5%AE%9A"]),
+li:has([data-testid="stSidebarNavLink"][href*="設定"]) {
+    display: none !important;
+}
+</style>
 <script>
-(function hideSetting() {
-    function tryHide() {
-        // ลอง selector หลายแบบ
-        const selectors = [
-            '[data-testid="stSidebarNav"] a[href*="%E8%A8%AD%E5%AE%9A"]',
-            '[data-testid="stSidebarNav"] a[href*="0_"]',
-            '[data-testid="stSidebarNavItems"] a[href*="%E8%A8%AD%E5%AE%9A"]',
-            '[data-testid="stSidebarNavItems"] li:first-child',
-            '[data-testid="stSidebarNav"] li:first-child',
-        ];
-        let found = false;
-        for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el) {
-                const li = el.closest('li') || el;
-                li.style.display = 'none';
-                found = true;
+(function() {
+    function hide() {
+        const links = document.querySelectorAll('[data-testid="stSidebarNavLink"]');
+        let done = false;
+        links.forEach(function(a) {
+            if (a.href && (a.href.includes('設定') || a.href.includes('%E8%A8%AD%E5%AE%9A') || a.href.includes('%E7%B3%BB%E7%B5%B1'))) {
+                const li = a.closest('li');
+                if (li) { li.style.display = 'none'; done = true; }
             }
-        }
-        if (!found) setTimeout(tryHide, 300);
+        });
+        if (!done) setTimeout(hide, 200);
     }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', tryHide);
-    } else {
-        tryHide();
-    }
+    document.readyState === 'loading'
+        ? document.addEventListener('DOMContentLoaded', hide)
+        : hide();
 })();
 </script>
 """, unsafe_allow_html=True)
