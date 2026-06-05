@@ -195,9 +195,14 @@ with col_line1:
         else:
             stats = get_dashboard_stats()
             upcoming = upcoming_df.to_dict("records") if not upcoming_df.empty else []
+            sns_with_customers = []
+            for a in analyzed:
+                invs = get_investments_by_sn(a["sn"]["id"])
+                names = "、".join([i.get("customers", {}).get("name", "") for i in invs if i.get("customers")])
+                sns_with_customers.append({**a["sn"], **a["analysis"], "customer_names": names})
             report = build_daily_report(
                 stats=stats,
-                sns_with_status=[{**a["sn"], **a["analysis"]} for a in analyzed],
+                sns_with_status=sns_with_customers,
                 upcoming_obs=upcoming
             )
             if send_line_notify(report):

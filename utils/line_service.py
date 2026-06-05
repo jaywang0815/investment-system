@@ -56,18 +56,20 @@ def build_daily_report(stats: dict, sns_with_status: list, upcoming_obs: list) -
 
     if alerts:
         lines.append(f"\n⚠️ 今日警示 ({len(alerts)} 筆)")
-        for a in alerts[:5]:  # 最多顯示 5 筆
-            sn = a.get("sn", {})
-            code = sn.get("product_code", "—")
-            tickers = " ".join([
-                sn.get(f"underlying_{i}")
+        for a in alerts[:5]:
+            code = a.get("product_code", "—")
+            tickers = " / ".join([
+                a.get(f"underlying_{i}")
                 for i in range(1, 6)
-                if isinstance(sn.get(f"underlying_{i}"), str)
+                if isinstance(a.get(f"underlying_{i}"), str)
             ])
             emoji = a.get("status_emoji", "⚠️")
             label = a.get("status_label", "")
+            customers = a.get("customer_names", "")
             lines.append(f"  {emoji} {code} ({tickers})")
             lines.append(f"     → {label}")
+            if customers:
+                lines.append(f"     👤 {customers}")
     else:
         lines.append(f"\n✅ 今日無警示")
 
