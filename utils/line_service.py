@@ -14,21 +14,13 @@ from typing import Optional
 # ============================================================
 
 def send_line_notify(message: str, token: Optional[str] = None) -> bool:
-    """傳送訊息到 LINE Notify"""
-    if token is None:
-        try:
-            token = st.secrets["LINE_NOTIFY_TOKEN"]
-        except Exception:
-            return False
-
+    """ส่งข้อความหา Admin ผ่าน LINE Bot (แทน LINE Notify ที่ปิดแล้ว)"""
     try:
-        resp = requests.post(
-            "https://notify-api.line.me/api/notify",
-            headers={"Authorization": f"Bearer {token}"},
-            data={"message": message},
-            timeout=10
-        )
-        return resp.status_code == 200
+        access_token = st.secrets.get("LINE_CHANNEL_ACCESS_TOKEN")
+        user_id = st.secrets.get("LINE_ADMIN_USER_ID")
+        if not access_token or not user_id:
+            return False
+        return push_line_message(user_id, [{"type": "text", "text": message}], access_token)
     except Exception:
         return False
 
