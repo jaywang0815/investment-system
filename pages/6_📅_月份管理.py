@@ -124,7 +124,7 @@ else:
     month_sns = pd.DataFrame()
 
 # 標題列
-col_title, col_btn = st.columns([4, 1])
+col_title, col_btn, col_del_all = st.columns([4, 1, 1])
 with col_title:
     st.markdown(f"## {selected} SN 商品")
     if not month_sns.empty:
@@ -132,6 +132,26 @@ with col_title:
 with col_btn:
     if st.button("➕ 新增 SN 商品", type="primary", use_container_width=True):
         st.session_state.show_add_sn = not st.session_state.show_add_sn
+with col_del_all:
+    if not month_sns.empty:
+        if st.button("🗑️ 刪除整月", type="secondary", use_container_width=True):
+            st.session_state[f"confirm_del_month_{selected}"] = True
+
+if st.session_state.get(f"confirm_del_month_{selected}"):
+    st.warning(f"⚠️ 確定刪除 **{selected}** 全部 {len(month_sns)} 筆 SN 商品？此動作不可復原！")
+    dc1, dc2 = st.columns(2)
+    with dc1:
+        if st.button("✅ 確認刪除整月", type="primary", use_container_width=True):
+            for sn_id in month_sns["id"].tolist():
+                delete_sn(sn_id)
+            st.session_state.pop(f"confirm_del_month_{selected}", None)
+            st.session_state.selected_month = None
+            st.success(f"✅ 已刪除 {selected} 全部資料")
+            st.rerun()
+    with dc2:
+        if st.button("❌ 取消", use_container_width=True):
+            st.session_state.pop(f"confirm_del_month_{selected}", None)
+            st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # 新增 SN 表單 (內嵌)
