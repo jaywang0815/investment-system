@@ -126,7 +126,7 @@ def _check_stock(ticker: str) -> str:
         sns = get_sns("active")
         related = []
         for s in sns:
-            for i in range(1, 4):
+            for i in range(1, 6):
                 if (s.get(f"underlying_{i}") or "").upper() == ticker:
                     init = s.get(f"initial_price_{i}")
                     ko = s.get("ko_barrier")
@@ -245,7 +245,7 @@ def handle_command(text: str, user_id: str = "") -> str:
         found = 0
 
         for s in sns[:10]:  # 限制最多10筆避免逾時
-            tickers = [s.get(f"underlying_{i}") for i in range(1, 4) if s.get(f"underlying_{i}")]
+            tickers = [s.get(f"underlying_{i}") for i in range(1, 6) if s.get(f"underlying_{i}")]
             ko = s.get("ko_barrier")
             ki = s.get("ki_barrier")
 
@@ -316,17 +316,19 @@ def handle_command(text: str, user_id: str = "") -> str:
             coupon = sn.get("coupon_pct")
             coupon_str = f" 配息{coupon*100:.1f}%" if coupon else ""
 
-            # 取得最差標的現價
+            # 取得最差標的現價 (所有標的都比較)
             worst_str = ""
-            for i in range(1, 4):
+            worst_perf = None
+            for i in range(1, 6):
                 ticker = sn.get(f"underlying_{i}")
                 init = sn.get(f"initial_price_{i}")
-                if ticker and init:
+                if ticker and init and init > 0:
                     price = get_stock_price(ticker)
-                    if price and init > 0:
+                    if price:
                         perf = price / init * 100
-                        worst_str = f" ({ticker} {perf:.1f}%)"
-                        break
+                        if worst_perf is None or perf < worst_perf:
+                            worst_perf = perf
+                            worst_str = f" ({ticker} {perf:.1f}%)"
 
             lines.append(f"📌 {code}")
             lines.append(f"   標的: {tstr}")
