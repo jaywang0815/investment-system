@@ -63,10 +63,15 @@ def get_customer_investments(customer_id: str) -> list:
     })
 
 
+def _clean_ticker(t: str) -> str:
+    import unicodedata
+    return unicodedata.normalize("NFKC", t).lstrip("$").strip().upper()
+
+
 def get_stock_price(ticker: str) -> Optional[float]:
     try:
         import yfinance as yf
-        ticker = ticker.lstrip("$").strip().upper()
+        ticker = _clean_ticker(ticker)
         stock = yf.Ticker(ticker)
         price = stock.fast_info.last_price
         return round(float(price), 2) if price else None
@@ -164,7 +169,7 @@ def _generate_chart(ticker: str) -> bytes:
 
 # ── 查詢股票現價 ───────────────────────────────────────────────
 def _check_stock(ticker: str) -> tuple[str, str]:
-    ticker = ticker.lstrip("$").strip().upper()
+    ticker = _clean_ticker(ticker)
     tv_url = f"https://www.tradingview.com/symbols/{ticker}/"
 
     try:

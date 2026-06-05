@@ -3,6 +3,7 @@ PPT export — generates a presentation with one chart slide per ticker.
 """
 import io
 import math
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -25,6 +26,11 @@ _WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 _GRAY  = RGBColor(0x64, 0x74, 0x8B)
 _GREEN = RGBColor(0x16, 0xA3, 0x4A)
 _RED   = RGBColor(0xDC, 0x26, 0x26)
+
+
+def _clean_ticker(t: str) -> str:
+    """Normalize full-width chars (ＡＮＥＴ→ANET), strip $, uppercase."""
+    return unicodedata.normalize("NFKC", t).lstrip("$").strip().upper()
 
 
 def _is_valid(val) -> bool:
@@ -289,10 +295,57 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
         return None
 
 
+# ── last-resort: simple line chart ───────────────────────────────
+def _chart_simple(ohlcv, ticker) -> bytes | None:
+    try:
+        close = ohlcv["Close"].astype(float)
+        dates = ohlcv.index
+        n     = len(dates)
+        xs    = list(range(n))
+
+        last  = float(close.iloc[-1])
+        prev  = float(close.iloc[-2]) if n > 1 else last
+        chg_p = (last - prev) / prev * 100 if prev != 0 else 0
+        sign  = "+" if chg_p >= 0 else ""
+        color = "#26a69a" if chg_p >= 0 else "#ef5350"
+
+        fig, ax = plt.subplots(figsize=(14, 6), facecolor="white")
+        ax.set_facecolor("white")
+        ax.plot(xs, close.values, color=color, linewidth=2)
+        ax.fill_between(xs, close.values, close.min() * 0.995,
+                        alpha=0.1, color=color)
+        ax.set_title(
+            f"{ticker}   ${last:,.2f}   {sign}{chg_p:.2f}%",
+            fontsize=13, color="#1E3A8A", fontweight="bold",
+        )
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.grid(axis="y", color="#E2E8F0", linewidth=0.7, linestyle="--")
+        ax.tick_params(colors="#64748B", labelsize=8)
+        ax.yaxis.tick_right()
+        tick_step = max(1, n // 8)
+        tick_pos  = list(range(0, n, tick_step))
+        ax.set_xticks(tick_pos)
+        ax.set_xticklabels(
+            [dates[i].strftime("%m/%d") for i in tick_pos],
+            rotation=0, fontsize=8, color="#64748B",
+        )
+        plt.tight_layout(pad=0.8)
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=150,
+                    bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        print(f"[simple chart error] {ticker}: {e}")
+        return None
+
+
 def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
     try:
         import yfinance as yf
-        ticker = ticker.lstrip("$").strip().upper()
+        ticker = _clean_ticker(ticker)
         hist = yf.Ticker(ticker).history(period=period)
         if hist.empty or len(hist) < 10:
             print(f"[chart] {ticker}: not enough data ({len(hist)} rows)")
@@ -308,13 +361,16 @@ def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
         ohlcv = hist[["Open", "High", "Low", "Close", "Volume"]].copy()
         ohlcv["Volume"] = ohlcv["Volume"].fillna(0)
 
-        # Try mplfinance first; fall back to pure matplotlib
+        # Try mplfinance → matplotlib candlestick → simple line (last resort)
         result = _chart_mplfinance(ohlcv, ticker)
         if result is None:
-            print(f"[chart] {ticker}: mplfinance failed, trying matplotlib fallback")
+            print(f"[chart] {ticker}: mplfinance failed, trying matplotlib")
             result = _chart_matplotlib(ohlcv, ticker)
         if result is None:
-            print(f"[chart] {ticker}: both chart methods failed")
+            print(f"[chart] {ticker}: matplotlib failed, trying simple line")
+            result = _chart_simple(ohlcv, ticker)
+        if result is None:
+            print(f"[chart] {ticker}: all chart methods failed")
         return result
     except Exception as e:
         print(f"[chart error] {ticker}: {type(e).__name__}: {e}")

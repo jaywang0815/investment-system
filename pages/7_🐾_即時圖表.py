@@ -1,9 +1,14 @@
 """
 即時圖表 - TradingView 嵌入
 """
+import unicodedata
 import streamlit as st
 import streamlit.components.v1 as components
 from utils.database import get_all_sns
+
+
+def _clean(t: str) -> str:
+    return unicodedata.normalize("NFKC", t).lstrip("$").strip().upper()
 
 st.set_page_config(page_title="即時圖表", page_icon="📈", layout="wide")
 
@@ -40,7 +45,7 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
             for i in range(1, 6):
                 t = row.get(f"underlying_{i}")
                 if t and isinstance(t, str):
-                    t = t.lstrip("$").strip().upper()
+                    t = _clean(t)
                     if t not in _all_tickers:
                         _all_tickers.append(t)
                     if t not in _sn_info:
@@ -97,8 +102,8 @@ if not sns_df.empty:
         col = f"underlying_{i}"
         if col in sns_df.columns:
             vals = sns_df[col].dropna().tolist()
-            tickers_from_sn += [v.lstrip("$").strip().upper()
-                    for v in vals if isinstance(v, str) and v.strip()]
+            tickers_from_sn += [_clean(v) for v in vals
+                    if isinstance(v, str) and v.strip()]
 tickers_from_sn = sorted(set(tickers_from_sn))
 
 st.markdown("---")
