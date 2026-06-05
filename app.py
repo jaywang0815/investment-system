@@ -68,9 +68,46 @@ _use_google_auth = bool(
 _admin_password_hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
 _admin_password_plain = st.secrets.get("ADMIN_PASSWORD", "")
 
+# ── Cookie 管理 (記住登入狀態 7 天) ──────────────────────────
+try:
+    import extra_streamlit_components as stx
+    _cm = stx.CookieManager(key="__inv_cm")
+    _COOKIE_NAME = "inv_auth"
+    _COOKIE_SECRET = st.secrets.get("COOKIE_SECRET", "inv2024secret")
+
+    def _cookie_token():
+        src = f"{_admin_password_plain or _admin_password_hash}:{_COOKIE_SECRET}"
+        return hashlib.sha256(src.encode()).hexdigest()[:24]
+
+    def _set_cookie():
+        _cm.set(_COOKIE_NAME, _cookie_token(), max_age=7 * 24 * 3600)
+
+    def _del_cookie():
+        try:
+            _cm.delete(_COOKIE_NAME)
+        except Exception:
+            pass
+
+    def _cookie_ok():
+        try:
+            return _cm.get(_COOKIE_NAME) == _cookie_token()
+        except Exception:
+            return False
+
+    _cookie_available = True
+except Exception:
+    _cookie_available = False
+    def _set_cookie(): pass
+    def _del_cookie(): pass
+    def _cookie_ok(): return False
+
 # session 登入狀態
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
+# ถ้า cookie ยังดี → ข้ามหน้า login ไปเลย
+if _cookie_available and not st.session_state.authenticated and _cookie_ok():
+    st.session_state.authenticated = True
 
 # 已登入 → 繼續
 _google_logged_in = False
@@ -89,28 +126,25 @@ if not st.session_state.authenticated and not _google_logged_in:
         st.markdown("---")
 
         if _use_google_auth:
-            # Gmail 登入模式
             st.info("請使用授權的 Gmail 帳號登入")
             if st.button("🔐 使用 Gmail 登入", use_container_width=True, type="primary"):
                 st.login("google")
         else:
-            # 密碼登入模式 (預設)
             st.info("請輸入管理員密碼")
             pw_input = st.text_input("密碼", type="password", placeholder="輸入密碼後按 Enter")
             if st.button("🔑 登入", use_container_width=True, type="primary") or pw_input:
                 if pw_input:
-                    # 比對密碼 (支援明文或 hash)
                     correct = False
                     if _admin_password_plain and pw_input == _admin_password_plain:
                         correct = True
                     elif _admin_password_hash and _check_password(pw_input, _admin_password_hash):
                         correct = True
                     elif not _admin_password_plain and not _admin_password_hash:
-                        # 尚未設定密碼 → 直接進入 (首次使用)
                         correct = True
 
                     if correct:
                         st.session_state.authenticated = True
+                        _set_cookie()
                         st.rerun()
                     else:
                         st.error("❌ 密碼錯誤")
@@ -146,6 +180,7 @@ with st.sidebar:
         st.markdown("👤 **管理員**")
         if st.button("🚪 登出", use_container_width=True):
             st.session_state.authenticated = False
+            _del_cookie()
             st.rerun()
     st.markdown("---")
 
