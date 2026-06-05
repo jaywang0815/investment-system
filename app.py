@@ -271,10 +271,10 @@ if not st.session_state.authenticated and not _google_logged_in:
     st.markdown("""
     <style>
     .pin-container { text-align: center; padding: 2rem 0 1rem 0; }
-    .pin-title { font-size: 1.5rem; font-weight: 700; color: #1E3A8A; margin-bottom: 0.3rem; }
-    .pin-subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem; }
+    .pin-title { font-size: 1.5rem; font-weight: 700; color: #1E3A8A; margin-bottom: 0.3rem; text-align: center; width: 100%; display: block; }
+    .pin-subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem; text-align: center; width: 100%; display: block; }
+    .pin-error { color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; text-align: center; width: 100%; display: block; }
     .pin-dots { font-size: 2rem; letter-spacing: 0.8rem; margin: 1rem 0 1.5rem 0; color: #1E3A8A; text-align: center; width: 100%; display: block; }
-    .pin-error { color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; }
     div[data-testid="stButton"] > button {
         border-radius: 50% !important;
         width: 72px !important; height: 72px !important;
