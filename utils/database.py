@@ -176,3 +176,21 @@ def save_alert(sn_id: str, alert_type: str, message: str) -> None:
         }).execute()
     except:
         pass
+
+def get_setting(key: str, default: str = "") -> str:
+    try:
+        sb = get_supabase()
+        res = sb.table("app_settings").select("value").eq("key", key).execute()
+        if res.data:
+            return res.data[0]["value"]
+    except Exception:
+        pass
+    return default
+
+def upsert_setting(key: str, value: str) -> bool:
+    try:
+        sb = get_supabase()
+        sb.table("app_settings").upsert({"key": key, "value": value}, on_conflict="key").execute()
+        return True
+    except Exception:
+        return False

@@ -112,6 +112,29 @@ with c4:
 
 st.markdown("---")
 
+# ── 顯示名稱 ──────────────────────────────────────────────────
+st.subheader("✏️ 顯示名稱")
+try:
+    from utils.database import get_setting, upsert_setting
+    _cur_name = get_setting("admin_name", "Douu小幫手")
+    _col_name, _col_btn = st.columns([3, 1])
+    with _col_name:
+        _new_name = st.text_input("管理員名稱", value=_cur_name,
+                                  label_visibility="collapsed",
+                                  placeholder="例: Douu小幫手")
+    with _col_btn:
+        if st.button("💾 儲存", type="primary"):
+            if _new_name.strip() and upsert_setting("admin_name", _new_name.strip()):
+                st.session_state["admin_name"] = _new_name.strip()
+                st.success("✅ 已更新")
+                st.rerun()
+            else:
+                st.error("儲存失敗")
+except Exception:
+    st.info("需要先設定 Supabase 連線")
+
+st.markdown("---")
+
 # ── 設定表單 ──────────────────────────────────────────────────
 st.subheader("🔧 填寫設定")
 

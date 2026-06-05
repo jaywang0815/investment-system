@@ -118,5 +118,14 @@ CREATE TABLE IF NOT EXISTS admins (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- App settings (key-value store)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
+INSERT INTO app_settings (key, value)
+VALUES ('admin_name', 'Douu小幫手')
+ON CONFLICT (key) DO NOTHING;
+
 -- 完成！
 SELECT 'Database schema created successfully' AS result;

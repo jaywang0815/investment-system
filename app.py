@@ -467,7 +467,7 @@ with st.sidebar:
         if st.button("登出", use_container_width=True):
             st.logout()
     else:
-        st.markdown("👤 &nbsp;**管理員**")
+        st.markdown(f"👤 &nbsp;**{st.session_state.get('admin_name', 'Douu小幫手')}**")
         if st.button("登出", use_container_width=True):
             st.session_state.authenticated = False
             _del_cookie()
@@ -625,6 +625,14 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 # ── Hero Banner ────────────────────────────────────────────────
+if "admin_name" not in st.session_state:
+    try:
+        from utils.database import get_setting
+        st.session_state["admin_name"] = get_setting("admin_name", "Douu小幫手")
+    except Exception:
+        st.session_state["admin_name"] = "Douu小幫手"
+_admin_name = st.session_state["admin_name"]
+
 _now = datetime.now()
 _wd = ["一","二","三","四","五","六","日"][_now.weekday()]
 _date_str = _now.strftime(f"%Y年%m月%d日 · 週{_wd}")
@@ -633,7 +641,7 @@ _time_str = _now.strftime("%H:%M")
 st.markdown(f"""
 <div class="hero-banner">
   <div>
-    <div class="hero-greeting">Hello, 管理員 👋</div>
+    <div class="hero-greeting">Hello, {_admin_name} 👋</div>
     <div class="hero-sub">DOUU WORK &nbsp;·&nbsp; 結構型商品管理平台</div>
   </div>
   <div class="hero-right">
