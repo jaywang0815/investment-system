@@ -226,8 +226,12 @@ def handle_command(text: str, user_id: str = "") -> str:
             for s in upcoming[:5]:
                 obs = s["observation_date"][:10]
                 code = s.get("product_code", "—")
-                t1 = s.get("underlying_1", "")
-                lines.append(f"  📌 {obs} | {code} ({t1})")
+                tstr = "/".join(
+                    s.get(f"underlying_{i}", "")
+                    for i in range(1, 6)
+                    if s.get(f"underlying_{i}")
+                )
+                lines.append(f"  📌 {obs} | {code} ({tstr})")
         else:
             lines.append("  近期無比價日")
 
@@ -302,9 +306,11 @@ def handle_command(text: str, user_id: str = "") -> str:
             if not sn:
                 continue
             code = sn.get("product_code", "—")
-            t1 = sn.get("underlying_1", "")
-            t2 = sn.get("underlying_2", "")
-            tstr = f"{t1}/{t2}" if t2 else t1
+            tstr = "/".join(
+                sn.get(f"underlying_{i}", "")
+                for i in range(1, 6)
+                if sn.get(f"underlying_{i}")
+            )
             obs = str(sn.get("observation_date", ""))[:10]
             amount = inv.get("amount_usd", 0) or 0
             coupon = sn.get("coupon_pct")
