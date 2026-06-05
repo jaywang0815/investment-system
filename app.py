@@ -210,20 +210,21 @@ li:has([data-testid="stSidebarNavLink"][href*="設定"]) {
 </style>
 <script>
 (function() {
-    function hide() {
-        const links = document.querySelectorAll('[data-testid="stSidebarNavLink"]');
-        let done = false;
-        links.forEach(function(a) {
+    function hideSettingsNav() {
+        document.querySelectorAll('[data-testid="stSidebarNavLink"]').forEach(function(a) {
             if (a.href && (a.href.includes('設定') || a.href.includes('%E8%A8%AD%E5%AE%9A') || a.href.includes('%E7%B3%BB%E7%B5%B1'))) {
                 const li = a.closest('li');
-                if (li) { li.style.display = 'none'; done = true; }
+                if (li) li.style.setProperty('display', 'none', 'important');
             }
         });
-        if (!done) setTimeout(hide, 200);
     }
-    document.readyState === 'loading'
-        ? document.addEventListener('DOMContentLoaded', hide)
-        : hide();
+    // รันครั้งแรก
+    hideSettingsNav();
+    // MutationObserver — ซ่อนใหม่ทุกครั้งที่ Streamlit re-render sidebar
+    new MutationObserver(hideSettingsNav).observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 })();
 </script>
 """, unsafe_allow_html=True)
