@@ -221,7 +221,7 @@ try:
         return hashlib.sha256(src.encode()).hexdigest()[:24]
 
     def _set_cookie():
-        _cm.set(_COOKIE_NAME, _cookie_token(), max_age=7 * 24 * 3600)
+        _cm.set(_COOKIE_NAME, _cookie_token(), max_age=30 * 24 * 3600)
 
     def _del_cookie():
         try:
