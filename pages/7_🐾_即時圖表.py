@@ -26,40 +26,54 @@ st.caption("資料來源: TradingView · 即時報價")
 
 # ── PPT Export ───────────────────────────────────────────────────
 with st.expander("📥 匯出 PowerPoint 簡報"):
-    st.caption("每個標的一張投影片，含 3 個月走勢圖")
-    if st.button("🐾 產生 PPT", type="primary"):
-        from utils.database import get_all_sns
-        from utils.ppt_export import build_ppt
+    from utils.ppt_export import build_ppt
 
-        sns_df2 = get_all_sns(status="active")
-        exp_tickers = []
-        sn_info = {}
-        if not sns_df2.empty:
-            for _, row in sns_df2.iterrows():
-                ko = row.get("ko_barrier")
-                ki = row.get("ki_barrier")
-                code = row.get("product_code", "")
-                for i in range(1, 6):
-                    t = row.get(f"underlying_{i}")
-                    if t and isinstance(t, str):
-                        if t not in exp_tickers:
-                            exp_tickers.append(t)
-                        if t not in sn_info:
-                            sn_info[t] = {"ko": ko, "ki": ki, "product_code": code}
+    # Build ticker → sn_info map
+    _sns_df = get_all_sns(status="active")
+    _all_tickers = []
+    _sn_info = {}
+    if not _sns_df.empty:
+        for _, row in _sns_df.iterrows():
+            ko = row.get("ko_barrier")
+            ki = row.get("ki_barrier")
+            code = row.get("product_code", "")
+            for i in range(1, 6):
+                t = row.get(f"underlying_{i}")
+                if t and isinstance(t, str):
+                    if t not in _all_tickers:
+                        _all_tickers.append(t)
+                    if t not in _sn_info:
+                        _sn_info[t] = {"ko": ko, "ki": ki, "product_code": code}
 
-        if not exp_tickers:
-            st.warning("目前無持倉標的")
-        else:
-            with st.spinner(f"正在產生 {len(exp_tickers)} 個標的圖表，請稍候..."):
-                ppt_bytes = build_ppt(sorted(exp_tickers), sn_info)
+    if not _all_tickers:
+        st.warning("目前無持倉標的")
+    else:
+        selected_tickers = st.multiselect(
+            "選擇要匯出的標的",
+            options=sorted(_all_tickers),
+            default=sorted(_all_tickers),
+            placeholder="選擇標的...",
+        )
+
+        col_a, col_b = st.columns([2, 3])
+        with col_a:
+            if st.button("🐾 產生 PPT", type="primary",
+                         disabled=not selected_tickers):
+                with st.spinner(f"正在產生 {len(selected_tickers)} 個標的圖表..."):
+                    ppt_bytes = build_ppt(selected_tickers, _sn_info)
+                st.session_state["ppt_bytes"] = ppt_bytes
+                st.session_state["ppt_count"] = len(selected_tickers)
+
+        if st.session_state.get("ppt_bytes"):
             fname = f"DOUU_WORK_{__import__('datetime').date.today().strftime('%Y%m%d')}.pptx"
-            st.download_button(
-                label="⬇️ 下載 PPT",
-                data=ppt_bytes,
-                file_name=fname,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                type="primary",
-            )
+            with col_b:
+                st.download_button(
+                    label=f"⬇️ 下載 PPT ({st.session_state['ppt_count']} 張投影片)",
+                    data=st.session_state["ppt_bytes"],
+                    file_name=fname,
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    type="primary",
+                )
 
 # ── 從 SN 自動抓出所有標的股票 ──────────────────────────────
 sns_df = get_all_sns(status="active")
