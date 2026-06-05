@@ -323,7 +323,7 @@ else:
         for i in range(1, 6):
             t = sn.get(f"underlying_{i}")
             ip = sn.get(f"initial_price_{i}")
-            if t:
+            if t and isinstance(t, str):
                 curr = prices.get(t.upper())
                 if curr and ip and ip > 0:
                     perf = curr / ip * 100
