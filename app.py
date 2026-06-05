@@ -171,8 +171,40 @@ hr { border-color: #e2e8f0 !important; margin: 1rem 0 !important; }
 ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── 隱藏系統設定導覽項目 ──────────────────────────── */
+[data-testid="stSidebarNav"] a[href*="%E7%B3%BB%E7%B5%B1%E8%A8%AD%E5%AE%9A"],
+[data-testid="stSidebarNav"] a[href*="0_%F0%9F%90%BE"],
+[data-testid="stSidebarNav"] li:first-child {
+    display: none !important;
+}
+
+/* ── ⚙️ 齒輪按鈕 (右上角) ────────────────────────── */
+.gear-btn {
+    position: fixed;
+    top: 0.55rem;
+    right: 5.5rem;
+    z-index: 999999;
+    text-decoration: none !important;
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0.32rem 0.5rem;
+    border-radius: 6px;
+    color: #475569 !important;
+    transition: background 0.15s;
+}
+.gear-btn:hover {
+    background: rgba(0,0,0,0.07);
+    color: #1E3A8A !important;
+}
 </style>
 """, unsafe_allow_html=True)
+
+# ── ⚙️ gear icon top-right ───────────────────────────────────
+st.markdown(
+    '<a href="/系統設定" target="_self" class="gear-btn" title="系統設定">⚙️</a>',
+    unsafe_allow_html=True,
+)
 
 # ── 檢查設定是否完成 ─────────────────────────────────────────
 try:
