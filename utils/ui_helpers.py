@@ -26,7 +26,7 @@ def dog_header(title: str, dog_img: str = ""):
     img_file = dog_img or _PAGE_DOGS.get(title, "logo.png")
     b64 = _img_b64(img_file)
     if b64:
-        icon = f'<img src="data:image/png;base64,{b64}" style="width:44px;height:44px;vertical-align:middle;margin-right:10px;flex-shrink:0;">'
+        icon = f'<img src="data:image/png;base64,{b64}" style="width:72px;height:72px;vertical-align:middle;margin-right:12px;flex-shrink:0;">'
     else:
         icon = "🐾 "
     st.markdown(f"""
