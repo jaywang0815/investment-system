@@ -199,6 +199,14 @@ if not _setup_complete:
 # 模式 2: Gmail OAuth (在 secrets.toml 設定 Google credentials 後啟用)
 
 import hashlib
+import base64
+from pathlib import Path
+
+def _img_b64(filename: str) -> str:
+    p = Path(__file__).parent / "assets" / filename
+    if p.exists():
+        return base64.b64encode(p.read_bytes()).decode()
+    return ""
 
 def _check_password(pw: str, stored_hash: str) -> bool:
     return hashlib.sha256(pw.encode()).hexdigest() == stored_hash
@@ -268,17 +276,29 @@ if not st.session_state.authenticated and not _google_logged_in:
     pin_len = len(correct_pin) if correct_pin else 4
     entered = st.session_state.pin_input
 
-    st.markdown("""
-    <style>
-    .main .block-container { max-width: 360px !important; margin: 0 auto !important; padding-top: 4rem !important; }
-    .pin-title    { font-size:1.6rem; font-weight:700; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.3rem; }
-    .pin-subtitle { font-size:0.9rem; color:#64748b; text-align:center; display:block; margin-bottom:2rem; }
-    .pin-error    { color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }
-    </style>
-    """, unsafe_allow_html=True)
+    _logo = _img_b64("logo.png")
+    _dog  = _img_b64("dog_cream_lie.png")
 
-    st.markdown('<div class="pin-title">🏦 DOUU WORK</div>', unsafe_allow_html=True)
-    st.markdown('<div class="pin-subtitle">輸入 PIN 碼解鎖</div>', unsafe_allow_html=True)
+    logo_html = f'<img src="data:image/png;base64,{_logo}" style="width:88px;height:88px;">' if _logo else "🐾"
+    dog_html  = f'<img src="data:image/png;base64,{_dog}" style="width:220px;opacity:0.88;">' if _dog else ""
+
+    st.markdown(f"""
+    <style>
+    .main .block-container {{
+        max-width: 380px !important;
+        margin: 0 auto !important;
+        padding-top: 2.5rem !important;
+    }}
+    .pin-logo     {{ text-align:center; margin-bottom:0.4rem; }}
+    .pin-title    {{ font-size:1.7rem; font-weight:800; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.15rem; letter-spacing:0.04em; }}
+    .pin-subtitle {{ font-size:0.88rem; color:#94a3b8; text-align:center; display:block; margin-bottom:1.6rem; }}
+    .pin-error    {{ color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }}
+    .pin-dog      {{ text-align:center; margin-top:1.8rem; opacity:0.9; }}
+    </style>
+    <div class="pin-logo">{logo_html}</div>
+    <div class="pin-title">DOUU WORK</div>
+    <div class="pin-subtitle">輸入 PIN 碼解鎖 🔐</div>
+    """, unsafe_allow_html=True)
 
     if st.session_state.pin_error:
         st.markdown('<div class="pin-error">❌ PIN 不正確，請重試</div>', unsafe_allow_html=True)
@@ -296,6 +316,9 @@ if not st.session_state.authenticated and not _google_logged_in:
         elif len(typed) >= pin_len:
             st.session_state.pin_error = True
             st.rerun()
+
+    if dog_html:
+        st.markdown(f'<div class="pin-dog">{dog_html}</div>', unsafe_allow_html=True)
 
     st.stop()
 
@@ -326,11 +349,16 @@ if not _is_admin:
 
 # ── 側邊欄 ────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
-    <div style='text-align:center; padding: 12px 0 8px 0;'>
-        <div style='font-size:2rem;'>🏦</div>
-        <div style='font-size:1rem; font-weight:700; color:white; margin-top:4px;'>DOUU WORK</div>
-        <div style='font-size:0.72rem; color:rgba(255,255,255,0.55); margin-top:2px;'>Structured Notes</div>
+    _sb_logo = _img_b64("logo.png")
+    _sb_dog  = _img_b64("dog_bw.png")
+    logo_img = f'<img src="data:image/png;base64,{_sb_logo}" style="width:64px;height:64px;">' if _sb_logo else "🐾"
+    dog_img  = f'<img src="data:image/png;base64,{_sb_dog}" style="width:100%;max-width:140px;opacity:0.75;margin-top:4px;">' if _sb_dog else ""
+    st.markdown(f"""
+    <div style='text-align:center; padding: 10px 0 6px 0;'>
+        {logo_img}
+        <div style='font-size:1.05rem; font-weight:800; color:white; margin-top:5px; letter-spacing:0.05em;'>DOUU WORK</div>
+        <div style='font-size:0.7rem; color:rgba(255,255,255,0.5); margin-top:2px;'>Structured Notes</div>
+        {dog_img}
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
