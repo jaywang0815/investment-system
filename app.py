@@ -476,11 +476,7 @@ with st.sidebar:
 
 # ── 主頁面 ────────────────────────────────────────────────────
 from utils.ui_helpers import dog_header
-col_title, col_date = st.columns([4, 1])
-with col_title:
-    dog_header("首頁總覽")
-with col_date:
-    st.markdown(f"<div style='text-align:right; color:#64748b; padding-top:14px; font-size:0.85rem;'>📅 {date.today().strftime('%Y / %m / %d')}</div>", unsafe_allow_html=True)
+from datetime import datetime
 
 # 引入工具模組
 try:
@@ -490,7 +486,7 @@ except ImportError as e:
     st.error(f"模組載入失敗: {e}\n請確認已執行 pip install -r requirements.txt")
     st.stop()
 
-# 資料庫連線測試
+# 資料庫連線
 try:
     stats = get_dashboard_stats()
     db_ok = True
@@ -502,25 +498,191 @@ except Exception as e:
 if not db_ok:
     st.stop()
 
-# ── 數字卡片 ──────────────────────────────────────────────────
+# ── Dashboard CSS ──────────────────────────────────────────────
+st.markdown("""<style>
+.hero-banner {
+    background: linear-gradient(135deg, #1E2E6B 0%, #3730A3 55%, #4F46E5 100%);
+    border-radius: 24px;
+    padding: 2rem 2.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 10px 40px rgba(79,70,229,0.28);
+    position: relative;
+    overflow: hidden;
+}
+.hero-banner::before {
+    content: '';
+    position: absolute;
+    width: 240px; height: 240px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 50%;
+    top: -80px; right: -50px;
+}
+.hero-banner::after {
+    content: '';
+    position: absolute;
+    width: 120px; height: 120px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    bottom: -40px; right: 140px;
+}
+.hero-greeting {
+    font-size: 1.85rem;
+    font-weight: 800;
+    color: white;
+    margin: 0 0 0.3rem 0;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+}
+.hero-sub { color: rgba(255,255,255,0.58); font-size: 0.88rem; margin: 0; }
+.hero-right { text-align: right; z-index: 1; }
+.hero-clock {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -1.5px;
+    line-height: 1;
+}
+.hero-datestr { color: rgba(255,255,255,0.5); font-size: 0.8rem; margin-top: 5px; }
+
+.scard {
+    background: white;
+    border-radius: 20px;
+    padding: 1.4rem 1.6rem;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.scard:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(99,102,241,0.16); }
+.scard-icon {
+    width: 44px; height: 44px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+    margin-bottom: 0.9rem;
+}
+.scard-val {
+    font-size: 2.1rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 0.3rem;
+    letter-spacing: -1px;
+}
+.scard-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #94a3b8;
+}
+
+.sec-head {
+    display: flex; align-items: center; gap: 9px;
+    margin: 1.6rem 0 0.85rem 0;
+}
+.sec-head-icon {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.92rem; flex-shrink: 0;
+}
+.sec-head-title { font-size: 0.95rem; font-weight: 700; color: #1e2e6b; margin: 0; }
+
+.alert-card-ki   { background:#FFF1F3; border-left:4px solid #F43F5E; padding:11px 14px; border-radius:14px; margin:6px 0; font-size:0.87rem; }
+.alert-card-ko   { background:#ECFDF5; border-left:4px solid #10B981; padding:11px 14px; border-radius:14px; margin:6px 0; font-size:0.87rem; }
+.alert-card-warn { background:#FFFBEB; border-left:4px solid #F59E0B; padding:11px 14px; border-radius:14px; margin:6px 0; font-size:0.87rem; }
+
+.obs-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 0.6rem 0.85rem;
+    border-radius: 12px; margin: 5px 0;
+    font-size: 0.84rem; background: #F8F9FF;
+}
+.obs-row:hover { background: #EEF2FF; }
+.obs-code { font-weight: 700; color: #1e2e6b; flex: 1; min-width: 0; }
+.obs-meta { color: #64748b; font-size: 0.76rem; text-align: right; flex-shrink: 0; }
+.obs-chip {
+    font-size: 0.72rem; font-weight: 700;
+    border-radius: 8px; padding: 2px 8px;
+    white-space: nowrap; flex-shrink: 0;
+}
+
+.px-grid { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.px-card {
+    background: white; border-radius: 16px;
+    padding: 0.9rem 1.2rem 0.75rem;
+    min-width: 120px; flex: 1;
+    box-shadow: 0 2px 10px rgba(99,102,241,0.07);
+    transition: transform 0.15s;
+}
+.px-card:hover { transform: translateY(-2px); }
+.px-sym { font-size: 0.72rem; font-weight: 700; color: #64748b; letter-spacing: 0.5px; }
+.px-price { font-size: 1.3rem; font-weight: 800; color: #1e2e6b; letter-spacing: -0.5px; margin-top: 3px; }
+.px-na { font-size: 0.8rem; color: #94a3b8; font-style: italic; margin-top: 3px; }
+</style>""", unsafe_allow_html=True)
+
+# ── Hero Banner ────────────────────────────────────────────────
+_now = datetime.now()
+_wd = ["一","二","三","四","五","六","日"][_now.weekday()]
+_date_str = _now.strftime(f"%Y年%m月%d日 · 週{_wd}")
+_time_str = _now.strftime("%H:%M")
+
+st.markdown(f"""
+<div class="hero-banner">
+  <div>
+    <div class="hero-greeting">Hello, 管理員 👋</div>
+    <div class="hero-sub">DOUU WORK &nbsp;·&nbsp; 結構型商品管理平台</div>
+  </div>
+  <div class="hero-right">
+    <div class="hero-clock">{_time_str}</div>
+    <div class="hero-datestr">{_date_str}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Stat Cards ─────────────────────────────────────────────────
+total_usd = stats.get('total_investment_usd', 0)
+total_str = f"${total_usd/1_000_000:.2f}M" if total_usd >= 1_000_000 else f"${total_usd:,.0f}"
+
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.metric("👥 客戶總數", f"{stats['total_customers']} 人")
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #6366F1;">
+      <div class="scard-icon" style="background:#EEF2FF;color:#6366F1;">👥</div>
+      <div class="scard-val" style="color:#4F46E5;">{stats['total_customers']}</div>
+      <div class="scard-label">客戶總數</div>
+    </div>""", unsafe_allow_html=True)
 with c2:
-    st.metric("📊 有效商品", f"{stats['active_sns']} 筆")
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #10B981;">
+      <div class="scard-icon" style="background:#ECFDF5;color:#10B981;">📊</div>
+      <div class="scard-val" style="color:#059669;">{stats['active_sns']}</div>
+      <div class="scard-label">有效商品</div>
+    </div>""", unsafe_allow_html=True)
 with c3:
-    total_usd = stats.get('total_investment_usd', 0)
-    st.metric("💰 總投資金額", f"USD {total_usd/1_000_000:.2f}M" if total_usd >= 1_000_000 else f"USD {total_usd:,.0f}")
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #F59E0B;">
+      <div class="scard-icon" style="background:#FFFBEB;color:#F59E0B;">💰</div>
+      <div class="scard-val" style="color:#D97706;font-size:1.55rem;">{total_str}</div>
+      <div class="scard-label">總投資金額 (USD)</div>
+    </div>""", unsafe_allow_html=True)
 with c4:
-    st.metric("📅 今日日期", date.today().strftime("%m/%d"))
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #8B5CF6;">
+      <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;">📅</div>
+      <div class="scard-val" style="color:#7C3AED;font-size:1.45rem;">{date.today().strftime("%m/%d")}</div>
+      <div class="scard-label">今日日期</div>
+    </div>""", unsafe_allow_html=True)
 
-st.markdown("---")
-
-# ── KO/KI 警示總覽 ────────────────────────────────────────────
+# ── KO/KI 警示 + 近期比價 ─────────────────────────────────────
 col_left, col_right = st.columns([3, 2])
 
+prices = {}
+
 with col_left:
-    st.subheader("⚠️ KO / KI 警示")
+    st.markdown("""<div class="sec-head">
+      <div class="sec-head-icon" style="background:#FFF1F3;color:#F43F5E;">⚠️</div>
+      <span class="sec-head-title">KO / KI 警示總覽</span>
+    </div>""", unsafe_allow_html=True)
 
     with st.spinner("讀取即時股價中..."):
         sns_df = get_all_sns(status="active")
@@ -544,26 +706,24 @@ with col_left:
         else:
             for sn, analysis in alerts_found:
                 code = sn.get("product_code", "—")
-                tickers = " / ".join([sn.get(f"underlying_{i}") for i in range(1, 6) if isinstance(sn.get(f"underlying_{i}"), str)])
+                tickers = " / ".join([sn.get(f"underlying_{i}") for i in range(1, 6)
+                                      if isinstance(sn.get(f"underlying_{i}"), str)])
                 obs = str(sn.get("observation_date", ""))[:10]
                 status = analysis["overall_status"]
-
-                if status == "ki_triggered":
-                    css_class = "alert-ki"
-                elif status == "ko_triggered":
-                    css_class = "alert-ko"
-                else:
-                    css_class = "alert-warn"
-
-                st.markdown(f"""
-                <div class="{css_class}">
+                css_class = ("alert-card-ki" if status == "ki_triggered"
+                             else "alert-card-ko" if status == "ko_triggered"
+                             else "alert-card-warn")
+                st.markdown(f"""<div class="{css_class}">
                     <strong>{analysis['status_emoji']} {code}</strong> &nbsp; {tickers}<br>
-                    比價日: {obs} &nbsp;|&nbsp; {analysis['status_label']}
-                </div>
-                """, unsafe_allow_html=True)
+                    <span style="opacity:0.72;font-size:0.8rem">比價日: {obs} &nbsp;|&nbsp; {analysis['status_label']}</span>
+                </div>""", unsafe_allow_html=True)
 
 with col_right:
-    st.subheader("📅 近期比價日")
+    st.markdown("""<div class="sec-head">
+      <div class="sec-head-icon" style="background:#EEF2FF;color:#6366F1;">📅</div>
+      <span class="sec-head-title">近期比價日</span>
+    </div>""", unsafe_allow_html=True)
+
     sns_df2 = get_all_sns(status="active")
     if not sns_df2.empty and "observation_date" in sns_df2.columns:
         today = date.today()
@@ -580,42 +740,58 @@ with col_right:
                 t1 = row.get("underlying_1", "")
                 t2 = row.get("underlying_2", "")
                 tstr = f"{t1}/{t2}" if t2 else t1
-
                 obs_date = pd.to_datetime(obs).date()
                 days_left = (obs_date - today).days
                 if days_left <= 3:
-                    badge = "🔴"
+                    badge, chip_css = "🔴", "background:#FFF1F3;color:#F43F5E;"
                 elif days_left <= 7:
-                    badge = "🟡"
+                    badge, chip_css = "🟡", "background:#FFFBEB;color:#D97706;"
                 else:
-                    badge = "🟢"
-
-                st.markdown(f"{badge} **{obs}** &nbsp; `{code}`")
-                st.caption(f"&nbsp;&nbsp;&nbsp;&nbsp;{tstr} · 剩 {days_left} 天")
+                    badge, chip_css = "🟢", "background:#ECFDF5;color:#059669;"
+                st.markdown(f"""<div class="obs-row">
+                  <span>{badge}</span>
+                  <span class="obs-code">{code}<br><span style="font-weight:400;color:#94a3b8;font-size:0.76rem">{tstr}</span></span>
+                  <span class="obs-meta">{obs}</span>
+                  <span class="obs-chip" style="{chip_css}">剩 {days_left} 天</span>
+                </div>""", unsafe_allow_html=True)
     else:
         st.info("無資料")
 
-# ── 各標的股票現價 ────────────────────────────────────────────
-st.markdown("---")
-st.subheader("💹 主要標的現價")
+# ── 主要標的現價 ──────────────────────────────────────────────
+st.markdown("""<div class="sec-head">
+  <div class="sec-head-icon" style="background:#ECFDF5;color:#10B981;">💹</div>
+  <span class="sec-head-title">主要標的現價</span>
+</div>""", unsafe_allow_html=True)
 
 if not sns_df.empty and prices:
     unique_tickers = sorted(set(k for k, v in prices.items() if v is not None))
     if unique_tickers:
-        cols = st.columns(min(len(unique_tickers), 6))
-        for i, ticker in enumerate(unique_tickers[:12]):
+        px_html = '<div class="px-grid">'
+        for ticker in unique_tickers[:12]:
             price = prices.get(ticker)
-            with cols[i % len(cols)]:
-                if price:
-                    st.metric(ticker, f"${price:,.2f}")
-                else:
-                    st.metric(ticker, "無法取得")
+            if price:
+                px_html += f"""<div class="px-card">
+                  <div class="px-sym">{ticker}</div>
+                  <div class="px-price">${price:,.2f}</div>
+                </div>"""
+            else:
+                px_html += f"""<div class="px-card">
+                  <div class="px-sym">{ticker}</div>
+                  <div class="px-na">無法取得</div>
+                </div>"""
+        px_html += '</div>'
+        st.markdown(px_html, unsafe_allow_html=True)
+    else:
+        st.info("暫無標的資料")
 else:
     st.info("請先新增 SN 商品資料")
 
-# ── 最新活動 ─────────────────────────────────────────────────
-st.markdown("---")
-st.subheader("📋 近期 SN 商品")
+# ── 近期 SN 商品 ──────────────────────────────────────────────
+st.markdown("""<div class="sec-head">
+  <div class="sec-head-icon" style="background:#F5F3FF;color:#8B5CF6;">📋</div>
+  <span class="sec-head-title">近期 SN 商品</span>
+</div>""", unsafe_allow_html=True)
+
 if not sns_df.empty:
     display_cols = ["product_code", "underlying_1", "underlying_2", "underlying_3",
                     "strike_pct", "coupon_pct", "observation_date", "status"]
