@@ -192,14 +192,24 @@ with tab1:
             skip_duplicates = st.checkbox("跳過重複資料", value=True,
                                           help="相同代號或姓名的資料不會重複匯入")
 
+        # ── 指定月份 ─────────────────────────────────────────────
+        st.markdown("**📅 指定匯入月份 (選填)**")
+        month_options = ["自動偵測 (依 Sheet 名稱)"] + [f"{i}月" for i in range(1, 13)]
+        override_month = st.selectbox(
+            "若 Excel 沒有月份名稱，或想強制指定月份，請在此選擇",
+            month_options,
+            help="選「自動偵測」表示依照 Sheet 名稱判斷月份"
+        )
+        force_month = None if override_month == "自動偵測 (依 Sheet 名稱)" else override_month
+
         if not DB_READY:
             st.error("❌ 請先完成資料庫設定才能匯入")
         else:
             if st.button("🚀 確認匯入", type="primary", use_container_width=True):
-                _do_import(parsed_list, import_customers, import_sns, skip_duplicates)
+                _do_import(parsed_list, import_customers, import_sns, skip_duplicates, force_month)
 
 
-def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip_duplicates: bool):
+def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip_duplicates: bool, force_month: str = None):
     """執行匯入到 Supabase"""
     from utils.database import get_supabase
     sb = get_supabase()
@@ -243,8 +253,11 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
         # ── 匯入 SN 商品 ─────────────────────────────────────
         if import_sns:
             all_sns = []
-            for month_sns in parsed.get("sn_by_month", {}).values():
-                all_sns.extend(month_sns)
+            for month_label, month_sns in parsed.get("sn_by_month", {}).items():
+                for sn in month_sns:
+                    if force_month:
+                        sn["month_label"] = force_month
+                    all_sns.append(sn)
 
             total_sn_count = len(all_sns)
             for sn_idx, sn in enumerate(all_sns):
