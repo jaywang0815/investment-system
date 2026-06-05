@@ -13,23 +13,164 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ── 自訂 CSS ─────────────────────────────────────────────────
+# ── 全域 CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .metric-card {
-        background: linear-gradient(135deg, #1E3A8A, #3B82F6);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        text-align: center;
-        margin: 5px;
-    }
-    .metric-card .number { font-size: 2em; font-weight: bold; }
-    .metric-card .label { font-size: 0.9em; opacity: 0.85; margin-top: 4px; }
-    .alert-ki { background: #FEF2F2; border-left: 4px solid #DC2626; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
-    .alert-ko { background: #F0FDF4; border-left: 4px solid #16A34A; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
-    .alert-warn { background: #FFF7ED; border-left: 4px solid #EA580C; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
-    [data-testid="stSidebarNav"] { font-size: 1.05em; }
+/* ── 整體版面 ─────────────────────────────────────── */
+.main .block-container {
+    padding-top: 1.8rem;
+    padding-bottom: 2rem;
+    max-width: 1200px;
+}
+
+/* ── 側邊欄 ───────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0f2557 0%, #1E3A8A 100%);
+    border-right: none;
+}
+[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.15) !important; }
+[data-testid="stSidebar"] .stButton > button {
+    background: rgba(255,255,255,0.1) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: white !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255,255,255,0.2) !important;
+}
+[data-testid="stSidebarNav"] a {
+    border-radius: 8px !important;
+    margin: 2px 0 !important;
+    padding: 6px 12px !important;
+    font-size: 0.95em !important;
+}
+[data-testid="stSidebarNav"] a:hover,
+[data-testid="stSidebarNav"] a[aria-selected="true"] {
+    background: rgba(255,255,255,0.15) !important;
+}
+
+/* ── 頁面標題 ─────────────────────────────────────── */
+h1 {
+    font-size: 1.55rem !important;
+    font-weight: 700 !important;
+    color: #1E3A8A !important;
+    padding-bottom: 0.3rem !important;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1rem !important;
+}
+h2 { font-size: 1.15rem !important; font-weight: 600 !important; color: #1e40af !important; }
+h3 { font-size: 1rem !important; font-weight: 600 !important; color: #334155 !important; }
+
+/* ── Metric 卡片 ──────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.2rem !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-testid="stMetricLabel"] { color: #64748b !important; font-size: 0.82rem !important; }
+[data-testid="stMetricValue"] { color: #1E3A8A !important; font-weight: 700 !important; }
+
+/* ── 按鈕 ─────────────────────────────────────────── */
+.stButton > button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    transition: all 0.18s ease !important;
+}
+.stButton > button[kind="primary"] {
+    background: #1E3A8A !important;
+    border: none !important;
+    color: white !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #1e40af !important;
+    box-shadow: 0 4px 12px rgba(30,58,138,0.35) !important;
+}
+
+/* ── 標籤頁 ──────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 10px;
+    gap: 4px;
+    border-bottom: none !important;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px !important;
+    padding: 6px 18px !important;
+    font-weight: 500 !important;
+    color: #475569 !important;
+    background: transparent !important;
+}
+.stTabs [aria-selected="true"] {
+    background: white !important;
+    color: #1E3A8A !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+}
+
+/* ── 表格 ─────────────────────────────────────────── */
+[data-testid="stDataFrame"] {
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+    overflow: hidden !important;
+}
+
+/* ── 輸入欄位 ─────────────────────────────────────── */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+.stSelectbox > div > div,
+.stTextArea textarea {
+    border-radius: 8px !important;
+    border-color: #e2e8f0 !important;
+    font-size: 0.9rem !important;
+}
+[data-testid="stTextInput"] input:focus,
+.stTextArea textarea:focus {
+    border-color: #3B82F6 !important;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+}
+
+/* ── Expander ─────────────────────────────────────── */
+[data-testid="stExpander"] {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    margin-bottom: 6px !important;
+}
+[data-testid="stExpander"] summary {
+    font-weight: 500 !important;
+    color: #334155 !important;
+    padding: 10px 14px !important;
+}
+[data-testid="stExpander"] summary:hover {
+    background: #f8fafc !important;
+}
+
+/* ── 通知 ─────────────────────────────────────────── */
+[data-testid="stAlert"] {
+    border-radius: 10px !important;
+    border-left-width: 4px !important;
+    font-size: 0.9rem !important;
+}
+
+/* ── 分隔線 ───────────────────────────────────────── */
+hr { border-color: #e2e8f0 !important; margin: 1rem 0 !important; }
+
+/* ── 警示色塊 ─────────────────────────────────────── */
+.alert-ki  { background:#FEF2F2; border-left:4px solid #DC2626; padding:10px 14px; border-radius:8px; margin:4px 0; }
+.alert-ko  { background:#F0FDF4; border-left:4px solid #16A34A; padding:10px 14px; border-radius:8px; margin:4px 0; }
+.alert-warn{ background:#FFF7ED; border-left:4px solid #EA580C; padding:10px 14px; border-radius:8px; margin:4px 0; }
+
+/* ── Spinner ──────────────────────────────────────── */
+[data-testid="stSpinner"] { color: #3B82F6 !important; }
+
+/* ── 捲軸 ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,25 +309,37 @@ if _use_google_auth and _google_logged_in:
 
 # ── 側邊欄 ────────────────────────────────────────────────────
 with st.sidebar:
+    st.markdown("""
+    <div style='text-align:center; padding: 12px 0 8px 0;'>
+        <div style='font-size:2rem;'>🏦</div>
+        <div style='font-size:1rem; font-weight:700; color:white; margin-top:4px;'>投資管理系統</div>
+        <div style='font-size:0.72rem; color:rgba(255,255,255,0.55); margin-top:2px;'>Structured Notes</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
     if _use_google_auth and _google_logged_in:
         try:
-            st.markdown(f"👤 **{st.user.name}**")
+            st.markdown(f"👤 &nbsp;**{st.user.name}**")
             st.caption(st.user.email)
         except Exception:
-            st.markdown("👤 **已登入**")
-        if st.button("🚪 登出", use_container_width=True):
+            st.markdown("👤 &nbsp;**已登入**")
+        if st.button("登出", use_container_width=True):
             st.logout()
     else:
-        st.markdown("👤 **管理員**")
-        if st.button("🚪 登出", use_container_width=True):
+        st.markdown("👤 &nbsp;**管理員**")
+        if st.button("登出", use_container_width=True):
             st.session_state.authenticated = False
             _del_cookie()
             st.rerun()
     st.markdown("---")
 
 # ── 主頁面 ────────────────────────────────────────────────────
-st.title("🏦 投資管理系統 - 首頁總覽")
-st.caption(f"今日: {date.today().strftime('%Y年%m月%d日')}")
+col_title, col_date = st.columns([4, 1])
+with col_title:
+    st.title("首頁總覽")
+with col_date:
+    st.markdown(f"<div style='text-align:right; color:#64748b; padding-top:14px; font-size:0.85rem;'>📅 {date.today().strftime('%Y / %m / %d')}</div>", unsafe_allow_html=True)
 
 # 引入工具模組
 try:
