@@ -15,12 +15,18 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 # ── 字型設定 ──────────────────────────────────────────────
 def _register_font():
-    font_paths = [
-        "/System/Library/Fonts/PingFang.ttc",           # macOS PingFang TC
-        "/System/Library/Fonts/STHeiti Medium.ttc",     # macOS 黑體
-        "/System/Library/Fonts/Supplemental/Songti.ttc",
-    ]
-    for path in font_paths:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    regular = os.path.join(base_dir, "assets", "NotoSansTC-Regular.ttf")
+    bold    = os.path.join(base_dir, "assets", "NotoSansTC-Bold.ttf")
+    if os.path.exists(regular):
+        try:
+            pdfmetrics.registerFont(TTFont("ChineseFont", regular))
+            pdfmetrics.registerFont(TTFont("ChineseFontBold", bold if os.path.exists(bold) else regular))
+            return True
+        except Exception:
+            pass
+    # macOS fallback
+    for path in ["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Medium.ttc"]:
         if os.path.exists(path):
             try:
                 pdfmetrics.registerFont(TTFont("ChineseFont", path, subfontIndex=0))
