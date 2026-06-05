@@ -3,9 +3,12 @@
 """
 import streamlit as st
 import pandas as pd
+import io
+from datetime import date
 from utils.database import (
     get_all_customers, get_customer, create_customer,
-    update_customer, delete_customer, get_investments_by_customer
+    update_customer, delete_customer, get_investments_by_customer,
+    get_all_sns, get_all_investments
 )
 from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
 
@@ -27,7 +30,7 @@ if not _is_logged_in():
 st.title("👥 客戶管理")
 
 # ── 標籤頁 ─────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["📋 客戶列表", "➕ 新增客戶", "🔍 客戶詳情"])
+tab1, tab2, tab3, tab4 = st.tabs(["📋 客戶列表", "➕ 新增客戶", "🔍 客戶詳情", "📤 匯出資料"])
 
 # ──────────────────────────────────────────────────────────────
 # Tab 1: 客戶列表
@@ -291,3 +294,126 @@ with tab3:
                     st.rerun()
                 else:
                     st.error("姓名不符，刪除取消")
+
+# ──────────────────────────────────────────────────────────────
+# Tab 4: 匯出資料
+# ──────────────────────────────────────────────────────────────
+with tab4:
+    st.subheader("📤 匯出客戶資料")
+    st.caption("可匯出為 Excel (.xlsx) 或 CSV 格式")
+
+    customers_df = get_all_customers()
+    if customers_df.empty:
+        st.info("尚無客戶資料可匯出")
+        st.stop()
+
+    today_str = date.today().strftime("%Y%m%d")
+
+    # ── 選擇匯出範圍 ────────────────────────────────────────
+    export_scope = st.radio("匯出範圍", ["全部客戶", "指定客戶"], horizontal=True)
+    if export_scope == "指定客戶":
+        selected_names = st.multiselect("選擇客戶", customers_df["name"].tolist())
+        if selected_names:
+            customers_df = customers_df[customers_df["name"].isin(selected_names)]
+
+    st.markdown("---")
+
+    # ── 匯出選項 ────────────────────────────────────────────
+    col_a, col_b = st.columns(2)
+
+    # ─── Excel (多 Sheet) ───────────────────────────────────
+    with col_a:
+        st.markdown("#### Excel 格式")
+        st.caption("包含：客戶基本資料 + 投資明細 兩個工作表")
+
+        if st.button("📊 下載 Excel", type="primary", use_container_width=True):
+            with st.spinner("產生 Excel 中..."):
+                # Sheet 1: 客戶基本資料
+                cust_export = customers_df.copy()
+                rename_map = {
+                    "name": "客戶姓名",
+                    "unified_account": "統一開戶",
+                    "pi_signed": "PI見簽",
+                    "ordered": "已下單",
+                    "usd_amount": "USD額度",
+                    "ctbc_position": "中信部位(USD)",
+                    "fund_amount": "FUND金額",
+                    "notes": "備註",
+                }
+                cust_export = cust_export[[c for c in rename_map if c in cust_export.columns]]
+                cust_export = cust_export.rename(columns=rename_map)
+
+                # Sheet 2: 投資明細 (客戶 × SN)
+                inv_rows = []
+                for _, row in customers_df.iterrows():
+                    cid = row["id"]
+                    cname = row["name"]
+                    invs = get_investments_by_customer(cid)
+                    for inv in invs:
+                        sn = inv.get("structured_notes") or {}
+                        tickers = " / ".join([
+                            sn.get(f"underlying_{i}", "")
+                            for i in range(1, 6)
+                            if isinstance(sn.get(f"underlying_{i}"), str)
+                        ])
+                        inv_rows.append({
+                            "客戶姓名": cname,
+                            "商品代號": sn.get("product_code", "—"),
+                            "標的股票": tickers,
+                            "投資金額(USD)": inv.get("amount_usd"),
+                            "比價日期": str(sn.get("observation_date", ""))[:10],
+                            "下單日期": str(sn.get("trade_date", ""))[:10],
+                            "執行價格(%)": f"{sn.get('strike_pct',0)*100:.2f}%" if sn.get("strike_pct") else "—",
+                            "配息率(%)": f"{sn.get('coupon_pct',0)*100:.2f}%" if sn.get("coupon_pct") else "—",
+                            "KO水位(%)": f"{sn.get('ko_barrier',0)*100:.0f}%" if sn.get("ko_barrier") else "—",
+                            "KI水位(%)": f"{sn.get('ki_barrier',0)*100:.0f}%" if sn.get("ki_barrier") else "—",
+                            "狀態": sn.get("status", "—"),
+                            "月份": inv.get("month_label", "—"),
+                        })
+                inv_df = pd.DataFrame(inv_rows) if inv_rows else pd.DataFrame()
+
+                # 寫入 Excel
+                buf = io.BytesIO()
+                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                    cust_export.to_excel(writer, sheet_name="客戶基本資料", index=False)
+                    if not inv_df.empty:
+                        inv_df.to_excel(writer, sheet_name="投資明細", index=False)
+                buf.seek(0)
+
+            st.download_button(
+                label="⬇️ 點此下載 Excel",
+                data=buf.getvalue(),
+                file_name=f"客戶資料_{today_str}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
+    # ─── CSV ───────────────────────────────────────────────
+    with col_b:
+        st.markdown("#### CSV 格式")
+        st.caption("僅客戶基本資料，適合匯入其他系統")
+
+        cust_csv = customers_df.copy()
+        rename_map_csv = {
+            "name": "客戶姓名", "unified_account": "統一開戶",
+            "pi_signed": "PI見簽", "ordered": "已下單",
+            "usd_amount": "USD額度", "ctbc_position": "中信部位",
+            "fund_amount": "FUND金額", "notes": "備註",
+        }
+        cust_csv = cust_csv[[c for c in rename_map_csv if c in cust_csv.columns]]
+        cust_csv = cust_csv.rename(columns=rename_map_csv)
+
+        st.download_button(
+            label="⬇️ 下載 CSV",
+            data=cust_csv.to_csv(index=False, encoding="utf-8-sig"),
+            file_name=f"客戶資料_{today_str}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    # ── 預覽 ────────────────────────────────────────────────
+    st.markdown("---")
+    st.caption(f"預覽：共 {len(customers_df)} 位客戶")
+    preview = customers_df[["name", "usd_amount", "ordered", "pi_signed"]].copy()
+    preview.columns = ["姓名", "USD額度", "已下單", "PI見簽"]
+    st.dataframe(preview, use_container_width=True, hide_index=True)
