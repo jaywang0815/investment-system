@@ -8,7 +8,7 @@ from datetime import date
 from utils.database import (
     get_all_customers, get_customer, create_customer,
     update_customer, delete_customer, get_investments_by_customer,
-    get_all_sns, get_all_investments
+    get_investments_by_sn, get_all_sns, get_all_investments
 )
 from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
 
@@ -298,107 +298,174 @@ with tab4:
 
     today_str = date.today().strftime("%Y%m%d")
 
-    # ── 選擇匯出範圍 ────────────────────────────────────────
-    export_scope = st.radio("匯出範圍", ["全部客戶", "指定客戶"], horizontal=True)
-    if export_scope == "指定客戶":
-        selected_names = st.multiselect("選擇客戶", customers_df["name"].tolist())
-        if selected_names:
-            customers_df = customers_df[customers_df["name"].isin(selected_names)]
-
+    # ── 匯出模式選擇 ────────────────────────────────────────
+    mode = st.radio("匯出方式", ["📅 依月份分頁", "👥 依客戶彙總"], horizontal=True)
     st.markdown("---")
 
-    # ── 匯出選項 ────────────────────────────────────────────
-    col_a, col_b = st.columns(2)
+    # ══════════════════════════════════════════════════════
+    # 模式 1: 依月份 — 每個月一個 Sheet
+    # ══════════════════════════════════════════════════════
+    if mode == "📅 依月份分頁":
+        st.caption("每個月份各為一個工作表，內含該月所有商品及投資明細")
 
-    # ─── Excel (多 Sheet) ───────────────────────────────────
-    with col_a:
-        st.markdown("#### Excel 格式")
-        st.caption("包含：客戶基本資料 + 投資明細 兩個工作表")
+        # 取得所有 SN (含 month_label)
+        from utils.database import get_all_sns as _get_all_sns
+        sns_df_all = _get_all_sns()
 
-        if st.button("📊 下載 Excel", type="primary", use_container_width=True):
-            with st.spinner("產生 Excel 中..."):
-                # Sheet 1: 客戶基本資料
-                cust_export = customers_df.copy()
-                rename_map = {
-                    "name": "客戶姓名",
-                    "unified_account": "統一開戶",
-                    "pi_signed": "PI見簽",
-                    "ordered": "已下單",
-                    "usd_amount": "USD額度",
-                    "ctbc_position": "中信部位(USD)",
-                    "fund_amount": "FUND金額",
-                    "notes": "備註",
-                }
-                cust_export = cust_export[[c for c in rename_map if c in cust_export.columns]]
-                cust_export = cust_export.rename(columns=rename_map)
-
-                # Sheet 2: 投資明細 (客戶 × SN)
-                inv_rows = []
-                for _, row in customers_df.iterrows():
-                    cid = row["id"]
-                    cname = row["name"]
-                    invs = get_investments_by_customer(cid)
-                    for inv in invs:
-                        sn = inv.get("structured_notes") or {}
-                        tickers = " / ".join([
-                            sn.get(f"underlying_{i}", "")
-                            for i in range(1, 6)
-                            if isinstance(sn.get(f"underlying_{i}"), str)
-                        ])
-                        inv_rows.append({
-                            "客戶姓名": cname,
-                            "商品代號": sn.get("product_code", "—"),
-                            "標的股票": tickers,
-                            "投資金額(USD)": inv.get("amount_usd"),
-                            "比價日期": str(sn.get("observation_date", ""))[:10],
-                            "下單日期": str(sn.get("trade_date", ""))[:10],
-                            "執行價格(%)": f"{sn.get('strike_pct',0)*100:.2f}%" if sn.get("strike_pct") else "—",
-                            "配息率(%)": f"{sn.get('coupon_pct',0)*100:.2f}%" if sn.get("coupon_pct") else "—",
-                            "KO水位(%)": f"{sn.get('ko_barrier',0)*100:.0f}%" if sn.get("ko_barrier") else "—",
-                            "KI水位(%)": f"{sn.get('ki_barrier',0)*100:.0f}%" if sn.get("ki_barrier") else "—",
-                            "狀態": sn.get("status", "—"),
-                            "月份": inv.get("month_label", "—"),
-                        })
-                inv_df = pd.DataFrame(inv_rows) if inv_rows else pd.DataFrame()
-
-                # 寫入 Excel
-                buf = io.BytesIO()
-                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-                    cust_export.to_excel(writer, sheet_name="客戶基本資料", index=False)
-                    if not inv_df.empty:
-                        inv_df.to_excel(writer, sheet_name="投資明細", index=False)
-                buf.seek(0)
-
-            st.download_button(
-                label="⬇️ 點此下載 Excel",
-                data=buf.getvalue(),
-                file_name=f"客戶資料_{today_str}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
+        if sns_df_all.empty or "month_label" not in sns_df_all.columns:
+            st.warning("尚無月份資料")
+        else:
+            months = sorted(
+                [m for m in sns_df_all["month_label"].dropna().unique() if m],
+                key=lambda x: (
+                    int(x.replace("月","")) if x.replace("月","").isdigit() else 99
+                )
             )
 
-    # ─── CSV ───────────────────────────────────────────────
-    with col_b:
-        st.markdown("#### CSV 格式")
-        st.caption("僅客戶基本資料，適合匯入其他系統")
+            if not months:
+                st.warning("找不到月份資料")
+            else:
+                st.info(f"找到 **{len(months)}** 個月份：{' · '.join(months)}")
 
-        cust_csv = customers_df.copy()
-        rename_map_csv = {
-            "name": "客戶姓名", "unified_account": "統一開戶",
-            "pi_signed": "PI見簽", "ordered": "已下單",
-            "usd_amount": "USD額度", "ctbc_position": "中信部位",
-            "fund_amount": "FUND金額", "notes": "備註",
-        }
-        cust_csv = cust_csv[[c for c in rename_map_csv if c in cust_csv.columns]]
-        cust_csv = cust_csv.rename(columns=rename_map_csv)
+                if st.button("📊 產生 Excel（依月份）", type="primary", use_container_width=True):
+                    with st.spinner("整理資料中，請稍候..."):
+                        buf = io.BytesIO()
+                        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
 
-        st.download_button(
-            label="⬇️ 下載 CSV",
-            data=cust_csv.to_csv(index=False, encoding="utf-8-sig"),
-            file_name=f"客戶資料_{today_str}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+                            # Sheet 1: 總覽
+                            summary_rows = []
+                            for m in months:
+                                m_sns = sns_df_all[sns_df_all["month_label"] == m]
+                                m_invs_total = 0
+                                m_customers = set()
+                                for _, sn_row in m_sns.iterrows():
+                                    invs = get_investments_by_sn(sn_row["id"])
+                                    for inv in invs:
+                                        m_invs_total += inv.get("amount_usd") or 0
+                                        if inv.get("customers"):
+                                            m_customers.add(inv["customers"].get("name",""))
+                                summary_rows.append({
+                                    "月份": m,
+                                    "商品數": len(m_sns),
+                                    "投資客戶數": len(m_customers),
+                                    "總投資金額(USD)": m_invs_total,
+                                })
+                            pd.DataFrame(summary_rows).to_excel(
+                                writer, sheet_name="總覽", index=False)
+
+                            # 每個月一個 Sheet
+                            for m in months:
+                                m_sns = sns_df_all[sns_df_all["month_label"] == m]
+                                rows = []
+                                for _, sn_row in m_sns.iterrows():
+                                    tickers = " / ".join([
+                                        str(sn_row.get(f"underlying_{i}", ""))
+                                        for i in range(1, 6)
+                                        if isinstance(sn_row.get(f"underlying_{i}"), str)
+                                    ])
+                                    invs = get_investments_by_sn(sn_row["id"])
+                                    if invs:
+                                        for inv in invs:
+                                            cname = (inv.get("customers") or {}).get("name", "—")
+                                            rows.append({
+                                                "商品代號": sn_row.get("product_code", "—"),
+                                                "標的股票": tickers,
+                                                "比價日期": str(sn_row.get("observation_date",""))[:10],
+                                                "下單日期": str(sn_row.get("trade_date",""))[:10],
+                                                "執行價(%)": f"{sn_row.get('strike_pct',0)*100:.2f}%" if sn_row.get("strike_pct") else "—",
+                                                "配息率(%)": f"{sn_row.get('coupon_pct',0)*100:.2f}%" if sn_row.get("coupon_pct") else "—",
+                                                "KO水位": f"{sn_row.get('ko_barrier',0)*100:.0f}%" if sn_row.get("ko_barrier") else "—",
+                                                "KI水位": f"{sn_row.get('ki_barrier',0)*100:.0f}%" if sn_row.get("ki_barrier") else "—",
+                                                "狀態": sn_row.get("status", "—"),
+                                                "客戶姓名": cname,
+                                                "投資金額(USD)": inv.get("amount_usd"),
+                                            })
+                                    else:
+                                        rows.append({
+                                            "商品代號": sn_row.get("product_code", "—"),
+                                            "標的股票": tickers,
+                                            "比價日期": str(sn_row.get("observation_date",""))[:10],
+                                            "下單日期": str(sn_row.get("trade_date",""))[:10],
+                                            "執行價(%)": f"{sn_row.get('strike_pct',0)*100:.2f}%" if sn_row.get("strike_pct") else "—",
+                                            "配息率(%)": f"{sn_row.get('coupon_pct',0)*100:.2f}%" if sn_row.get("coupon_pct") else "—",
+                                            "KO水位": f"{sn_row.get('ko_barrier',0)*100:.0f}%" if sn_row.get("ko_barrier") else "—",
+                                            "KI水位": f"{sn_row.get('ki_barrier',0)*100:.0f}%" if sn_row.get("ki_barrier") else "—",
+                                            "狀態": sn_row.get("status", "—"),
+                                            "客戶姓名": "（無投資記錄）",
+                                            "投資金額(USD)": None,
+                                        })
+
+                                sheet_name = m[:31]  # Excel sheet name max 31 chars
+                                pd.DataFrame(rows).to_excel(
+                                    writer, sheet_name=sheet_name, index=False)
+
+                        buf.seek(0)
+
+                    st.download_button(
+                        label="⬇️ 點此下載 Excel（依月份）",
+                        data=buf.getvalue(),
+                        file_name=f"投資明細_依月份_{today_str}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+
+    # ══════════════════════════════════════════════════════
+    # 模式 2: 依客戶彙總
+    # ══════════════════════════════════════════════════════
+    else:
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            st.caption("Sheet 1: 客戶基本資料　Sheet 2: 投資明細")
+            if st.button("📊 下載 Excel（依客戶）", type="primary", use_container_width=True):
+                with st.spinner("產生中..."):
+                    cust_export = customers_df[[c for c in
+                        ["name","unified_account","pi_signed","ordered","usd_amount","ctbc_position","fund_amount","notes"]
+                        if c in customers_df.columns]].rename(columns={
+                        "name":"客戶姓名","unified_account":"統一開戶","pi_signed":"PI見簽",
+                        "ordered":"已下單","usd_amount":"USD額度","ctbc_position":"中信部位",
+                        "fund_amount":"FUND金額","notes":"備註"})
+
+                    inv_rows = []
+                    for _, row in customers_df.iterrows():
+                        for inv in get_investments_by_customer(row["id"]):
+                            sn = inv.get("structured_notes") or {}
+                            tickers = " / ".join([sn.get(f"underlying_{i}","") for i in range(1,6)
+                                                  if isinstance(sn.get(f"underlying_{i}"),str)])
+                            inv_rows.append({
+                                "客戶姓名": row["name"],
+                                "商品代號": sn.get("product_code","—"),
+                                "標的股票": tickers,
+                                "投資金額(USD)": inv.get("amount_usd"),
+                                "比價日期": str(sn.get("observation_date",""))[:10],
+                                "月份": sn.get("month_label","—"),
+                                "狀態": sn.get("status","—"),
+                            })
+
+                    buf = io.BytesIO()
+                    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                        cust_export.to_excel(writer, sheet_name="客戶基本資料", index=False)
+                        if inv_rows:
+                            pd.DataFrame(inv_rows).to_excel(writer, sheet_name="投資明細", index=False)
+                    buf.seek(0)
+
+                st.download_button("⬇️ 下載 Excel", buf.getvalue(),
+                    f"客戶資料_{today_str}.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True)
+
+        with col_b:
+            st.caption("僅客戶基本資料，適合匯入其他系統")
+            cust_csv = customers_df[["name","usd_amount","ordered","pi_signed","notes"]
+                ].rename(columns={"name":"客戶姓名","usd_amount":"USD額度",
+                                  "ordered":"已下單","pi_signed":"PI見簽","notes":"備註"})
+            st.download_button(
+                label="⬇️ 下載 CSV",
+                data=cust_csv.to_csv(index=False, encoding="utf-8-sig"),
+                file_name=f"客戶資料_{today_str}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
     # ── 預覽 ────────────────────────────────────────────────
     st.markdown("---")
