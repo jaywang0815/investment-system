@@ -65,6 +65,13 @@ def _style(name, **kw):
     kw.setdefault("fontName", FONT)
     return ParagraphStyle(name, **kw)
 
+def _valid(v):
+    import math
+    try:
+        return v is not None and not math.isnan(float(v))
+    except (TypeError, ValueError):
+        return False
+
 # ============================================================
 # 主函數: 產生客戶投資報表 PDF
 # ============================================================
@@ -98,10 +105,11 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
     # ── 封面標題 ────────────────────────────────────────────
     story.append(Paragraph(
         "結構型商品投資報表",
-        _style("Title", fontSize=22, fontName=FONT_BOLD, textColor=BLUE_DARK,
-               alignment=1, spaceAfter=6)
+        _style("Title", fontSize=22, fontName=FONT_BOLD, textColor=BLUE_DARK, alignment=1)
     ))
-    story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK, spaceAfter=10))
+    story.append(Spacer(1, 4*mm))
+    story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK))
+    story.append(Spacer(1, 6*mm))
 
     # ── 客戶資訊區 ──────────────────────────────────────────
     report_date = date.today().strftime("%Y 年 %m 月 %d 日")
@@ -286,12 +294,12 @@ def _add_sn_detail(story, idx, inv, sn, prices, W):
         for d in analysis["details"]:
             row = [
                 d["ticker"],
-                f"${d['initial_price']:,.2f}" if d["initial_price"] else "—",
-                f"${d['current_price']:,.2f}" if d["current_price"] else "取得中",
-                f"{d['change_pct']:+.2f}%" if d["change_pct"] is not None else "—",
-                f"${d['strike_price']:,.2f}" if d.get("strike_price") else "—",
-                f"${d['ko_price']:,.2f}" if d.get("ko_price") else "無",
-                f"${d['ki_price']:,.2f}" if d.get("ki_price") else "無",
+                f"${d['initial_price']:,.2f}" if _valid(d.get("initial_price")) else "—",
+                f"${d['current_price']:,.2f}" if _valid(d.get("current_price")) else "取得中",
+                f"{d['change_pct']:+.2f}%" if _valid(d.get("change_pct")) else "—",
+                f"${d['strike_price']:,.2f}" if _valid(d.get("strike_price")) else "—",
+                f"${d['ko_price']:,.2f}" if _valid(d.get("ko_price")) else "無",
+                f"${d['ki_price']:,.2f}" if _valid(d.get("ki_price")) else "無",
                 _clean(f"{d['ko_status']} {d['ki_status']}"),
             ]
             price_rows.append(row)
