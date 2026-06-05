@@ -85,10 +85,6 @@ if st.session_state["show_add_form"]:
                 unified_account = st.checkbox("統一開戶")
                 pi_signed = st.checkbox("PI 見簽")
                 ordered = st.checkbox("已下單")
-                line_user_id = st.text_input(
-                    "LINE User ID",
-                    placeholder="Uxxxxxxxxx (讓客戶傳 myid 給 Bot)"
-                )
             notes = st.text_area("備註", placeholder="輸入備註...")
 
             col_sub, col_cancel = st.columns(2)
@@ -110,7 +106,6 @@ if st.session_state["show_add_form"]:
                         "ctbc_position": ctbc_position or None,
                         "fund_amount": fund_amount or None,
                         "notes": notes.strip() or None,
-                        "line_user_id": line_user_id.strip() or None,
                     })
                     if result:
                         st.success(f"✅ 客戶 **{name}** 新增成功！")
@@ -195,11 +190,6 @@ with tab_list:
                         new_unified = st.checkbox("統一開戶", value=bool(row.get("unified_account")))
                         new_pi = st.checkbox("PI見簽", value=bool(pi))
                         new_ordered = st.checkbox("已下單", value=bool(ordered_val))
-                        new_line_id = st.text_input(
-                            "LINE User ID",
-                            value=line_id,
-                            placeholder="Uxxxxxxxxx"
-                        )
                         new_notes = st.text_area("備註", value=notes_val, height=68)
 
                         col_save, col_del = st.columns(2)
@@ -213,7 +203,6 @@ with tab_list:
                                     "pi_signed": new_pi,
                                     "ordered": new_ordered,
                                     "notes": new_notes or None,
-                                    "line_user_id": new_line_id.strip() or None,
                                 })
                                 st.success("✅ 更新成功")
                                 st.rerun()
