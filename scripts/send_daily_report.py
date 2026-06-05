@@ -103,10 +103,15 @@ def analyze_sn(sn, prices):
 def build_report(stats, sns, prices):
     today = date.today().strftime("%Y/%m/%d")
     now = datetime.now().strftime("%H:%M")
+    hour = datetime.utcnow().hour
+    if hour < 12:
+        session = "🌅 早盤報告 (美股收盤價)"
+    else:
+        session = "🌙 夜盤報告 (美股開盤後)"
 
     lines = [
-        f"\n📊 每日投資報告",
-        f"🗓️ {today}  {now}",
+        f"\n📊 {session}",
+        f"🗓️ {today}  {now} (台灣時間)",
         "─────────────────",
         f"\n🏦 管理總覽",
         f"• 客戶總數: {stats['total_customers']} 人",
