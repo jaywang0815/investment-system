@@ -93,11 +93,14 @@ def _chart_mplfinance(ohlcv, ticker) -> bytes | None:
     try:
         import mplfinance as mpf
 
-        close = ohlcv["Close"]
-        rsi = _calc_rsi(close)
+        close = ohlcv["Close"].astype(float)
+        rsi = _calc_rsi(close).fillna(50)
         macd_line, signal_line, macd_hist = _calc_macd(close)
+        macd_line   = macd_line.fillna(0)
+        signal_line = signal_line.fillna(0)
+        macd_hist   = macd_hist.fillna(0)
         hist_colors = ["#26a69a" if v >= 0 else "#ef5350"
-                       for v in macd_hist.fillna(0)]
+                       for v in macd_hist]
 
         last  = close.iloc[-1]
         prev  = close.iloc[-2] if len(close) > 1 else last
@@ -181,34 +184,39 @@ def _chart_mplfinance(ohlcv, ticker) -> bytes | None:
 # ── fallback: pure matplotlib candlestick + RSI + MACD ───────────
 def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
     try:
-        close  = ohlcv["Close"]
-        opens  = ohlcv["Open"]
-        highs  = ohlcv["High"]
-        lows   = ohlcv["Low"]
-        volume = ohlcv["Volume"]
+        close  = ohlcv["Close"].astype(float)
+        opens  = ohlcv["Open"].astype(float)
+        highs  = ohlcv["High"].astype(float)
+        lows   = ohlcv["Low"].astype(float)
+        volume = ohlcv["Volume"].fillna(0).astype(float)
         dates  = ohlcv.index
-        x      = range(len(dates))
+        n      = len(dates)
+        xs     = list(range(n))
 
-        rsi = _calc_rsi(close)
+        rsi = _calc_rsi(close).fillna(50)           # neutral while warming up
         macd_line, signal_line, macd_hist = _calc_macd(close)
+        macd_line   = macd_line.fillna(0)
+        signal_line = signal_line.fillna(0)
+        macd_hist   = macd_hist.fillna(0)
 
-        last  = close.iloc[-1]
-        prev  = close.iloc[-2] if len(close) > 1 else last
+        last  = float(close.iloc[-1])
+        prev  = float(close.iloc[-2]) if n > 1 else last
         chg   = last - prev
-        chg_p = chg / prev * 100
+        chg_p = chg / prev * 100 if prev != 0 else 0
         sign  = "+" if chg >= 0 else ""
 
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(
+        fig, axes = plt.subplots(
             4, 1, figsize=(14, 9),
             gridspec_kw={"height_ratios": [4, 1.2, 1.5, 1.5]},
             facecolor="white", sharex=True,
         )
+        ax1, ax2, ax3, ax4 = axes
         fig.suptitle(
             f"{ticker}   ${last:,.2f}   {sign}{chg:.2f} ({sign}{chg_p:.2f}%)",
             fontsize=13, color="#1E3A8A", fontweight="bold", y=0.98,
         )
 
-        for ax in (ax1, ax2, ax3, ax4):
+        for ax in axes:
             ax.set_facecolor("white")
             ax.grid(axis="y", color="#E2E8F0", linewidth=0.7, linestyle="--")
             ax.spines["top"].set_visible(False)
@@ -216,30 +224,32 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
             ax.tick_params(colors="#64748B", labelsize=8)
 
         # ── Candlestick ──────────────────────────────────────────
-        for i in x:
-            is_up = float(close.iloc[i]) >= float(opens.iloc[i])
-            col   = "#26a69a" if is_up else "#ef5350"
-            body_lo = min(float(opens.iloc[i]), float(close.iloc[i]))
-            body_hi = max(float(opens.iloc[i]), float(close.iloc[i]))
-            ax1.plot([i, i], [float(lows.iloc[i]), float(highs.iloc[i])],
-                     color=col, linewidth=0.8)
+        cl_arr = close.values
+        op_arr = opens.values
+        hi_arr = highs.values
+        lo_arr = lows.values
+        for i in xs:
+            is_up   = cl_arr[i] >= op_arr[i]
+            col     = "#26a69a" if is_up else "#ef5350"
+            body_lo = min(op_arr[i], cl_arr[i])
+            body_hi = max(op_arr[i], cl_arr[i])
+            ax1.plot([i, i], [lo_arr[i], hi_arr[i]], color=col, linewidth=0.8)
             ax1.add_patch(MplRect(
                 (i - 0.35, body_lo), 0.7, max(body_hi - body_lo, 0.001),
                 color=col, zorder=2,
             ))
-        ax1.set_xlim(-1, len(x))
+        ax1.set_xlim(-1, n)
         ax1.yaxis.tick_right()
-        ax1.set_ylabel("")
 
         # ── Volume ───────────────────────────────────────────────
-        vol_colors = ["#26a69a" if float(close.iloc[i]) >= float(opens.iloc[i])
-                      else "#ef5350" for i in x]
-        ax2.bar(x, volume.values, color=vol_colors, alpha=0.6, width=0.7)
+        vol_cols = ["#26a69a" if cl_arr[i] >= op_arr[i] else "#ef5350"
+                    for i in xs]
+        ax2.bar(xs, volume.values, color=vol_cols, alpha=0.6, width=0.7)
         ax2.yaxis.tick_right()
         ax2.set_ylabel("Vol", color="#94A3B8", fontsize=8)
 
         # ── RSI ──────────────────────────────────────────────────
-        ax3.plot(x, rsi.values, color="#9333ea", linewidth=1.3)
+        ax3.plot(xs, rsi.values, color="#9333ea", linewidth=1.3)
         ax3.axhline(70, color="#ef5350", linestyle="--", linewidth=0.7)
         ax3.axhline(30, color="#26a69a", linestyle="--", linewidth=0.7)
         ax3.axhspan(70, 100, alpha=0.06, color="#ef5350")
@@ -249,19 +259,18 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
         ax3.set_ylabel("RSI 14", color="#9333ea", fontsize=8)
 
         # ── MACD ─────────────────────────────────────────────────
-        hist_vals = macd_hist.values
-        bar_cols  = ["#26a69a" if v >= 0 else "#ef5350"
-                     for v in macd_hist.fillna(0)]
-        ax4.bar(x, hist_vals, color=bar_cols, alpha=0.65, width=0.7)
-        ax4.plot(x, macd_line.values,   color="#3B82F6", linewidth=1.2)
-        ax4.plot(x, signal_line.values, color="#F97316", linewidth=1.2)
+        mh = macd_hist.values
+        bar_cols = ["#26a69a" if v >= 0 else "#ef5350" for v in mh]
+        ax4.bar(xs, mh, color=bar_cols, alpha=0.65, width=0.7)
+        ax4.plot(xs, macd_line.values,   color="#3B82F6", linewidth=1.2)
+        ax4.plot(xs, signal_line.values, color="#F97316", linewidth=1.2)
         ax4.axhline(0, color="#CBD5E1", linewidth=0.7)
         ax4.yaxis.tick_right()
         ax4.set_ylabel("MACD", color="#64748B", fontsize=8)
 
-        # x-axis date labels every ~3 weeks
-        tick_step = max(1, len(x) // 8)
-        tick_pos  = list(range(0, len(x), tick_step))
+        # x-axis date labels
+        tick_step = max(1, n // 8)
+        tick_pos  = list(range(0, n, tick_step))
         ax4.set_xticks(tick_pos)
         ax4.set_xticklabels(
             [dates[i].strftime("%m/%d") for i in tick_pos],
@@ -276,7 +285,7 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
         buf.seek(0)
         return buf.read()
     except Exception as e:
-        print(f"[matplotlib chart error] {e}")
+        print(f"[matplotlib chart error] {ticker}: {type(e).__name__}: {e}")
         return None
 
 
@@ -284,19 +293,30 @@ def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
     try:
         import yfinance as yf
         hist = yf.Ticker(ticker).history(period=period)
-        if hist.empty or len(hist) < 30:
+        if hist.empty or len(hist) < 10:
+            print(f"[chart] {ticker}: not enough data ({len(hist)} rows)")
             return None
 
         hist.index = _strip_tz(hist.index)
-        ohlcv = hist[["Open", "High", "Low", "Close", "Volume"]].copy()
+        # Drop rows where Close is NaN
+        hist = hist.dropna(subset=["Close", "Open", "High", "Low"])
+        if len(hist) < 10:
+            print(f"[chart] {ticker}: not enough clean data after dropna")
+            return None
 
-        # Try full mplfinance chart first; fall back to pure matplotlib
+        ohlcv = hist[["Open", "High", "Low", "Close", "Volume"]].copy()
+        ohlcv["Volume"] = ohlcv["Volume"].fillna(0)
+
+        # Try mplfinance first; fall back to pure matplotlib
         result = _chart_mplfinance(ohlcv, ticker)
         if result is None:
+            print(f"[chart] {ticker}: mplfinance failed, trying matplotlib fallback")
             result = _chart_matplotlib(ohlcv, ticker)
+        if result is None:
+            print(f"[chart] {ticker}: both chart methods failed")
         return result
     except Exception as e:
-        print(f"[chart error] {ticker}: {e}")
+        print(f"[chart error] {ticker}: {type(e).__name__}: {e}")
         return None
 
 
