@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.patches import Rectangle as MplRect
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -210,7 +211,8 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
         for ax in (ax1, ax2, ax3, ax4):
             ax.set_facecolor("white")
             ax.grid(axis="y", color="#E2E8F0", linewidth=0.7, linestyle="--")
-            ax.spines[["top", "right"]].set_visible(False)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
             ax.tick_params(colors="#64748B", labelsize=8)
 
         # ── Candlestick ──────────────────────────────────────────
@@ -221,7 +223,7 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
             body_hi = max(float(opens.iloc[i]), float(close.iloc[i]))
             ax1.plot([i, i], [float(lows.iloc[i]), float(highs.iloc[i])],
                      color=col, linewidth=0.8)
-            ax1.add_patch(plt.Rectangle(
+            ax1.add_patch(MplRect(
                 (i - 0.35, body_lo), 0.7, max(body_hi - body_lo, 0.001),
                 color=col, zorder=2,
             ))
