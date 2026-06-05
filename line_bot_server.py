@@ -163,8 +163,8 @@ def _generate_chart(ticker: str) -> bytes:
 
 # ── 查詢股票現價 ───────────────────────────────────────────────
 def _check_stock(ticker: str) -> tuple[str, str]:
-    """Returns (text_reply, chart_url)"""
-    chart_url = f"{BASE_URL}/chart/{ticker}.png" if BASE_URL else ""
+    """Returns (text_reply, chart_url=empty — link is embedded in text)"""
+    chart_url = ""
     try:
         if not FINNHUB_TOKEN:
             return "股票查詢尚未設定 API Key", ""
@@ -215,11 +215,16 @@ def _check_stock(ticker: str) -> tuple[str, str]:
                             f"({perf*100:.1f}%){status}"
                         )
 
+        tv_url = f"https://www.tradingview.com/chart/?symbol={ticker}"
+
         lines = [
             f"[{ticker}] 即時報價",
             f"現價: ${price:.2f}",
             f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
             f"今日: ${low:.2f} – ${high:.2f}",
+            f"",
+            f"📈 走勢圖:",
+            tv_url,
         ]
 
         if related:
@@ -227,7 +232,7 @@ def _check_stock(ticker: str) -> tuple[str, str]:
             lines.append("相關持倉:")
             lines.extend(related[:5])
 
-        return "\n".join(lines), chart_url
+        return "\n".join(lines), ""
 
     except Exception as e:
         return f"查詢失敗: {e}", ""
