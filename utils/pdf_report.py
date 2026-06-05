@@ -89,13 +89,13 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
     story.append(Paragraph(
         "結構型商品投資報表",
         _style("Title", fontSize=22, fontName=FONT_BOLD, textColor=BLUE_DARK,
-               alignment=1, spaceAfter=4)
+               alignment=1, spaceAfter=2)
     ))
     story.append(Paragraph(
-        f"Structured Notes Investment Report",
-        _style("Subtitle", fontSize=10, textColor=GRAY, alignment=1, spaceAfter=2)
+        "Structured Notes Investment Report",
+        _style("Subtitle", fontSize=9, textColor=GRAY, alignment=1, spaceAfter=6)
     ))
-    story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK, spaceAfter=8))
+    story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK, spaceAfter=10))
 
     # ── 客戶資訊區 ──────────────────────────────────────────
     report_date = date.today().strftime("%Y 年 %m 月 %d 日")
@@ -182,7 +182,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict) ->
         _style("Footer", fontSize=8, textColor=GRAY, alignment=1)
     ))
     story.append(Paragraph(
-        "⚠️ 本報表僅供參考，不構成任何投資建議。實際損益以銀行確認為準。",
+        "[!] 本報表僅供參考，不構成任何投資建議。實際損益以銀行確認為準。",
         _style("Disclaimer", fontSize=8, textColor=ORANGE, alignment=1)
     ))
 
@@ -220,9 +220,17 @@ def _add_sn_detail(story, idx, inv, sn, prices, W):
     }.get(analysis["overall_status"], GRAY)
 
     # 商品標頭
+    status_text = {
+        "ko_triggered": "[KO觸發]",
+        "ko_risk":      "[接近KO]",
+        "ki_triggered": "[KI觸發]",
+        "ki_risk":      "[接近KI]",
+        "normal":       "[正常]",
+        "unknown":      "[未知]",
+    }.get(analysis["overall_status"], "")
     header_data = [[
         f"#{idx}  {product_code}",
-        f"{analysis['status_emoji']} {analysis['status_label']}",
+        f"{status_text} {analysis['status_label']}",
         f"投資金額: USD {amount_usd:,.0f}"
     ]]
     header_table = Table(header_data, colWidths=[W*0.45, W*0.30, W*0.25])
