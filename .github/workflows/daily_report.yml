@@ -17,7 +17,7 @@ jobs:
           python-version: '3.11'
 
       - name: 安裝套件
-        run: pip install supabase requests
+        run: pip install supabase requests yfinance
 
       - name: 發送每日報告
         env:
