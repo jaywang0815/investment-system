@@ -1,4 +1,5 @@
 streamlit>=1.41.0
+authlib>=1.3.0
 extra-streamlit-components>=0.1.60
 supabase>=2.3.0
 pandas>=2.0.0
