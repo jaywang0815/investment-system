@@ -60,9 +60,9 @@ def build_daily_report(stats: dict, sns_with_status: list, upcoming_obs: list) -
             sn = a.get("sn", {})
             code = sn.get("product_code", "—")
             tickers = " ".join([
-                sn.get(f"underlying_{i}", "")
+                sn.get(f"underlying_{i}")
                 for i in range(1, 6)
-                if sn.get(f"underlying_{i}")
+                if isinstance(sn.get(f"underlying_{i}"), str)
             ])
             emoji = a.get("status_emoji", "⚠️")
             label = a.get("status_label", "")
@@ -78,9 +78,9 @@ def build_daily_report(stats: dict, sns_with_status: list, upcoming_obs: list) -
             obs_date = str(obs.get("observation_date", "—"))[:10]
             code = obs.get("product_code", "—")
             tickers = " / ".join([
-                obs.get(f"underlying_{i}", "")
+                obs.get(f"underlying_{i}")
                 for i in range(1, 6)
-                if obs.get(f"underlying_{i}")
+                if isinstance(obs.get(f"underlying_{i}"), str)
             ])
             lines.append(f"  📌 {obs_date}")
             lines.append(f"     {code} ({tickers})")
