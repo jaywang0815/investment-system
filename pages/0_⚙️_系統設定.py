@@ -11,6 +11,23 @@ from pathlib import Path
 
 st.set_page_config(page_title="系統設定", page_icon="⚙️", layout="wide")
 
+# ── Admin only ─────────────────────────────────────────────────
+_ADMIN_EMAIL = "pmjatu1508@gmail.com"
+
+def _is_admin() -> bool:
+    # password login → admin
+    if st.session_state.get("authenticated"):
+        return True
+    # Google login → check email
+    try:
+        return st.user.is_logged_in and st.user.email == _ADMIN_EMAIL
+    except Exception:
+        return False
+
+if not _is_admin():
+    st.error("⛔ 此頁面僅限管理員存取")
+    st.stop()
+
 SECRETS_PATH = Path(__file__).parent.parent / ".streamlit" / "secrets.toml"
 
 
