@@ -185,17 +185,25 @@ col_line1, col_line2 = st.columns(2)
 with col_line1:
     st.markdown("**每日報告**")
     if st.button("📤 立即發送每日報告到 LINE", type="primary"):
-        stats = get_dashboard_stats()
-        upcoming = upcoming_df.to_dict("records") if not upcoming_df.empty else []
-        report = build_daily_report(
-            stats=stats,
-            sns_with_status=[{**a["sn"], **a["analysis"]} for a in analyzed],
-            upcoming_obs=upcoming
-        )
-        if send_line_notify(report):
-            st.success("✅ 每日報告已發送到 LINE Notify!")
+        # 先檢查 Secrets 是否齊全
+        access_token = st.secrets.get("LINE_CHANNEL_ACCESS_TOKEN")
+        user_id = st.secrets.get("LINE_ADMIN_USER_ID")
+        if not access_token:
+            st.error("❌ 缺少 LINE_CHANNEL_ACCESS_TOKEN，請至 Streamlit Cloud Secrets 新增")
+        elif not user_id:
+            st.error("❌ 缺少 LINE_ADMIN_USER_ID，請至 Streamlit Cloud Secrets 新增")
         else:
-            st.error("❌ 發送失敗，請確認 LINE_NOTIFY_TOKEN 設定正確")
+            stats = get_dashboard_stats()
+            upcoming = upcoming_df.to_dict("records") if not upcoming_df.empty else []
+            report = build_daily_report(
+                stats=stats,
+                sns_with_status=[{**a["sn"], **a["analysis"]} for a in analyzed],
+                upcoming_obs=upcoming
+            )
+            if send_line_notify(report):
+                st.success("✅ 每日報告已發送到 LINE!")
+            else:
+                st.error("❌ 發送失敗 — Token 或 User ID 可能有誤，請至 LINE Developers 重新產生 Channel Access Token")
 
 with col_line2:
     st.markdown("**發送特定商品警示**")
