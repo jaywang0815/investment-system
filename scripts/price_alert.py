@@ -12,7 +12,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 FINNHUB_TOKEN = os.environ.get("FINNHUB_TOKEN", "")
 
-ALERT_THRESHOLD_PCT = 5.0  # แจ้งเตือนเมื่อเปลี่ยนแปลงเกิน 5%
+ALERT_THRESHOLD_PCT = 7.0  # แจ้งเตือนเมื่อลดลงเกิน 7%
 
 
 def sb_get(table: str, params: dict = None) -> list:
