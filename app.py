@@ -259,36 +259,87 @@ if _use_google_auth:
         pass
 
 if not st.session_state.authenticated and not _google_logged_in:
-    col1, col2, col3 = st.columns([1, 2, 1])
+    if "pin_input" not in st.session_state:
+        st.session_state.pin_input = ""
+    if "pin_error" not in st.session_state:
+        st.session_state.pin_error = False
+
+    correct_pin = _admin_password_plain or ""
+    pin_len = len(correct_pin) if correct_pin else 4
+    entered = st.session_state.pin_input
+
+    st.markdown("""
+    <style>
+    .pin-container { text-align: center; padding: 2rem 0 1rem 0; }
+    .pin-title { font-size: 1.5rem; font-weight: 700; color: #1E3A8A; margin-bottom: 0.3rem; }
+    .pin-subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem; }
+    .pin-dots { font-size: 2rem; letter-spacing: 0.8rem; margin: 1rem 0 1.5rem 0; color: #1E3A8A; }
+    .pin-error { color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; }
+    div[data-testid="stButton"] > button {
+        border-radius: 50% !important;
+        width: 72px !important; height: 72px !important;
+        font-size: 1.4rem !important; font-weight: 600 !important;
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #1e293b !important;
+        margin: 4px auto !important;
+        display: block !important;
+    }
+    div[data-testid="stButton"] > button:hover {
+        background: #1E3A8A !important; color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.image("https://img.icons8.com/color/96/bank-building.png", width=80)
-        st.markdown("## 結構型商品投資管理系統")
-        st.markdown("---")
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="pin-container">', unsafe_allow_html=True)
+        st.markdown('<div class="pin-title">🏦 投資管理系統</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pin-subtitle">輸入 PIN 碼解鎖</div>', unsafe_allow_html=True)
 
-        if _use_google_auth:
-            if st.button("🔐 使用 Google 帳號登入", use_container_width=True, type="primary"):
-                st.login("google")
-            st.markdown("<div style='text-align:center; color:#94a3b8; margin: 8px 0;'>— หรือ —</div>", unsafe_allow_html=True)
+        # แสดงจุด
+        dots = "●" * len(entered) + "○" * (pin_len - len(entered))
+        dot_color = "#ef4444" if st.session_state.pin_error else "#1E3A8A"
+        st.markdown(f'<div class="pin-dots" style="color:{dot_color}">{dots}</div>', unsafe_allow_html=True)
 
-        pw_input = st.text_input("รหัสผ่าน", type="password", placeholder="輸入密碼後按 Enter", label_visibility="collapsed")
-        if st.button("🔑 ล็อคอินด้วยรหัสผ่าน", use_container_width=True):
-            if pw_input:
-                correct = False
-                if _admin_password_plain and pw_input == _admin_password_plain:
-                    correct = True
-                elif _admin_password_hash and _check_password(pw_input, _admin_password_hash):
-                    correct = True
-                if correct:
-                    st.session_state.authenticated = True
-                    _set_cookie()
-                    st.rerun()
-                else:
-                    st.error("❌ 密碼錯誤")
+        if st.session_state.pin_error:
+            st.markdown('<div class="pin-error">❌ PIN ไม่ถูกต้อง</div>', unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.caption("本系統僅供授權人員使用")
+        # ปุ่ม PIN pad
+        rows = [["1","2","3"], ["4","5","6"], ["7","8","9"], ["⌫","0","✓"]]
+        for row in rows:
+            c1, c2, c3 = st.columns(3)
+            for col_obj, num in zip([c1, c2, c3], row):
+                with col_obj:
+                    if st.button(num, key=f"pin_{num}", use_container_width=True):
+                        if num == "⌫":
+                            st.session_state.pin_input = entered[:-1]
+                            st.session_state.pin_error = False
+                        elif num == "✓":
+                            if entered == correct_pin:
+                                st.session_state.authenticated = True
+                                st.session_state.pin_input = ""
+                                st.session_state.pin_error = False
+                                _set_cookie()
+                            else:
+                                st.session_state.pin_error = True
+                                st.session_state.pin_input = ""
+                        else:
+                            new_pin = entered + num
+                            st.session_state.pin_input = new_pin
+                            st.session_state.pin_error = False
+                            # auto-submit เมื่อครบ
+                            if len(new_pin) == pin_len:
+                                if new_pin == correct_pin:
+                                    st.session_state.authenticated = True
+                                    st.session_state.pin_input = ""
+                                    _set_cookie()
+                                else:
+                                    st.session_state.pin_error = True
+                                    st.session_state.pin_input = ""
+                        st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 # ── 權限檢查 ──────────────────────────────────────────────────
