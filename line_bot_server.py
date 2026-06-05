@@ -163,73 +163,31 @@ def _generate_chart(ticker: str) -> bytes:
 
 # ── 查詢股票現價 ───────────────────────────────────────────────
 def _check_stock(ticker: str) -> tuple[str, str]:
-    """Returns (text_reply, empty) — links always embedded in text."""
     tv_url = f"https://www.tradingview.com/symbols/{ticker}/"
-    yf_url = f"https://finance.yahoo.com/quote/{ticker}"
-    links_block = f"\n📈 TradingView:\n{tv_url}\n📊 Yahoo Finance:\n{yf_url}"
 
     try:
-        if not FINNHUB_TOKEN:
-            return f"[{ticker}]{links_block}", ""
+        import yfinance as yf
+        info = yf.Ticker(ticker).fast_info
+        price = info.last_price
+        prev  = info.previous_close
 
-        resp = requests.get(
-            "https://finnhub.io/api/v1/quote",
-            params={"symbol": ticker, "token": FINNHUB_TOKEN},
-            timeout=10
-        )
-        if not resp.ok:
-            return f"[{ticker}] 查詢失敗{links_block}", ""
+        if price and price > 0:
+            chg   = price - prev if prev else 0
+            chg_p = chg / prev * 100 if prev else 0
+            arrow = "▲" if chg >= 0 else "▼"
+            sign  = "+" if chg >= 0 else ""
+            text  = (
+                f"📈 {ticker}\n"
+                f"${price:,.2f}  {arrow}{sign}{chg:.2f} ({sign}{chg_p:.2f}%)\n\n"
+                f"{tv_url}"
+            )
+        else:
+            text = f"📈 {ticker}\n{tv_url}"
 
-        q = resp.json()
-        price = q.get("c")
-        high = q.get("h")
-        low = q.get("l")
-        change = q.get("d", 0)
-        change_pct = q.get("dp", 0)
+    except Exception:
+        text = f"📈 {ticker}\n{tv_url}"
 
-        if not price or price == 0:
-            return f"[{ticker}] 找不到報價{links_block}", ""
-
-        arrow = "▲" if change >= 0 else "▼"
-        sign = "+" if change >= 0 else ""
-
-        sns = get_sns("active")
-        related = []
-        for s in sns:
-            for i in range(1, 6):
-                if (s.get(f"underlying_{i}") or "").upper() == ticker:
-                    init = s.get(f"initial_price_{i}")
-                    ko = s.get("ko_barrier")
-                    ki = s.get("ki_barrier")
-                    if init and init > 0:
-                        perf = price / init
-                        status = ""
-                        if ko and perf >= ko:
-                            status = " [KO觸發]"
-                        elif ki and perf <= ki:
-                            status = " [KI觸發]"
-                        elif ko and perf >= ko * 0.97:
-                            status = " [接近KO]"
-                        elif ki and perf <= ki * 1.1:
-                            status = " [接近KI]"
-                        related.append(
-                            f"  {s.get('product_code','—')} ({perf*100:.1f}%){status}"
-                        )
-
-        lines = [
-            f"[{ticker}] 即時報價",
-            f"現價: ${price:.2f}",
-            f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
-            f"今日: ${low:.2f} – ${high:.2f}",
-        ]
-        if related:
-            lines += ["", "相關持倉:"] + related[:5]
-        lines.append(links_block)
-
-        return "\n".join(lines), ""
-
-    except Exception as e:
-        return f"[{ticker}] 查詢失敗: {e}{links_block}", ""
+    return text, ""
 
 
 # ── 指令處理 ──────────────────────────────────────────────────
