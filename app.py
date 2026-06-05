@@ -175,7 +175,7 @@ hr { border-color: #e2e8f0 !important; margin: 1rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── ซ่อน 系統設定 จาก sidebar + gear icon มุมขวาบน ────────────
+# ── ⚙️ gear icon top-right ───────────────────────────────────
 st.markdown("""
 <style>
 .gear-fab {
@@ -194,39 +194,9 @@ st.markdown("""
     transition: all 0.15s;
     cursor: pointer;
 }
-.gear-fab:hover {
-    background: #1E3A8A;
-    color: white !important;
-    border-color: #1E3A8A;
-}
+.gear-fab:hover { background:#1E3A8A; color:white !important; border-color:#1E3A8A; }
 </style>
 <a href="/系統設定" target="_self" class="gear-fab" title="系統設定">⚙️</a>
-<style>
-/* ซ่อนด้วย CSS สำหรับ browser รองรับ :has() */
-li:has([data-testid="stSidebarNavLink"][href*="%E8%A8%AD%E5%AE%9A"]),
-li:has([data-testid="stSidebarNavLink"][href*="設定"]) {
-    display: none !important;
-}
-</style>
-<script>
-(function() {
-    function hideSettingsNav() {
-        document.querySelectorAll('[data-testid="stSidebarNavLink"]').forEach(function(a) {
-            if (a.href && (a.href.includes('設定') || a.href.includes('%E8%A8%AD%E5%AE%9A') || a.href.includes('%E7%B3%BB%E7%B5%B1'))) {
-                const li = a.closest('li');
-                if (li) li.style.setProperty('display', 'none', 'important');
-            }
-        });
-    }
-    // รันครั้งแรก
-    hideSettingsNav();
-    // MutationObserver — ซ่อนใหม่ทุกครั้งที่ Streamlit re-render sidebar
-    new MutationObserver(hideSettingsNav).observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-})();
-</script>
 """, unsafe_allow_html=True)
 
 # ── 檢查設定是否完成 ─────────────────────────────────────────
