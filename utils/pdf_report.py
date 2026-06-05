@@ -1,0 +1,284 @@
+"""
+PDF 報表產生模組 - 繁體中文
+使用 reportlab + macOS 內建 PingFang 字型
+"""
+import io
+import os
+from datetime import date, datetime
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# ── 字型設定 ──────────────────────────────────────────────
+def _register_font():
+    font_paths = [
+        "/System/Library/Fonts/PingFang.ttc",           # macOS PingFang TC
+        "/System/Library/Fonts/STHeiti Medium.ttc",     # macOS 黑體
+        "/System/Library/Fonts/Supplemental/Songti.ttc",
+    ]
+    for path in font_paths:
+        if os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont("ChineseFont", path, subfontIndex=0))
+                pdfmetrics.registerFont(TTFont("ChineseFontBold", path, subfontIndex=0))
+                return True
+            except Exception:
+                continue
+    return False
+
+_font_registered = _register_font()
+FONT = "ChineseFont" if _font_registered else "Helvetica"
+FONT_BOLD = "ChineseFontBold" if _font_registered else "Helvetica-Bold"
+
+# ── 顏色 ──────────────────────────────────────────────────
+BLUE_DARK  = colors.HexColor("#1E3A8A")
+BLUE_MID   = colors.HexColor("#3B82F6")
+BLUE_LIGHT = colors.HexColor("#EFF6FF")
+GRAY       = colors.HexColor("#64748B")
+GRAY_LIGHT = colors.HexColor("#F1F5F9")
+RED        = colors.HexColor("#DC2626")
+GREEN      = colors.HexColor("#16A34A")
+ORANGE     = colors.HexColor("#EA580C")
+WHITE      = colors.white
+
+def _style(name, **kw):
+    base = ParagraphStyle(name, fontName=FONT, **kw)
+    return base
+
+# ============================================================
+# 主函數: 產生客戶投資報表 PDF
+# ============================================================
+
+def generate_customer_report(customer: dict, investments: list, prices: dict) -> bytes:
+    """
+    產生單一客戶的完整投資報表
+
+    Args:
+        customer: 客戶資料 dict
+        investments: 投資記錄 list (含 structured_notes 欄位)
+        prices: 目前股票價格 dict {ticker: price}
+
+    Returns:
+        PDF bytes
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=15*mm,
+        bottomMargin=15*mm,
+        leftMargin=18*mm,
+        rightMargin=18*mm,
+    )
+
+    W = A4[0] - 36*mm  # 可用寬度
+
+    story = []
+
+    # ── 封面標題 ────────────────────────────────────────────
+    story.append(Paragraph(
+        "結構型商品投資報表",
+        _style("Title", fontSize=22, fontName=FONT_BOLD, textColor=BLUE_DARK,
+               alignment=1, spaceAfter=4)
+    ))
+    story.append(Paragraph(
+        f"Structured Notes Investment Report",
+        _style("Subtitle", fontSize=10, textColor=GRAY, alignment=1, spaceAfter=2)
+    ))
+    story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK, spaceAfter=8))
+
+    # ── 客戶資訊區 ──────────────────────────────────────────
+    report_date = date.today().strftime("%Y 年 %m 月 %d 日")
+    info_data = [
+        ["客戶姓名", customer.get("name", "—"), "報表日期", report_date],
+        ["美元總額度", f"USD {customer.get('usd_amount', 0):,.0f}" if customer.get('usd_amount') else "—",
+         "中信部位", f"USD {customer.get('ctbc_position', 0):,.0f}" if customer.get('ctbc_position') else "—"],
+    ]
+    info_table = Table(info_data, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
+    info_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+        ("FONTNAME", (2, 0), (2, -1), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("BACKGROUND", (0, 0), (0, -1), BLUE_LIGHT),
+        ("BACKGROUND", (2, 0), (2, -1), BLUE_LIGHT),
+        ("TEXTCOLOR", (0, 0), (0, -1), BLUE_DARK),
+        ("TEXTCOLOR", (2, 0), (2, -1), BLUE_DARK),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [WHITE, GRAY_LIGHT]),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 8*mm))
+
+    # ── 投資概覽 ────────────────────────────────────────────
+    total_invested = sum(inv.get("amount_usd", 0) or 0 for inv in investments)
+    active_count = len([inv for inv in investments
+                        if inv.get("structured_notes", {}).get("status") == "active"])
+
+    story.append(Paragraph("【投資概覽】",
+        _style("H2", fontSize=13, fontName=FONT_BOLD, textColor=BLUE_DARK, spaceAfter=4)))
+
+    overview_data = [
+        ["持倉商品數", "總投資金額", "有效持倉"],
+        [str(len(investments)), f"USD {total_invested:,.0f}", f"{active_count} 筆有效"],
+    ]
+    ov_table = Table(overview_data, colWidths=[W/3, W/3, W/3])
+    ov_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("FONTSIZE", (0, 1), (-1, -1), 16),
+        ("BACKGROUND", (0, 0), (-1, 0), BLUE_DARK),
+        ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+        ("BACKGROUND", (0, 1), (-1, -1), BLUE_LIGHT),
+        ("TEXTCOLOR", (0, 1), (-1, -1), BLUE_DARK),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWHEIGHT", (0, 1), (-1, -1), 18*mm),
+        ("GRID", (0, 0), (-1, -1), 0.5, WHITE),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    story.append(ov_table)
+    story.append(Spacer(1, 8*mm))
+
+    # ── 各持倉明細 ──────────────────────────────────────────
+    story.append(Paragraph("【持倉明細】",
+        _style("H2", fontSize=13, fontName=FONT_BOLD, textColor=BLUE_DARK, spaceAfter=6)))
+
+    for idx, inv in enumerate(investments, 1):
+        sn = inv.get("structured_notes") or {}
+        if not sn:
+            continue
+
+        _add_sn_detail(story, idx, inv, sn, prices, W)
+        story.append(Spacer(1, 5*mm))
+
+    # ── 頁尾 ────────────────────────────────────────────────
+    story.append(HRFlowable(width="100%", thickness=1, color=GRAY, spaceAfter=4))
+    story.append(Paragraph(
+        f"本報表由投資管理系統自動產生 · 報表日期: {report_date} · 資料來源: Yahoo Finance",
+        _style("Footer", fontSize=8, textColor=GRAY, alignment=1)
+    ))
+    story.append(Paragraph(
+        "⚠️ 本報表僅供參考，不構成任何投資建議。實際損益以銀行確認為準。",
+        _style("Disclaimer", fontSize=8, textColor=ORANGE, alignment=1)
+    ))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def _add_sn_detail(story, idx, inv, sn, prices, W):
+    """產生單一 SN 商品的詳細區塊"""
+    from utils.stock_prices import analyze_sn_status, get_sn_underlyings
+
+    product_code = sn.get("product_code", "—")
+    underlyings = get_sn_underlyings(sn)
+    ticker_names = " / ".join([u["ticker"] for u in underlyings])
+    obs_date = sn.get("observation_date", "—")
+    trade_date = sn.get("trade_date", "—")
+    strike_pct = sn.get("strike_pct")
+    coupon_pct = sn.get("coupon_pct")
+    ko_barrier = sn.get("ko_barrier")
+    ki_barrier = sn.get("ki_barrier")
+    amount_usd = inv.get("amount_usd", 0) or 0
+
+    # 取得各標的現價並分析
+    ticker_list = [u["ticker"] for u in underlyings]
+    current_prices = {t: prices.get(t) for t in ticker_list}
+    analysis = analyze_sn_status(sn, current_prices)
+
+    status_color = {
+        "ko_triggered": GREEN,
+        "ko_risk":      colors.HexColor("#CA8A04"),
+        "ki_triggered": RED,
+        "ki_risk":      ORANGE,
+        "normal":       BLUE_DARK,
+        "unknown":      GRAY,
+    }.get(analysis["overall_status"], GRAY)
+
+    # 商品標頭
+    header_data = [[
+        f"#{idx}  {product_code}",
+        f"{analysis['status_emoji']} {analysis['status_label']}",
+        f"投資金額: USD {amount_usd:,.0f}"
+    ]]
+    header_table = Table(header_data, colWidths=[W*0.45, W*0.30, W*0.25])
+    header_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("BACKGROUND", (0, 0), (-1, -1), status_color),
+        ("TEXTCOLOR", (0, 0), (-1, -1), WHITE),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+        ("RIGHTPADDING", (2, 0), (2, 0), 8),
+    ]))
+    story.append(header_table)
+
+    # 商品基本資訊
+    info_rows = [
+        ["標的股票", ticker_names,
+         "下單日期", str(trade_date)[:10] if trade_date else "—"],
+        ["執行價格", f"{strike_pct*100:.2f}%" if strike_pct else "—",
+         "比價日期", str(obs_date)[:10] if obs_date else "—"],
+        ["配息率(年化)", f"{coupon_pct*100:.2f}%" if coupon_pct else "—",
+         "KO 水位", f"{ko_barrier*100:.0f}%" if ko_barrier else "無"],
+        ["投資金額", f"USD {amount_usd:,.0f}",
+         "KI 水位", f"{ki_barrier*100:.0f}%" if ki_barrier else "無"],
+    ]
+    info_table = Table(info_rows, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
+    info_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+        ("FONTNAME", (2, 0), (2, -1), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (0, -1), GRAY_LIGHT),
+        ("BACKGROUND", (2, 0), (2, -1), GRAY_LIGHT),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(info_table)
+
+    # 各標的現價明細
+    if analysis["details"]:
+        price_header = ["標的股票", "期初價格", "現價", "漲跌幅", "執行價", "KO 水位", "KI 水位", "狀態"]
+        price_rows = [price_header]
+        for d in analysis["details"]:
+            row = [
+                d["ticker"],
+                f"${d['initial_price']:,.2f}" if d["initial_price"] else "—",
+                f"${d['current_price']:,.2f}" if d["current_price"] else "取得中",
+                f"{d['change_pct']:+.2f}%" if d["change_pct"] is not None else "—",
+                f"${d['strike_price']:,.2f}" if d.get("strike_price") else "—",
+                f"${d['ko_price']:,.2f}" if d.get("ko_price") else "無",
+                f"${d['ki_price']:,.2f}" if d.get("ki_price") else "無",
+                f"{d['ko_status']} {d['ki_status']}",
+            ]
+            price_rows.append(row)
+
+        col_w = [22*mm, 22*mm, 22*mm, 20*mm, 22*mm, 22*mm, 22*mm, 23*mm]
+        price_table = Table(price_rows, colWidths=col_w)
+        price_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), FONT),
+            ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, 0), BLUE_DARK),
+            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, GRAY_LIGHT]),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        story.append(price_table)
