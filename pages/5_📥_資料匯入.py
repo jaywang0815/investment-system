@@ -35,13 +35,55 @@ except Exception:
     DB_READY = False
     st.warning("⚠️ 資料庫未連線 — 仍可預覽資料，但無法匯入。請先完成「系統設定」。")
 
+def _snapshot_month(sb, month_label: str) -> dict:
+    """บันทึก snapshot ของข้อมูลเดือนก่อน import เพื่อใช้ UNDO"""
+    sns = sb.table("structured_notes").select("*").eq("month_label", month_label).execute().data or []
+    snapshot = {"month_label": month_label, "sns": []}
+    for sn in sns:
+        invs = sb.table("investments").select("*").eq("sn_id", sn["id"]).execute().data or []
+        snapshot["sns"].append({"sn": sn, "investments": invs})
+    return snapshot
+
+
+def _restore_snapshot(sb, snapshot: dict):
+    """คืนค่าข้อมูลจาก snapshot (UNDO)"""
+    month = snapshot["month_label"]
+    status = st.empty()
+
+    # ลบข้อมูลเดือนนั้นทั้งหมดก่อน
+    status.text("復原中：刪除現有資料...")
+    existing = sb.table("structured_notes").select("id").eq("month_label", month).execute().data or []
+    for sn in existing:
+        sb.table("investments").delete().eq("sn_id", sn["id"]).execute()
+        sb.table("structured_notes").delete().eq("id", sn["id"]).execute()
+
+    # คืนค่าจาก snapshot
+    for item in snapshot["sns"]:
+        sn_data = {k: v for k, v in item["sn"].items() if k != "id"}
+        status.text(f"復原：{item['sn'].get('product_code')}")
+        resp = sb.table("structured_notes").insert(sn_data).execute()
+        if resp.data:
+            new_sn_id = resp.data[0]["id"]
+            for inv in item["investments"]:
+                inv_data = {k: v for k, v in inv.items() if k not in ("id", "sn_id", "created_at")}
+                inv_data["sn_id"] = new_sn_id
+                sb.table("investments").insert(inv_data).execute()
+
+    status.empty()
+    st.success("✅ 已復原至匯入前的狀態")
+    st.session_state.pop("undo_snapshot", None)
+    st.rerun()
+
+
 def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip_duplicates: bool, force_month: str = None):
-    """執行匯入到 Supabase"""
+    """執行匯入到 Supabase — รองรับ upsert และ UNDO"""
     from utils.database import get_supabase
     sb = get_supabase()
 
+    upsert_mode = bool(force_month)  # เปิด upsert เมื่อระบุเดือนชัดเจน
     total_customers = 0
     total_sns = 0
+    total_updated = 0
     total_investments = 0
     errors = []
 
@@ -52,15 +94,19 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
     except Exception:
         pass
 
+    # บันทึก snapshot ก่อน import (สำหรับ UNDO)
+    if upsert_mode and import_sns:
+        with st.spinner("備份資料中 (準備復原功能)..."):
+            st.session_state["undo_snapshot"] = _snapshot_month(sb, force_month)
+
     progress = st.progress(0)
     status = st.empty()
 
-    for file_idx, parsed in enumerate(parsed_list):
+    for parsed in parsed_list:
         if import_customers:
-            customers = parsed.get("customers", [])
-            for cust in customers:
+            for cust in parsed.get("customers", []):
                 name = cust["name"]
-                if skip_duplicates and name in existing_customers:
+                if name in existing_customers:
                     status.text(f"跳過重複客戶: {name}")
                     continue
                 try:
@@ -80,23 +126,32 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                         sn["month_label"] = force_month
                     all_sns.append(sn)
 
-            total_sn_count = len(all_sns)
             for sn_idx, sn in enumerate(all_sns):
-                progress.progress((sn_idx + 1) / max(total_sn_count, 1))
+                progress.progress((sn_idx + 1) / max(len(all_sns), 1))
                 investments = sn.pop("investments", [])
                 code = sn["product_code"]
 
                 sn_id = None
-                if skip_duplicates:
-                    try:
-                        resp = sb.table("structured_notes").select("id").eq("product_code", code).execute()
-                        if resp.data:
-                            sn_id = resp.data[0]["id"]
-                            status.text(f"跳過重複商品: {code}")
-                    except Exception:
-                        pass
+                # เช็กว่ามีอยู่แล้วไหม
+                try:
+                    resp = sb.table("structured_notes").select("id").eq("product_code", code).execute()
+                    existing_sn = resp.data[0] if resp.data else None
+                except Exception:
+                    existing_sn = None
 
-                if sn_id is None:
+                if existing_sn:
+                    if upsert_mode:
+                        # อัพเดทข้อมูลเดิม
+                        sn_id = existing_sn["id"]
+                        sb.table("structured_notes").update(sn).eq("id", sn_id).execute()
+                        # ลบ investments เก่าแล้วใส่ใหม่
+                        sb.table("investments").delete().eq("sn_id", sn_id).execute()
+                        total_updated += 1
+                        status.text(f"🔄 更新 SN: {code}")
+                    else:
+                        status.text(f"跳過重複商品: {code}")
+                        continue
+                else:
                     try:
                         resp = sb.table("structured_notes").insert(sn).execute()
                         if resp.data:
@@ -115,8 +170,8 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                         if not customer_id:
                             name_clean = cname.replace("*", "").replace("＊", "").strip()
                             for k, v in existing_customers.items():
-                                k_clean = k.replace("*", "").replace("＊", "").strip()
-                                if name_clean in k_clean or k_clean in name_clean:
+                                if name_clean in k.replace("*","").replace("＊","").strip() or \
+                                   k.replace("*","").replace("＊","").strip() in name_clean:
                                     customer_id = v
                                     break
                         if not customer_id:
@@ -148,9 +203,9 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
     with c1:
         st.metric("新增客戶", f"{total_customers} 人")
     with c2:
-        st.metric("新增 SN 商品", f"{total_sns} 筆")
+        st.metric("新增 SN", f"{total_sns} 筆")
     with c3:
-        st.metric("新增投資記錄", f"{total_investments} 筆")
+        st.metric("更新 SN", f"{total_updated} 筆")
     with c4:
         st.metric("錯誤", f"{len(errors)} 個")
 
@@ -160,12 +215,30 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                 st.text(f"• {e}")
     else:
         st.success("✅ 匯入完成，無錯誤！")
-        st.balloons()
+        if upsert_mode:
+            st.info("💡 如需復原，請點擊下方「↩️ 復原上次匯入」按鈕")
+        else:
+            st.balloons()
 
     st.session_state.pop("parsed_data", None)
     st.session_state.pop("parsed_data_list", None)
     st.session_state.pop("use_existing", None)
 
+
+# ── ปุ่ม UNDO (แสดงเมื่อมี snapshot) ─────────────────────────
+if st.session_state.get("undo_snapshot") and DB_READY:
+    month = st.session_state["undo_snapshot"]["month_label"]
+    st.warning(f"⚠️ มี snapshot ของ **{month}** ก่อน import ล่าสุด")
+    col_u1, col_u2 = st.columns([1, 4])
+    with col_u1:
+        if st.button("↩️ 復原上次匯入", type="primary", use_container_width=True):
+            from utils.database import get_supabase as _gsb
+            _restore_snapshot(_gsb(), st.session_state["undo_snapshot"])
+    with col_u2:
+        if st.button("🗑️ 放棄復原 (確認保留新資料)", use_container_width=True):
+            st.session_state.pop("undo_snapshot", None)
+            st.rerun()
+    st.markdown("---")
 
 tab1, tab2 = st.tabs(["📁 上傳並匯入", "📋 月份管理"])
 
