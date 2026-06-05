@@ -10,7 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
@@ -60,6 +60,55 @@ _EMOJI_RE = re.compile(
 def _clean(text) -> str:
     """Strip emoji characters that the font cannot render"""
     return _EMOJI_RE.sub("", str(text) if text is not None else "").strip()
+
+def _generate_price_chart(ticker: str, initial_price: float,
+                          ko_barrier: float, ki_barrier: float,
+                          strike_pct: float, width_mm: float = 155) -> bytes | None:
+    """Download 6-month history and plot price chart with KO/KI lines"""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        import yfinance as yf
+
+        hist = yf.Ticker(ticker).history(period="6mo")
+        if hist.empty:
+            return None
+
+        fig, ax = plt.subplots(figsize=(width_mm / 25.4, 2.5))
+        ax.plot(hist.index, hist["Close"], color="#1E3A8A", linewidth=1.2, label=ticker)
+
+        if initial_price and initial_price > 0:
+            if ko_barrier:
+                ko_price = initial_price * ko_barrier
+                ax.axhline(ko_price, color="#16A34A", linestyle="--", linewidth=0.9,
+                           label=f"KO {ko_barrier*100:.0f}% (${ko_price:,.0f})")
+            if ki_barrier:
+                ki_price = initial_price * ki_barrier
+                ax.axhline(ki_price, color="#DC2626", linestyle="--", linewidth=0.9,
+                           label=f"KI {ki_barrier*100:.0f}% (${ki_price:,.0f})")
+            if strike_pct:
+                sp = initial_price * strike_pct
+                ax.axhline(sp, color="#3B82F6", linestyle=":", linewidth=0.8,
+                           label=f"執行價 ${sp:,.0f}")
+
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+        ax.xaxis.set_major_locator(mdates.MonthLocator())
+        ax.tick_params(labelsize=6)
+        ax.legend(fontsize=6, loc="upper left", framealpha=0.7)
+        ax.set_title(f"{ticker}  近6個月走勢", fontsize=8)
+        ax.grid(True, alpha=0.3, linewidth=0.5)
+        fig.tight_layout(pad=0.5)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=120, bbox_inches="tight")
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+    except Exception:
+        return None
+
 
 def _style(name, **kw):
     kw.setdefault("fontName", FONT)
@@ -317,3 +366,19 @@ def _add_sn_detail(story, idx, inv, sn, prices, W):
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ]))
         story.append(price_table)
+
+    # ── 價格走勢圖 ──────────────────────────────────────────
+    for u in underlyings:
+        chart_bytes = _generate_price_chart(
+            ticker=u["ticker"],
+            initial_price=u.get("initial_price") or 0,
+            ko_barrier=sn.get("ko_barrier"),
+            ki_barrier=sn.get("ki_barrier"),
+            strike_pct=sn.get("strike_pct"),
+            width_mm=W / mm,
+        )
+        if chart_bytes:
+            img_buf = io.BytesIO(chart_bytes)
+            rl_img = RLImage(img_buf, width=W, height=W * 0.36)
+            story.append(Spacer(1, 2*mm))
+            story.append(rl_img)
