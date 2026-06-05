@@ -13,165 +13,228 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ── 全域 CSS ─────────────────────────────────────────────────
+# ── 全域 CSS  (Smart-Home inspired redesign) ─────────────────
 st.markdown("""
 <style>
-/* ── 整體版面 ─────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Base ─────────────────────────────────────────── */
+html, body, [data-testid="stAppViewContainer"] {
+    background: #EEF2FF !important;
+    font-family: 'Inter', sans-serif !important;
+}
 .main .block-container {
-    padding-top: 1.8rem;
-    padding-bottom: 2rem;
-    max-width: 1200px;
+    padding-top: 1.6rem;
+    padding-bottom: 2.5rem;
+    max-width: 1280px;
 }
 
-/* ── 側邊欄 ───────────────────────────────────────── */
+/* ── Sidebar ──────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0f2557 0%, #1E3A8A 100%);
-    border-right: none;
+    background: #1E2E6B !important;
+    border-right: none !important;
+    box-shadow: 4px 0 24px rgba(30,46,107,0.18) !important;
 }
-[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
-[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.15) !important; }
+[data-testid="stSidebar"] * { color: #c7d2fe !important; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
+
+[data-testid="stSidebarNavLink"] {
+    border-radius: 14px !important;
+    margin: 3px 8px !important;
+    padding: 10px 14px !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s !important;
+    color: #a5b4fc !important;
+}
+[data-testid="stSidebarNavLink"]:hover {
+    background: rgba(255,255,255,0.12) !important;
+    color: #fff !important;
+    transform: translateX(3px) !important;
+}
+[data-testid="stSidebarNavLink"][aria-selected="true"] {
+    background: rgba(99,102,241,0.35) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 12px rgba(99,102,241,0.3) !important;
+}
 [data-testid="stSidebar"] .stButton > button {
     background: rgba(255,255,255,0.1) !important;
-    border: 1px solid rgba(255,255,255,0.2) !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
     color: white !important;
-    border-radius: 8px !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(255,255,255,0.2) !important;
-}
-[data-testid="stSidebarNav"] a {
-    border-radius: 8px !important;
-    margin: 2px 0 !important;
-    padding: 6px 12px !important;
-    font-size: 0.95em !important;
-}
-[data-testid="stSidebarNav"] a:hover,
-[data-testid="stSidebarNav"] a[aria-selected="true"] {
-    background: rgba(255,255,255,0.15) !important;
+    border-radius: 12px !important;
 }
 
-/* ── 頁面標題 ─────────────────────────────────────── */
+/* ── Page title ───────────────────────────────────── */
 h1 {
-    font-size: 1.55rem !important;
+    font-size: 1.6rem !important;
     font-weight: 700 !important;
-    color: #1E3A8A !important;
-    padding-bottom: 0.3rem !important;
-    border-bottom: 2px solid #e2e8f0;
-    margin-bottom: 1rem !important;
+    color: #1e2e6b !important;
+    padding-bottom: 0 !important;
+    border-bottom: none !important;
+    margin-bottom: 1.2rem !important;
+    letter-spacing: -0.3px !important;
 }
-h2 { font-size: 1.15rem !important; font-weight: 600 !important; color: #1e40af !important; }
-h3 { font-size: 1rem !important; font-weight: 600 !important; color: #334155 !important; }
+h2 { font-size: 1.1rem !important; font-weight: 600 !important; color: #3730a3 !important; }
+h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #4338ca !important; }
 
-/* ── Metric 卡片 ──────────────────────────────────── */
+/* ── Metric cards ─────────────────────────────────── */
 [data-testid="stMetric"] {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 1rem 1.2rem !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    background: #ffffff !important;
+    border: none !important;
+    border-radius: 20px !important;
+    padding: 1.3rem 1.5rem !important;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.08), 0 1px 4px rgba(0,0,0,0.04) !important;
+    transition: transform 0.2s, box-shadow 0.2s !important;
 }
-[data-testid="stMetricLabel"] { color: #64748b !important; font-size: 0.82rem !important; }
-[data-testid="stMetricValue"] { color: #1E3A8A !important; font-weight: 700 !important; }
-
-/* ── 按鈕 ─────────────────────────────────────────── */
-.stButton > button {
-    border-radius: 8px !important;
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 28px rgba(99,102,241,0.14) !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #6b7280 !important;
+    font-size: 0.78rem !important;
     font-weight: 500 !important;
-    transition: all 0.18s ease !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+[data-testid="stMetricValue"] {
+    color: #1e2e6b !important;
+    font-weight: 700 !important;
+    font-size: 1.8rem !important;
+}
+[data-testid="stMetricDelta"] { font-size: 0.82rem !important; font-weight: 600 !important; }
+
+/* ── Buttons ──────────────────────────────────────── */
+.stButton > button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    transition: all 0.2s ease !important;
+    border: none !important;
+    padding: 0.5rem 1.2rem !important;
 }
 .stButton > button[kind="primary"] {
-    background: #1E3A8A !important;
-    border: none !important;
+    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
     color: white !important;
+    box-shadow: 0 4px 14px rgba(79,70,229,0.35) !important;
 }
 .stButton > button[kind="primary"]:hover {
-    background: #1e40af !important;
-    box-shadow: 0 4px 12px rgba(30,58,138,0.35) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(79,70,229,0.45) !important;
+}
+.stButton > button[kind="secondary"] {
+    background: white !important;
+    border: 1.5px solid #e0e7ff !important;
+    color: #4F46E5 !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    background: #EEF2FF !important;
+    border-color: #6366F1 !important;
 }
 
-/* ── 標籤頁 ──────────────────────────────────────── */
+/* ── Tabs ─────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
-    background: #f1f5f9;
-    padding: 4px;
-    border-radius: 10px;
+    background: #E0E7FF;
+    padding: 5px;
+    border-radius: 14px;
     gap: 4px;
     border-bottom: none !important;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 8px !important;
-    padding: 6px 18px !important;
+    border-radius: 10px !important;
+    padding: 7px 20px !important;
     font-weight: 500 !important;
-    color: #475569 !important;
+    color: #6366F1 !important;
     background: transparent !important;
+    font-size: 0.88rem !important;
 }
 .stTabs [aria-selected="true"] {
     background: white !important;
-    color: #1E3A8A !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    color: #3730a3 !important;
+    box-shadow: 0 2px 8px rgba(79,70,229,0.15) !important;
+    font-weight: 600 !important;
 }
 
-/* ── 表格 ─────────────────────────────────────────── */
+/* ── DataFrame / Table ────────────────────────────── */
 [data-testid="stDataFrame"] {
-    border-radius: 10px !important;
-    border: 1px solid #e2e8f0 !important;
+    border-radius: 16px !important;
+    border: none !important;
     overflow: hidden !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
 }
 
-/* ── 輸入欄位 ─────────────────────────────────────── */
+/* ── Inputs ───────────────────────────────────────── */
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
 .stSelectbox > div > div,
 .stTextArea textarea {
-    border-radius: 8px !important;
-    border-color: #e2e8f0 !important;
+    border-radius: 12px !important;
+    border: 1.5px solid #e0e7ff !important;
+    background: #fff !important;
     font-size: 0.9rem !important;
+    transition: border 0.2s, box-shadow 0.2s !important;
 }
 [data-testid="stTextInput"] input:focus,
 .stTextArea textarea:focus {
-    border-color: #3B82F6 !important;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+    border-color: #6366F1 !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
 }
 
 /* ── Expander ─────────────────────────────────────── */
 [data-testid="stExpander"] {
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 10px !important;
+    background: white !important;
+    border: none !important;
+    border-radius: 16px !important;
     overflow: hidden !important;
-    margin-bottom: 6px !important;
+    margin-bottom: 8px !important;
+    box-shadow: 0 2px 10px rgba(99,102,241,0.07) !important;
 }
 [data-testid="stExpander"] summary {
-    font-weight: 500 !important;
-    color: #334155 !important;
-    padding: 10px 14px !important;
+    font-weight: 600 !important;
+    color: #3730a3 !important;
+    padding: 12px 18px !important;
+    font-size: 0.92rem !important;
 }
-[data-testid="stExpander"] summary:hover {
-    background: #f8fafc !important;
-}
+[data-testid="stExpander"] summary:hover { background: #F5F3FF !important; }
 
-/* ── 通知 ─────────────────────────────────────────── */
+/* ── Alerts ───────────────────────────────────────── */
 [data-testid="stAlert"] {
-    border-radius: 10px !important;
+    border-radius: 14px !important;
     border-left-width: 4px !important;
     font-size: 0.9rem !important;
 }
 
-/* ── 分隔線 ───────────────────────────────────────── */
-hr { border-color: #e2e8f0 !important; margin: 1rem 0 !important; }
+/* ── Alert blocks ─────────────────────────────────── */
+.alert-ki   { background:#FFF1F3; border-left:4px solid #F43F5E; padding:12px 16px; border-radius:14px; margin:5px 0; }
+.alert-ko   { background:#ECFDF5; border-left:4px solid #10B981; padding:12px 16px; border-radius:14px; margin:5px 0; }
+.alert-warn { background:#FFFBEB; border-left:4px solid #F59E0B; padding:12px 16px; border-radius:14px; margin:5px 0; }
 
-/* ── 警示色塊 ─────────────────────────────────────── */
-.alert-ki  { background:#FEF2F2; border-left:4px solid #DC2626; padding:10px 14px; border-radius:8px; margin:4px 0; }
-.alert-ko  { background:#F0FDF4; border-left:4px solid #16A34A; padding:10px 14px; border-radius:8px; margin:4px 0; }
-.alert-warn{ background:#FFF7ED; border-left:4px solid #EA580C; padding:10px 14px; border-radius:8px; margin:4px 0; }
+/* ── Divider ──────────────────────────────────────── */
+hr { border-color: #e0e7ff !important; margin: 1.2rem 0 !important; }
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #EEF2FF; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+
+/* ── Form ─────────────────────────────────────────── */
+[data-testid="stForm"] {
+    background: white !important;
+    border-radius: 20px !important;
+    padding: 1.5rem !important;
+    border: none !important;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.08) !important;
+}
 
 /* ── Spinner ──────────────────────────────────────── */
-[data-testid="stSpinner"] { color: #3B82F6 !important; }
+[data-testid="stSpinner"] { color: #6366F1 !important; }
 
-/* ── 捲軸 ─────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
+/* ── Success / Info / Warning / Error ────────────── */
+.stSuccess { border-radius: 14px !important; }
+.stInfo    { border-radius: 14px !important; }
+.stWarning { border-radius: 14px !important; }
+.stError   { border-radius: 14px !important; }
 </style>
 """, unsafe_allow_html=True)
 
