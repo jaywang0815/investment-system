@@ -209,29 +209,29 @@ _use_google_auth = bool(
 _admin_password_hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
 _admin_password_plain = st.secrets.get("ADMIN_PASSWORD", "")
 
-# ── Cookie 管理 (記住登入狀態 7 天) ──────────────────────────
-try:
-    import extra_streamlit_components as stx
-    _cm = stx.CookieManager(key="__inv_cm")
-    _COOKIE_NAME = "inv_auth"
-    _COOKIE_SECRET = st.secrets.get("COOKIE_SECRET", "inv2024secret")
+# ── Cookie 管理 (記住登入狀態 30 天) ─────────────────────────
+_COOKIE_SECRET = st.secrets.get("COOKIE_SECRET", "inv2024secret")
 
-    def _cookie_token():
-        src = f"{_admin_password_plain or _admin_password_hash}:{_COOKIE_SECRET}"
-        return hashlib.sha256(src.encode()).hexdigest()[:24]
+def _cookie_token():
+    src = f"{_admin_password_plain or _admin_password_hash}:{_COOKIE_SECRET}"
+    return hashlib.sha256(src.encode()).hexdigest()[:24]
+
+try:
+    from streamlit_cookies_controller import CookieController
+    _cc = CookieController()
 
     def _set_cookie():
-        _cm.set(_COOKIE_NAME, _cookie_token(), max_age=30 * 24 * 3600)
+        _cc.set("inv_auth", _cookie_token(), max_age=30 * 24 * 3600)
 
     def _del_cookie():
         try:
-            _cm.delete(_COOKIE_NAME)
+            _cc.remove("inv_auth")
         except Exception:
             pass
 
     def _cookie_ok():
         try:
-            return _cm.get(_COOKIE_NAME) == _cookie_token()
+            return _cc.get("inv_auth") == _cookie_token()
         except Exception:
             return False
 
