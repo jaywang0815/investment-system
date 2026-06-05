@@ -1,6 +1,6 @@
 """
 Price Alert — รันทุก 1 ชั่วโมงช่วงตลาด US เปิด (GitHub Actions)
-ถ้าหุ้นในพอร์ตขึ้น/ลงเกิน 5% จากราคาเมื่อวัน → ส่ง LINE แจ้งลูกค้าทุกคนที่มี line_user_id
+แจ้งเตือนเมื่อหุ้นลงเกิน 7% หรือขึ้นเกิน 5% จากราคาเมื่อวัน
 """
 import os
 import sys
@@ -12,7 +12,8 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 FINNHUB_TOKEN = os.environ.get("FINNHUB_TOKEN", "")
 
-ALERT_THRESHOLD_PCT = 7.0  # แจ้งเตือนเมื่อลดลงเกิน 7%
+ALERT_DOWN_PCT = 7.0  # แจ้งเตือนเมื่อลงเกิน 7%
+ALERT_UP_PCT   = 5.0  # แจ้งเตือนเมื่อขึ้นเกิน 5%
 
 
 def sb_get(table: str, params: dict = None) -> list:
@@ -71,24 +72,41 @@ def _ticker_perf_line(ticker: str, price: float, sn: dict) -> str:
 def build_batch_alert_msg(alerts: list, recipient_name: str) -> str:
     """
     alerts = [(ticker, price, prev_close, change_pct, sn), ...]
-    Builds one combined message for all triggered tickers.
+    Builds one combined message, up and down alerts in separate sections.
     """
     today = date.today().strftime("%Y/%m/%d")
+    up   = [(t,p,pc,c,s) for t,p,pc,c,s in alerts if c > 0]
+    down = [(t,p,pc,c,s) for t,p,pc,c,s in alerts if c <= 0]
+
+    up_count   = f"📈 {len(up)} 支" if up else ""
+    down_count = f"⚠️ {len(down)} 支" if down else ""
+    summary    = "  |  ".join(filter(None, [up_count, down_count]))
+
     lines = [
-        f"⚠️ 價格警示 — {recipient_name}",
-        f"日期: {today}  共 {len(alerts)} 支觸發",
+        f"📊 價格警示 — {recipient_name}",
+        f"日期: {today}  {summary}",
         "═════════════",
     ]
-    for ticker, price, prev_close, change_pct, sn in alerts:
-        arrow = "▲" if change_pct > 0 else "▼"
-        direction = "上漲" if change_pct > 0 else "下跌"
-        lines.append(f"{arrow} {ticker}  ${price:.2f}  {direction} {abs(change_pct):.2f}%")
-        lines.append(f"  昨收: ${prev_close:.2f}")
-        perf = _ticker_perf_line(ticker, price, sn)
-        if perf:
-            lines.append(perf)
-        lines.append(f"  商品: {sn.get('product_code', '—')}")
-        lines.append("─────────────")
+
+    def _append_section(items):
+        for ticker, price, prev_close, change_pct, sn in items:
+            arrow     = "▲" if change_pct > 0 else "▼"
+            direction = "上漲" if change_pct > 0 else "下跌"
+            lines.append(f"{arrow} {ticker}  ${price:.2f}  {direction} {abs(change_pct):.2f}%")
+            lines.append(f"  昨收: ${prev_close:.2f}")
+            perf = _ticker_perf_line(ticker, price, sn)
+            if perf:
+                lines.append(perf)
+            lines.append(f"  商品: {sn.get('product_code', '—')}")
+            lines.append("─────────────")
+
+    if up:
+        lines.append("📈 上漲警示")
+        _append_section(up)
+    if down:
+        lines.append("⚠️ 下跌警示")
+        _append_section(down)
+
     return "\n".join(lines)
 
 
@@ -136,7 +154,8 @@ def main():
 
         print(f"  {ticker}: ${price:.2f} ({change_pct:+.2f}%)")
 
-        if abs(change_pct) < ALERT_THRESHOLD_PCT:
+        triggered = (change_pct <= -ALERT_DOWN_PCT) or (change_pct >= ALERT_UP_PCT)
+        if not triggered:
             continue
 
         print(f"  >>> ALERT: {ticker} {change_pct:+.2f}%")
@@ -164,7 +183,7 @@ def main():
 
     # ── ส่งข้อความรวมเดียว ─────────────────────────────────────
     if not admin_alerts:
-        print("\nNo alerts triggered (all within 5% threshold)")
+        print(f"\nNo alerts triggered (down<{ALERT_DOWN_PCT}%, up<{ALERT_UP_PCT}%)")
         return
 
     print(f"\nAlerts triggered: {', '.join(f'{t} {c:+.2f}%' for t,_,_,c,_ in admin_alerts)}")
