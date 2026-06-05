@@ -55,6 +55,17 @@ with tab1:
             with st.spinner(f"取得 {len(all_tickers)} 個股票現價..."):
                 prices = get_prices(all_tickers)
 
+        # ดึงข้อมูลการลงทุนทั้งหมดในครั้งเดียว
+        from utils.database import get_all_investments
+        all_inv_df = get_all_investments()
+        inv_by_sn = {}
+        if not all_inv_df.empty:
+            for sn_id, grp in all_inv_df.groupby("sn_id"):
+                inv_by_sn[sn_id] = {
+                    "names": "、".join(grp["customer_name"].dropna().tolist()),
+                    "total": grp["amount_usd"].sum()
+                }
+
         # 建立顯示表格
         rows = []
         for _, sn in sns_df.iterrows():
@@ -63,9 +74,11 @@ with tab1:
             underlyings = get_sn_underlyings(sn_dict)
             ticker_str = " / ".join([u["ticker"] for u in underlyings])
 
-            # 最差表現
             worst = analysis.get("worst_performance")
             worst_str = f"{worst*100:.1f}%" if worst else "—"
+
+            inv_info = inv_by_sn.get(sn_dict.get("id"), {})
+            total_usd = inv_info.get("total", 0)
 
             rows.append({
                 "代號": sn.get("product_code", "—"),
@@ -73,6 +86,8 @@ with tab1:
                 "執行價%": f"{sn.get('strike_pct', 0)*100:.1f}%" if sn.get('strike_pct') else "—",
                 "配息%": f"{sn.get('coupon_pct', 0)*100:.2f}%" if sn.get('coupon_pct') else "—",
                 "比價日": str(sn.get("observation_date", ""))[:10],
+                "投資金額(USD)": f"${total_usd:,.0f}" if total_usd else "—",
+                "投資客戶": inv_info.get("names", "—"),
                 "最差表現": worst_str,
                 "狀態": f"{analysis['status_emoji']} {analysis['status_label']}",
             })
