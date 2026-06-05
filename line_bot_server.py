@@ -127,7 +127,7 @@ def _check_stock(ticker: str) -> str:
         related = []
         for s in sns:
             for i in range(1, 4):
-                if s.get(f"underlying_{i}", "").upper() == ticker:
+                if (s.get(f"underlying_{i}") or "").upper() == ticker:
                     init = s.get(f"initial_price_{i}")
                     ko = s.get("ko_barrier")
                     ki = s.get("ki_barrier")
