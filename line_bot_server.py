@@ -163,11 +163,14 @@ def _generate_chart(ticker: str) -> bytes:
 
 # ── 查詢股票現價 ───────────────────────────────────────────────
 def _check_stock(ticker: str) -> tuple[str, str]:
-    """Returns (text_reply, chart_url=empty — link is embedded in text)"""
-    chart_url = ""
+    """Returns (text_reply, empty) — links always embedded in text."""
+    tv_url = f"https://www.tradingview.com/symbols/{ticker}/"
+    yf_url = f"https://finance.yahoo.com/quote/{ticker}"
+    links_block = f"\n📈 TradingView:\n{tv_url}\n📊 Yahoo Finance:\n{yf_url}"
+
     try:
         if not FINNHUB_TOKEN:
-            return "股票查詢尚未設定 API Key", ""
+            return f"[{ticker}]{links_block}", ""
 
         resp = requests.get(
             "https://finnhub.io/api/v1/quote",
@@ -175,7 +178,7 @@ def _check_stock(ticker: str) -> tuple[str, str]:
             timeout=10
         )
         if not resp.ok:
-            return f"查詢「{ticker}」失敗，請稍後再試", ""
+            return f"[{ticker}] 查詢失敗{links_block}", ""
 
         q = resp.json()
         price = q.get("c")
@@ -185,12 +188,11 @@ def _check_stock(ticker: str) -> tuple[str, str]:
         change_pct = q.get("dp", 0)
 
         if not price or price == 0:
-            return f"找不到「{ticker}」\n請確認股票代號是否正確 (例: AAPL, AMD, TSLA)", ""
+            return f"[{ticker}] 找不到報價{links_block}", ""
 
         arrow = "▲" if change >= 0 else "▼"
         sign = "+" if change >= 0 else ""
 
-        # 檢查是否為系統內持有的標的
         sns = get_sns("active")
         related = []
         for s in sns:
@@ -203,42 +205,31 @@ def _check_stock(ticker: str) -> tuple[str, str]:
                         perf = price / init
                         status = ""
                         if ko and perf >= ko:
-                            status = " [KO觸発]"
+                            status = " [KO觸發]"
                         elif ki and perf <= ki:
-                            status = " [KI觸発]"
+                            status = " [KI觸發]"
                         elif ko and perf >= ko * 0.97:
                             status = " [接近KO]"
                         elif ki and perf <= ki * 1.1:
                             status = " [接近KI]"
                         related.append(
-                            f"  {s.get('product_code','—')} "
-                            f"({perf*100:.1f}%){status}"
+                            f"  {s.get('product_code','—')} ({perf*100:.1f}%){status}"
                         )
-
-        tv_url = f"https://www.tradingview.com/symbols/{ticker}/"
-        yf_url = f"https://finance.yahoo.com/quote/{ticker}"
 
         lines = [
             f"[{ticker}] 即時報價",
             f"現價: ${price:.2f}",
             f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
             f"今日: ${low:.2f} – ${high:.2f}",
-            f"",
-            f"📈 TradingView:",
-            tv_url,
-            f"📊 Yahoo Finance:",
-            yf_url,
         ]
-
         if related:
-            lines.append("")
-            lines.append("相關持倉:")
-            lines.extend(related[:5])
+            lines += ["", "相關持倉:"] + related[:5]
+        lines.append(links_block)
 
         return "\n".join(lines), ""
 
     except Exception as e:
-        return f"查詢失敗: {e}", ""
+        return f"[{ticker}] 查詢失敗: {e}{links_block}", ""
 
 
 # ── 指令處理 ──────────────────────────────────────────────────
