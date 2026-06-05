@@ -325,7 +325,19 @@ with tab4:
             if not months:
                 st.warning("找不到月份資料")
             else:
-                st.info(f"找到 **{len(months)}** 個月份：{' · '.join(months)}")
+                selected_months = st.multiselect(
+                    "選擇要匯出的月份",
+                    options=months,
+                    default=months,
+                    placeholder="選擇月份..."
+                )
+
+                if not selected_months:
+                    st.warning("請至少選擇一個月份")
+                    st.stop()
+
+                months = selected_months
+                st.caption(f"將匯出 {len(months)} 個月份：{' · '.join(months)}")
 
                 if st.button("📊 產生 Excel（依月份）", type="primary", use_container_width=True):
                     with st.spinner("整理資料中，請稍候..."):
