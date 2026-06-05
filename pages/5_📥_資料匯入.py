@@ -90,14 +90,15 @@ with tab1:
     # 處理上傳的檔案
     if uploaded_files:
         all_parsed = []
-        for file in uploaded_files:
-            try:
-                file_bytes = BytesIO(file.read())
-                parsed = parse_excel_file(file_bytes)
-                parsed["_filename"] = file.name
-                all_parsed.append(parsed)
-            except Exception as e:
-                st.error(f"❌ 無法讀取 {file.name}: {e}")
+        with st.spinner("📂 讀取檔案中，請稍候..."):
+            for file in uploaded_files:
+                try:
+                    file_bytes = BytesIO(file.read())
+                    parsed = parse_excel_file(file_bytes)
+                    parsed["_filename"] = file.name
+                    all_parsed.append(parsed)
+                except Exception as e:
+                    st.error(f"❌ 無法讀取 {file.name}: {e}")
 
         st.session_state["parsed_data_list"] = all_parsed
 
