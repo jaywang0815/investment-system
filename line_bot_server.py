@@ -93,6 +93,74 @@ def reply(reply_token: str, text: str) -> None:
     )
 
 
+# ── 查詢股票現價 ───────────────────────────────────────────────
+def _check_stock(ticker: str) -> str:
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(ticker)
+        info = stock.fast_info
+
+        price = info.last_price
+        prev_close = info.previous_close
+        if not price:
+            return f"找不到「{ticker}」的資料\n請確認股票代號是否正確"
+
+        change = price - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0
+        arrow = "▲" if change >= 0 else "▼"
+        sign = "+" if change >= 0 else ""
+
+        # 檢查是否為系統內持有的標的
+        sns = get_sns("active")
+        related = []
+        for s in sns:
+            for i in range(1, 4):
+                if s.get(f"underlying_{i}", "").upper() == ticker:
+                    init = s.get(f"initial_price_{i}")
+                    ko = s.get("ko_barrier")
+                    ki = s.get("ki_barrier")
+                    if init and init > 0:
+                        perf = price / init
+                        status = ""
+                        if ko and perf >= ko:
+                            status = " ✅ KO觸發"
+                        elif ki and perf <= ki:
+                            status = " 🔴 KI觸發"
+                        elif ko and perf >= ko * 0.97:
+                            status = " 🟡 接近KO"
+                        elif ki and perf <= ki * 1.1:
+                            status = " ⚠️ 接近KI"
+                        related.append(
+                            f"  {s.get('product_code','—')} "
+                            f"({perf*100:.1f}%){status}"
+                        )
+
+        lines = [
+            f"📈 {ticker}",
+            f"現價: ${price:.2f}",
+            f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
+        ]
+
+        try:
+            high52 = info.year_high
+            low52 = info.year_low
+            if high52 and low52:
+                lines.append(f"52週: ${low52:.2f} – ${high52:.2f}")
+        except Exception:
+            pass
+
+        if related:
+            lines.append("")
+            lines.append("📌 相關持倉:")
+            lines.extend(related[:5])
+
+        lines.append(f"\n🕐 資料約延遲15分鐘")
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"查詢失敗: {e}"
+
+
 # ── 指令處理 ──────────────────────────────────────────────────
 def handle_command(text: str, user_id: str = "") -> str:
     text = text.strip()
@@ -106,17 +174,24 @@ def handle_command(text: str, user_id: str = "") -> str:
             f"請將此 ID 傳給管理員，即可接收投資通知。"
         )
 
+    # เช็คราคาหุ้น — ตรวจสอบว่าเป็น ticker หรือเปล่า
+    import re
+    if re.match(r'^[A-Za-z]{1,6}(\.[A-Za-z]{1,3})?$', text):
+        return _check_stock(text.upper())
+
     # 幫助
     if text in ["幫助", "help", "說明", "?", "？"]:
         return (
             "📊 投資管理系統指令說明\n\n"
             "🔍 查詢指令:\n"
+            "  [股票代號] → 查詢股票現價 (例: AAPL)\n"
             "  [客戶姓名] → 查詢個人持倉\n"
             "  例: 游家順\n\n"
             "📋 系統指令:\n"
             "  日報 → 今日投資摘要\n"
             "  警示 → KO/KI 警示列表\n"
             "  客戶 → 所有客戶列表\n"
+            "  myid → 查詢自己的 LINE ID\n"
             "  幫助 → 顯示此說明"
         )
 
