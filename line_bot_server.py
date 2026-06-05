@@ -96,24 +96,45 @@ def reply(reply_token: str, text: str) -> None:
 # ── 查詢股票現價 ───────────────────────────────────────────────
 def _check_stock(ticker: str) -> str:
     try:
-        import yfinance as yf
-        hist = yf.download(ticker, period="5d", interval="1d",
-                           progress=False, auto_adjust=True)
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
 
-        if hist.empty:
-            return f"找不到「{ticker}」的資料\n請確認股票代號是否正確"
+        if not resp.ok:
+            # ลอง query2 ถ้า query1 ล้มเหลว
+            url2 = url.replace("query1", "query2")
+            resp = requests.get(url2, headers=headers, timeout=10)
 
-        price = float(hist["Close"].iloc[-1])
-        prev_close = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
+        if not resp.ok:
+            return f"查詢「{ticker}」失敗，請稍後再試"
 
-        change = price - prev_close
+        data = resp.json()
+        result = (data.get("chart") or {}).get("result") or []
+        if not result:
+            return f"找不到「{ticker}」\n請確認股票代號是否正確 (例: AAPL, AMD, TSLA)"
+
+        meta = result[0]["meta"]
+        price = meta.get("regularMarketPrice")
+        prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+
+        if not price:
+            return f"找不到「{ticker}」的報價"
+
+        change = (price - prev_close) if prev_close else 0
         change_pct = (change / prev_close * 100) if prev_close else 0
         arrow = "▲" if change >= 0 else "▼"
         sign = "+" if change >= 0 else ""
 
-        # 52週高低
-        high52 = float(hist["High"].max())
-        low52 = float(hist["Low"].min())
+        high52 = meta.get("fiftyTwoWeekHigh")
+        low52 = meta.get("fiftyTwoWeekLow")
+        market_state = meta.get("marketState", "")
+        state_str = " (盤前/盤後)" if market_state in ("PRE", "POST") else ""
 
         # 檢查是否為系統內持有的標的
         sns = get_sns("active")
@@ -141,18 +162,19 @@ def _check_stock(ticker: str) -> str:
                         )
 
         lines = [
-            f"[{ticker}] 股票報價",
+            f"[{ticker}] 股票報價{state_str}",
             f"現價: ${price:.2f}",
             f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
-            f"近5日: ${low52:.2f} – ${high52:.2f}",
         ]
+        if high52 and low52:
+            lines.append(f"52週: ${low52:.2f} – ${high52:.2f}")
 
         if related:
             lines.append("")
             lines.append("相關持倉:")
             lines.extend(related[:5])
 
-        lines.append(f"\n(資料約延遲15分鐘)")
+        lines.append("\n(即時報價，15分鐘延遲)")
         return "\n".join(lines)
 
     except Exception as e:
