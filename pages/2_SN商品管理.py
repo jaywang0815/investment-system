@@ -67,43 +67,57 @@ with tab1:
                     "total": grp["amount_usd"].sum()
                 }
 
+        def _v(val):
+            """Return None if val is None, NaN, or empty string."""
+            if val is None:
+                return None
+            try:
+                import math
+                if isinstance(val, float) and math.isnan(val):
+                    return None
+            except Exception:
+                pass
+            return val if val != "" else None
+
+        def _pct(val, decimals=0):
+            v = _v(val)
+            return f"{v*100:.{decimals}f}%" if v is not None else "—"
+
+        def _num(val, decimals=0):
+            v = _v(val)
+            return f"{v:,.{decimals}f}" if v is not None else "—"
+
         # 建立顯示表格
         rows = []
         for _, sn in sns_df.iterrows():
             sn_dict = sn.to_dict()
             analysis = analyze_sn_status(sn_dict, prices)
-            underlyings = get_sn_underlyings(sn_dict)
 
             worst = analysis.get("worst_performance")
-            worst_str = f"{worst*100:.1f}%" if worst else "—"
+            worst_str = f"{worst*100:.1f}%" if _v(worst) is not None else "—"
 
             inv_info = inv_by_sn.get(sn_dict.get("id"), {})
             total_usd = inv_info.get("total", 0)
 
-            ko = sn.get("ko_barrier")
-            ki = sn.get("ki_barrier")
-
             row = {
                 "代號": sn.get("product_code", "—"),
-                "執行價%": f"{sn.get('strike_pct', 0)*100:.1f}%" if sn.get('strike_pct') else "—",
-                "配息%": f"{sn.get('coupon_pct', 0)*100:.2f}%" if sn.get('coupon_pct') else "—",
-                "KO": f"{ko*100:.0f}%" if ko else "—",
-                "KI": f"{ki*100:.0f}%" if ki else "—",
+                "執行價%": _pct(sn.get("strike_pct"), 1),
+                "配息%": _pct(sn.get("coupon_pct"), 2),
+                "KO": _pct(sn.get("ko_barrier")),
+                "KI": _pct(sn.get("ki_barrier")),
                 "比價日": str(sn.get("observation_date", ""))[:10],
-                "出場日": str(sn.get("exit_date") or "")[:10] or "—",
-                "暫結": f"{sn.get('temp_settlement'):,.0f}" if sn.get("temp_settlement") else "—",
-                "CHU": sn.get("chu") or "—",
-                "下單金(USD)": f"{sn.get('total_order_amount'):,.0f}" if sn.get("total_order_amount") else "—",
+                "出場日": str(_v(sn.get("exit_date")) or "")[:10] or "—",
+                "暫結": _num(sn.get("temp_settlement")),
+                "CHU": _v(sn.get("chu")) or "—",
+                "下單金(USD)": _num(sn.get("total_order_amount")),
                 "投資金額(USD)": f"{total_usd:,.0f}" if total_usd else "—",
                 "投資客戶": inv_info.get("names", "—"),
                 "最差表現": worst_str,
                 "狀態": f"{analysis['status_emoji']} {analysis['status_label']}",
             }
-            # แยกคอลัมน์ 標的1-5 และ 期初1-5
             for i in range(1, 6):
-                row[f"標的{i}"] = sn.get(f"underlying_{i}") or "—"
-                ip = sn.get(f"initial_price_{i}")
-                row[f"期初{i}"] = f"{ip:,.2f}" if ip else "—"
+                row[f"標的{i}"] = _v(sn.get(f"underlying_{i}")) or "—"
+                row[f"期初{i}"] = _num(sn.get(f"initial_price_{i}"), 2)
 
             rows.append(row)
 
