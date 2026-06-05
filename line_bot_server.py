@@ -332,9 +332,17 @@ def handle_command(text: str, user_id: str = "") -> str:
                             worst_perf = perf
                             worst_str = f" ({ticker} {perf:.1f}%)"
 
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
+            ko_str = f"KO {ko*100:.0f}%" if ko else ""
+            ki_str = f"KI {ki*100:.0f}%" if ki else ""
+            barrier_str = "  ".join(b for b in [ko_str, ki_str] if b)
+
             lines.append(f"📌 {code}")
             lines.append(f"   標的: {tstr}")
             lines.append(f"   金額: USD {amount:,.0f}{coupon_str}")
+            if barrier_str:
+                lines.append(f"   障礙: {barrier_str}")
             lines.append(f"   比價: {obs}{worst_str}")
             lines.append("")
 
