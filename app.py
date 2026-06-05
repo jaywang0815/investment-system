@@ -277,10 +277,7 @@ if not st.session_state.authenticated and not _google_logged_in:
     entered = st.session_state.pin_input
 
     _logo = _img_b64("logo.png")
-    _dog  = _img_b64("dog_cream_lie.png")
-
     logo_html = f'<img src="data:image/png;base64,{_logo}" style="width:88px;height:88px;">' if _logo else "🐾"
-    dog_html  = f'<img src="data:image/png;base64,{_dog}" style="width:220px;opacity:0.88;">' if _dog else ""
 
     st.markdown(f"""
     <style>
@@ -293,7 +290,6 @@ if not st.session_state.authenticated and not _google_logged_in:
     .pin-title    {{ font-size:1.7rem; font-weight:800; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.15rem; letter-spacing:0.04em; }}
     .pin-subtitle {{ font-size:0.88rem; color:#94a3b8; text-align:center; display:block; margin-bottom:1.6rem; }}
     .pin-error    {{ color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }}
-    .pin-dog      {{ text-align:center; margin-top:1.8rem; opacity:0.9; }}
     </style>
     <div class="pin-logo">{logo_html}</div>
     <div class="pin-title">DOUU WORK</div>
@@ -316,9 +312,6 @@ if not st.session_state.authenticated and not _google_logged_in:
         elif len(typed) >= pin_len:
             st.session_state.pin_error = True
             st.rerun()
-
-    if dog_html:
-        st.markdown(f'<div class="pin-dog">{dog_html}</div>', unsafe_allow_html=True)
 
     st.stop()
 
@@ -380,9 +373,10 @@ with st.sidebar:
     st.markdown("---")
 
 # ── 主頁面 ────────────────────────────────────────────────────
+from utils.ui_helpers import dog_header
 col_title, col_date = st.columns([4, 1])
 with col_title:
-    st.title("首頁總覽")
+    dog_header("首頁總覽")
 with col_date:
     st.markdown(f"<div style='text-align:right; color:#64748b; padding-top:14px; font-size:0.85rem;'>📅 {date.today().strftime('%Y / %m / %d')}</div>", unsafe_allow_html=True)
 

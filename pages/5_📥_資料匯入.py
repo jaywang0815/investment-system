@@ -24,7 +24,8 @@ if not _is_logged_in():
     st.page_link("app.py", label="回到登入頁面", icon="🔑")
     st.stop()
 
-st.title("📥 Excel 資料匯入")
+from utils.ui_helpers import dog_header
+dog_header("資料匯入")
 st.caption("支援多個檔案同時匯入，自動識別月份")
 
 try:

@@ -26,7 +26,8 @@ if not _is_logged_in():
     st.page_link("app.py", label="回到登入頁面", icon="🔑")
     st.stop()
 
-st.title("📅 月份管理")
+from utils.ui_helpers import dog_header
+dog_header("月份管理")
 st.caption("直接在這裡新增每月 SN 商品，不需要 Excel")
 
 # ── 初始化 session state ───────────────────────────────────────

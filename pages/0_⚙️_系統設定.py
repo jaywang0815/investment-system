@@ -80,7 +80,8 @@ def test_line_notify(token: str) -> tuple[bool, str]:
 
 
 # ── 頁面開始 ──────────────────────────────────────────────────
-st.title("⚙️ 系統設定精靈")
+from utils.ui_helpers import dog_header
+dog_header('系統設定')
 st.caption("在這裡完成所有設定，不需要手動修改任何檔案")
 
 existing = load_existing_secrets()

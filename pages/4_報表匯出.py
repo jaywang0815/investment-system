@@ -28,7 +28,8 @@ if not _is_logged_in():
     st.page_link("app.py", label="回到登入頁面", icon="🔑")
     st.stop()
 
-st.title("📄 報表匯出")
+from utils.ui_helpers import dog_header
+dog_header("報表匯出")
 
 tab1, tab2, tab3, tab4 = st.tabs(["📑 客戶PDF報表", "📊 Excel匯出", "🔗 Google試算表", "📜 歷史報表"])
 

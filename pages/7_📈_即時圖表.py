@@ -20,7 +20,8 @@ if not _is_logged_in():
     st.page_link("app.py", label="回到登入頁面", icon="🔑")
     st.stop()
 
-st.title("📈 即時股票圖表")
+from utils.ui_helpers import dog_header
+dog_header("即時圖表")
 st.caption("資料來源: TradingView · 即時報價")
 
 # ── 從 SN 自動抓出所有標的股票 ──────────────────────────────

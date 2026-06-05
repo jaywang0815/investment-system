@@ -72,7 +72,8 @@ def _render_sn_alert(sn, analysis, prices):
         st.dataframe(pd.DataFrame(detail_data), use_container_width=True, hide_index=True)
 
 
-st.title("⚠️ KO / KI 警示監控")
+from utils.ui_helpers import dog_header
+dog_header("KO KI警示")
 
 # ── 資料載入 ──────────────────────────────────────────────────
 with st.spinner("載入商品資料..."):

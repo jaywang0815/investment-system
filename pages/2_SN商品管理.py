@@ -25,7 +25,8 @@ if not _is_logged_in():
     st.page_link("app.py", label="回到登入頁面", icon="🔑")
     st.stop()
 
-st.title("📊 結構型商品 (SN) 管理")
+from utils.ui_helpers import dog_header
+dog_header("SN商品管理")
 
 tab1, tab2, tab3 = st.tabs(["📋 商品列表", "➕ 新增商品", "🔍 商品詳情"])
 

@@ -34,7 +34,8 @@ if "selected_customer_id" not in st.session_state:
     st.session_state["selected_customer_id"] = None
 
 # ── Header ─────────────────────────────────────────────────────
-st.title("👥 客戶管理")
+from utils.ui_helpers import dog_header
+dog_header("客戶管理")
 
 customers_df = get_all_customers()
 
