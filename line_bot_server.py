@@ -226,8 +226,9 @@ def handle_command(text: str, user_id: str = "") -> str:
             for s in upcoming[:5]:
                 obs = s["observation_date"][:10]
                 code = s.get("product_code", "—")
-                tstr = "/".join(
-                    s.get(f"underlying_{i}", "")
+                _nums = ["①","②","③","④","⑤"]
+                tstr = " ".join(
+                    f"{_nums[i-1]}{s.get(f'underlying_{i}')}"
                     for i in range(1, 6)
                     if s.get(f"underlying_{i}")
                 )
@@ -306,8 +307,9 @@ def handle_command(text: str, user_id: str = "") -> str:
             if not sn:
                 continue
             code = sn.get("product_code", "—")
-            tstr = "/".join(
-                sn.get(f"underlying_{i}", "")
+            _nums = ["①","②","③","④","⑤"]
+            tstr = " ".join(
+                f"{_nums[i-1]}{sn.get(f'underlying_{i}')}"
                 for i in range(1, 6)
                 if sn.get(f"underlying_{i}")
             )
