@@ -79,20 +79,11 @@ with tab1:
             inv_info = inv_by_sn.get(sn_dict.get("id"), {})
             total_usd = inv_info.get("total", 0)
 
-            # 標的 + 期初價
-            ticker_parts = []
-            for u in underlyings:
-                t = u["ticker"]
-                p = u.get("initial_price")
-                ticker_parts.append(f"{t}({p:,.2f})" if p else t)
-            ticker_str = " / ".join(ticker_parts)
-
             ko = sn.get("ko_barrier")
             ki = sn.get("ki_barrier")
 
-            rows.append({
+            row = {
                 "代號": sn.get("product_code", "—"),
-                "標的 (期初價)": ticker_str,
                 "執行價%": f"{sn.get('strike_pct', 0)*100:.1f}%" if sn.get('strike_pct') else "—",
                 "配息%": f"{sn.get('coupon_pct', 0)*100:.2f}%" if sn.get('coupon_pct') else "—",
                 "KO": f"{ko*100:.0f}%" if ko else "—",
@@ -106,14 +97,23 @@ with tab1:
                 "投資客戶": inv_info.get("names", "—"),
                 "最差表現": worst_str,
                 "狀態": f"{analysis['status_emoji']} {analysis['status_label']}",
-            })
+            }
+            # แยกคอลัมน์ 標的1-5 และ 期初1-5
+            for i in range(1, 6):
+                row[f"標的{i}"] = sn.get(f"underlying_{i}") or "—"
+                ip = sn.get(f"initial_price_{i}")
+                row[f"期初{i}"] = f"{ip:,.2f}" if ip else "—"
+
+            rows.append(row)
 
         result_df = pd.DataFrame(rows)
-        st.dataframe(result_df, use_container_width=True, hide_index=True,
-                     column_config={
-                         "標的 (期初價)": st.column_config.TextColumn(width="large"),
-                         "投資客戶": st.column_config.TextColumn(width="medium"),
-                     })
+        # จัดลำดับคอลัมน์: 代號 ก่อน แล้วตาม 標的1-5 期初1-5
+        col_order = ["代號",
+                     "標的1","期初1","標的2","期初2","標的3","期初3","標的4","期初4","標的5","期初5",
+                     "執行價%","配息%","KO","KI","比價日","出場日","暫結","CHU",
+                     "下單金(USD)","投資金額(USD)","投資客戶","最差表現","狀態"]
+        result_df = result_df[[c for c in col_order if c in result_df.columns]]
+        st.dataframe(result_df, use_container_width=True, hide_index=True)
 
         # 股票現價摘要
         st.markdown("---")
