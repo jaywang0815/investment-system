@@ -93,10 +93,19 @@ def build_alert_msg(ticker: str, price: float, prev_close: float,
     return "\n".join(lines)
 
 
+def get_admin_line_ids() -> list:
+    """ดึง LINE User ID ของ admin ทั้งหมด"""
+    rows = sb_get("admins", {"select": "line_user_id"})
+    return [r["line_user_id"] for r in rows if r.get("line_user_id")]
+
+
 def main():
     if not all([LINE_CHANNEL_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_KEY, FINNHUB_TOKEN]):
         print("ERROR: Missing environment variables")
         sys.exit(1)
+
+    admin_ids = get_admin_line_ids()
+    print(f"Admin LINE IDs: {len(admin_ids)} คน")
 
     # ดึง SN ทั้งหมดที่ active
     sns = sb_get("structured_notes", {"status": "eq.active", "select": "*"})
@@ -153,6 +162,13 @@ def main():
                 msg = build_alert_msg(ticker, price, prev_close, change_pct, sn, name)
                 push_line(line_id, msg)
                 print(f"    Sent to {name} ({line_id[:8]}...)")
+
+        # ส่งให้ admin ทุกคนด้วย (ใช้ข้อมูลครบ ไม่ระบุชื่อลูกค้า)
+        if related_sns and admin_ids:
+            admin_msg = build_alert_msg(ticker, price, prev_close, change_pct, related_sns[0], "管理員")
+            for aid in admin_ids:
+                push_line(aid, admin_msg)
+                print(f"    Sent to admin ({aid[:8]}...)")
 
     if alerted:
         print(f"\nAlerts triggered: {', '.join(alerted)}")

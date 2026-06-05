@@ -10,9 +10,22 @@ from supabase import create_client
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 LINE_TOKEN   = os.environ["LINE_CHANNEL_ACCESS_TOKEN"]
-LINE_USER_ID = os.environ["LINE_ADMIN_USER_ID"]
+# LINE_ADMIN_USER_ID ใช้เป็น fallback ถ้าตาราง admins ยังว่าง
+LINE_ADMIN_USER_ID = os.environ.get("LINE_ADMIN_USER_ID", "")
 
 sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def get_admin_line_ids() -> list[str]:
+    """ดึง LINE User ID ของ admin ทั้งหมดจาก Supabase"""
+    try:
+        resp = sb.table("admins").select("line_user_id").execute()
+        ids = [row["line_user_id"] for row in (resp.data or []) if row.get("line_user_id")]
+        if not ids and LINE_ADMIN_USER_ID:
+            ids = [LINE_ADMIN_USER_ID]
+        return ids
+    except Exception:
+        return [LINE_ADMIN_USER_ID] if LINE_ADMIN_USER_ID else []
 
 
 def get_stock_price(ticker: str) -> float | None:
@@ -152,14 +165,14 @@ def build_report(stats, sns, prices):
     return "\n".join(lines)
 
 
-def send_line(message):
+def send_line(user_id: str, message: str) -> bool:
     resp = requests.post(
         "https://api.line.me/v2/bot/message/push",
         headers={
             "Authorization": f"Bearer {LINE_TOKEN}",
             "Content-Type": "application/json"
         },
-        json={"to": LINE_USER_ID, "messages": [{"type": "text", "text": message}]},
+        json={"to": user_id, "messages": [{"type": "text", "text": message}]},
         timeout=10
     )
     return resp.status_code == 200
@@ -182,5 +195,10 @@ if __name__ == "__main__":
 
     report = build_report(stats, sns, prices)
     print(report)
-    ok = send_line(report)
-    print("✅ 發送成功" if ok else "❌ 發送失敗")
+
+    admin_ids = get_admin_line_ids()
+    if not admin_ids:
+        print("❌ ไม่มี admin LINE ID (ตั้งค่าใน 系統設定 หรือ LINE_ADMIN_USER_ID)")
+    for uid in admin_ids:
+        ok = send_line(uid, report)
+        print(f"{'✅' if ok else '❌'} ส่งหา {uid[:8]}...")

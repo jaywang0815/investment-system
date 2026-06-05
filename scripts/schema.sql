@@ -110,5 +110,13 @@ CREATE INDEX IF NOT EXISTS idx_daily_prices_ticker_date ON daily_prices(ticker, 
 CREATE INDEX IF NOT EXISTS idx_sn_status ON structured_notes(status);
 CREATE INDEX IF NOT EXISTS idx_sn_observation_date ON structured_notes(observation_date);
 
+-- ผู้ใช้งานระบบ (แอดมิน/ทีมงาน) ที่ต้องการรับแจ้งเตือน LINE
+CREATE TABLE IF NOT EXISTS admins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    line_user_id TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 完成！
 SELECT 'Database schema created successfully' AS result;

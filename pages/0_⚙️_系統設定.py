@@ -324,6 +324,63 @@ if setup_done:
             safe_preview["auth"]["google"]["client_secret"] = str(gcr)[:8] + "..."
         st.json(safe_preview)
 
+# ── 管理員 LINE 通知管理 ──────────────────────────────────────
+st.markdown("---")
+st.subheader("👥 管理員 LINE 通知設定")
+st.caption("在這裡加入要接收每日報告和價格警示的管理員 LINE User ID（讓對方在 LINE Bot 傳送 myid 即可取得）")
+
+try:
+    from supabase import create_client as _create_client
+    _sb = _create_client(existing.get("SUPABASE_URL", "") or st.secrets.get("SUPABASE_URL", ""),
+                         existing.get("SUPABASE_KEY", "") or st.secrets.get("SUPABASE_KEY", ""))
+
+    # แสดงรายการ admin ปัจจุบัน
+    _admins_resp = _sb.table("admins").select("*").order("created_at").execute()
+    _admins = _admins_resp.data or []
+
+    if _admins:
+        st.markdown(f"**目前已設定 {len(_admins)} 位管理員：**")
+        for adm in _admins:
+            col_name, col_id, col_del = st.columns([2, 3, 1])
+            with col_name:
+                st.write(f"**{adm['name']}**")
+            with col_id:
+                lid = adm.get("line_user_id", "")
+                st.code(f"{lid[:12]}..." if len(lid) > 12 else lid, language=None)
+            with col_del:
+                if st.button("🗑️", key=f"del_admin_{adm['id']}", help="刪除此管理員"):
+                    _sb.table("admins").delete().eq("id", adm["id"]).execute()
+                    st.rerun()
+    else:
+        st.info("尚未設定任何管理員")
+
+    # ฟอร์มเพิ่ม admin ใหม่
+    st.markdown("**新增管理員：**")
+    with st.form("add_admin_form"):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            new_admin_name = st.text_input("姓名", placeholder="例: 游家順")
+        with col_b:
+            new_admin_line = st.text_input("LINE User ID", placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        if st.form_submit_button("➕ 新增管理員", type="primary"):
+            if not new_admin_name.strip() or not new_admin_line.strip():
+                st.error("請填寫姓名和 LINE User ID")
+            elif not new_admin_line.strip().startswith("U"):
+                st.error("LINE User ID 必須以 U 開頭")
+            else:
+                try:
+                    _sb.table("admins").insert({
+                        "name": new_admin_name.strip(),
+                        "line_user_id": new_admin_line.strip()
+                    }).execute()
+                    st.success(f"✅ 已新增管理員 {new_admin_name.strip()}")
+                    st.rerun()
+                except Exception as _e:
+                    st.error(f"新增失敗: {_e}")
+
+except Exception as _err:
+    st.warning(f"無法連線資料庫，請先完成上方 Supabase 設定 ({_err})")
+
 # ── 執行 Schema SQL 說明 ───────────────────────────────────────
 st.markdown("---")
 st.subheader("🗄️ 建立資料庫結構")
