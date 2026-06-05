@@ -9,7 +9,7 @@ import toml
 import json
 from pathlib import Path
 
-st.set_page_config(page_title="系統設定", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="系統設定", page_icon="🐾", layout="wide")
 
 # ── Admin only ─────────────────────────────────────────────────
 _ADMIN_EMAIL = "pmjatu1508@gmail.com"
