@@ -8,25 +8,25 @@ def _img_b64(filename: str) -> str:
         return base64.b64encode(p.read_bytes()).decode()
     return ""
 
-# Map page → dog image (rotate through the 4 dogs)
+# homepage keeps the French bulldog logo; other pages get animals from the collection
 _PAGE_DOGS = {
-    "客戶管理":   "dog_bw.png",
-    "SN商品管理": "dog_cream_lie.png",
-    "KO KI警示":  "dog_bw_play.png",
-    "系統設定":   "logo.png",
-    "報表匯出":   "dog_cream_play.png",
-    "資料匯入":   "dog_bw_play.png",
-    "月份管理":   "dog_cream_lie.png",
-    "即時圖表":   "dog_bw.png",
     "首頁總覽":   "logo.png",
+    "客戶管理":   "animals/beagle.png",
+    "SN商品管理": "animals/golden.png",
+    "KO KI警示":  "animals/schnauzer.png",
+    "系統設定":   "animals/samoyed.png",
+    "報表匯出":   "animals/corgi.png",
+    "資料匯入":   "animals/dalmatian.png",
+    "月份管理":   "animals/shiba.png",
+    "即時圖表":   "animals/frenchie.png",
 }
 
 def dog_header(title: str, dog_img: str = ""):
-    """Page title with a small dog icon replacing the emoji."""
+    """Page title with an animal icon instead of an emoji."""
     img_file = dog_img or _PAGE_DOGS.get(title, "logo.png")
     b64 = _img_b64(img_file)
     if b64:
-        icon = f'<img src="data:image/png;base64,{b64}" style="width:72px;height:72px;vertical-align:middle;margin-right:12px;flex-shrink:0;">'
+        icon = f'<img src="data:image/png;base64,{b64}" style="width:72px;height:72px;object-fit:contain;vertical-align:middle;margin-right:12px;flex-shrink:0;">'
     else:
         icon = "🐾 "
     st.markdown(f"""
