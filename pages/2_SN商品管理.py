@@ -72,7 +72,6 @@ with tab1:
             sn_dict = sn.to_dict()
             analysis = analyze_sn_status(sn_dict, prices)
             underlyings = get_sn_underlyings(sn_dict)
-            ticker_str = " / ".join([u["ticker"] for u in underlyings])
 
             worst = analysis.get("worst_performance")
             worst_str = f"{worst*100:.1f}%" if worst else "—"
@@ -80,20 +79,41 @@ with tab1:
             inv_info = inv_by_sn.get(sn_dict.get("id"), {})
             total_usd = inv_info.get("total", 0)
 
+            # 標的 + 期初價
+            ticker_parts = []
+            for u in underlyings:
+                t = u["ticker"]
+                p = u.get("initial_price")
+                ticker_parts.append(f"{t}({p:,.2f})" if p else t)
+            ticker_str = " / ".join(ticker_parts)
+
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
+
             rows.append({
                 "代號": sn.get("product_code", "—"),
-                "標的": ticker_str,
+                "標的 (期初價)": ticker_str,
                 "執行價%": f"{sn.get('strike_pct', 0)*100:.1f}%" if sn.get('strike_pct') else "—",
                 "配息%": f"{sn.get('coupon_pct', 0)*100:.2f}%" if sn.get('coupon_pct') else "—",
+                "KO": f"{ko*100:.0f}%" if ko else "—",
+                "KI": f"{ki*100:.0f}%" if ki else "—",
                 "比價日": str(sn.get("observation_date", ""))[:10],
-                "投資金額(USD)": f"${total_usd:,.0f}" if total_usd else "—",
+                "出場日": str(sn.get("exit_date") or "")[:10] or "—",
+                "暫結": f"{sn.get('temp_settlement'):,.0f}" if sn.get("temp_settlement") else "—",
+                "CHU": sn.get("chu") or "—",
+                "下單金(USD)": f"{sn.get('total_order_amount'):,.0f}" if sn.get("total_order_amount") else "—",
+                "投資金額(USD)": f"{total_usd:,.0f}" if total_usd else "—",
                 "投資客戶": inv_info.get("names", "—"),
                 "最差表現": worst_str,
                 "狀態": f"{analysis['status_emoji']} {analysis['status_label']}",
             })
 
         result_df = pd.DataFrame(rows)
-        st.dataframe(result_df, use_container_width=True, hide_index=True)
+        st.dataframe(result_df, use_container_width=True, hide_index=True,
+                     column_config={
+                         "標的 (期初價)": st.column_config.TextColumn(width="large"),
+                         "投資客戶": st.column_config.TextColumn(width="medium"),
+                     })
 
         # 股票現價摘要
         st.markdown("---")
