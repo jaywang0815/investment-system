@@ -1,5 +1,5 @@
 """
-投資管理系統 - 主應用程式
+DOUU WORK - 主應用程式
 結構型商品 (Structured Notes) 管理平台
 """
 import streamlit as st
@@ -7,8 +7,8 @@ import pandas as pd
 from datetime import date, timedelta
 
 st.set_page_config(
-    page_title="投資管理系統",
-    page_icon="🏦",
+    page_title="DOUU WORK",
+    page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -181,7 +181,7 @@ except Exception:
     _setup_complete = False
 
 if not _setup_complete:
-    st.markdown("## 🏦 投資管理系統")
+    st.markdown("## 🏦 DOUU WORK")
     st.markdown("---")
     st.warning("⚙️ **系統尚未完成設定**")
     st.markdown("請先前往「**系統設定**」頁面完成初始設定（約 5-10 分鐘）")
@@ -314,7 +314,7 @@ if not st.session_state.authenticated and not _google_logged_in:
     """, unsafe_allow_html=True)
 
     # Title & dots — no outer columns, centered by CSS max-width
-    st.markdown('<div class="pin-title">🏦 投資管理系統</div>', unsafe_allow_html=True)
+    st.markdown('<div class="pin-title">🏦 DOUU WORK</div>', unsafe_allow_html=True)
     st.markdown('<div class="pin-subtitle">輸入 PIN 碼解鎖</div>', unsafe_allow_html=True)
 
     dots = "●" * len(entered) + "○" * (pin_len - len(entered))
@@ -408,7 +408,7 @@ with st.sidebar:
     st.markdown("""
     <div style='text-align:center; padding: 12px 0 8px 0;'>
         <div style='font-size:2rem;'>🏦</div>
-        <div style='font-size:1rem; font-weight:700; color:white; margin-top:4px;'>投資管理系統</div>
+        <div style='font-size:1rem; font-weight:700; color:white; margin-top:4px;'>DOUU WORK</div>
         <div style='font-size:0.72rem; color:rgba(255,255,255,0.55); margin-top:2px;'>Structured Notes</div>
     </div>
     """, unsafe_allow_html=True)
