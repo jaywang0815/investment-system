@@ -298,10 +298,12 @@ def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
         return None
 
 
-def build_ppt(tickers: list[str], sn_info: dict | None = None) -> bytes:
+def build_ppt(tickers: list[str], sn_info: dict | None = None,
+              period: str = "6mo") -> bytes:
     """
     tickers  : list of stock symbols
     sn_info  : dict[ticker] = {ko, ki, product_code, ...}  (optional)
+    period   : yfinance period string e.g. "1mo", "3mo", "6mo", "1y", "2y"
     Returns  : PPT file as bytes
     """
     W = Inches(13.33)
@@ -364,7 +366,7 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None) -> bytes:
                      "  ·  ".join(badge_parts),
                      11, color=_GRAY)
 
-        img_bytes = _make_chart_png(ticker)
+        img_bytes = _make_chart_png(ticker, period=period)
         if img_bytes:
             img_stream = io.BytesIO(img_bytes)
             s.shapes.add_picture(img_stream,

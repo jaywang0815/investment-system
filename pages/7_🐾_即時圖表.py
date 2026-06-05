@@ -48,19 +48,32 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
     if not _all_tickers:
         st.warning("目前無持倉標的")
     else:
-        selected_tickers = st.multiselect(
-            "選擇要匯出的標的",
-            options=sorted(_all_tickers),
-            default=sorted(_all_tickers),
-            placeholder="選擇標的...",
-        )
+        col_sel, col_per = st.columns([3, 1])
+        with col_sel:
+            selected_tickers = st.multiselect(
+                "選擇要匯出的標的",
+                options=sorted(_all_tickers),
+                default=sorted(_all_tickers),
+                placeholder="選擇標的...",
+            )
+        with col_per:
+            period_map = {
+                "1個月": "1mo",
+                "3個月": "3mo",
+                "6個月": "6mo",
+                "1年":   "1y",
+                "2年":   "2y",
+            }
+            period_label = st.selectbox("圖表區間", list(period_map.keys()), index=2)
+            selected_period = period_map[period_label]
 
         col_a, col_b = st.columns([2, 3])
         with col_a:
             if st.button("🐾 產生 PPT", type="primary",
                          disabled=not selected_tickers):
                 with st.spinner(f"正在產生 {len(selected_tickers)} 個標的圖表..."):
-                    ppt_bytes = build_ppt(selected_tickers, _sn_info)
+                    ppt_bytes = build_ppt(selected_tickers, _sn_info,
+                                          period=selected_period)
                 st.session_state["ppt_bytes"] = ppt_bytes
                 st.session_state["ppt_count"] = len(selected_tickers)
 
