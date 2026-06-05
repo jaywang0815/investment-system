@@ -375,61 +375,101 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             ""
         ]
 
-        for inv in investments[:5]:  # 最多5筆
+        for inv in investments[:5]:
             sn = inv.get("structured_notes") or {}
             if not sn:
                 continue
-            code = sn.get("product_code", "—")
-            tstr = "/".join(
-                sn.get(f"underlying_{i}")
-                for i in range(1, 6)
-                if sn.get(f"underlying_{i}")
-            )
-            obs = str(sn.get("observation_date", ""))[:10]
-            amount = inv.get("amount_usd", 0) or 0
-            coupon = sn.get("coupon_pct")
-            coupon_str = f" 配息{coupon*100:.1f}%" if coupon else ""
 
-            # 取得最差標的現價 (所有標的都比較)
-            worst_str = ""
-            worst_perf = None
-            for i in range(1, 6):
-                ticker = sn.get(f"underlying_{i}")
-                init = sn.get(f"initial_price_{i}")
-                if ticker and init and init > 0:
-                    price = get_stock_price(ticker)
-                    if price:
-                        perf = price / init * 100
-                        if worst_perf is None or perf < worst_perf:
-                            worst_perf = perf
-                            worst_str = f" ({ticker} {perf:.1f}%)"
-
-            ko = sn.get("ko_barrier")
-            ki = sn.get("ki_barrier")
-            ko_str = f"KO {ko*100:.0f}%" if ko else ""
-            ki_str = f"KI {ki*100:.0f}%" if ki else ""
-            barrier_str = "  ".join(b for b in [ko_str, ki_str] if b)
+            code      = sn.get("product_code", "—")
+            obs       = str(sn.get("observation_date", ""))[:10]
             exit_date = str(sn.get("exit_date") or "")[:10]
-            temp_set = sn.get("temp_settlement")
-            chu = sn.get("chu") or ""
+            amount    = inv.get("amount_usd", 0) or 0
+            coupon    = sn.get("coupon_pct")
+            ko        = sn.get("ko_barrier")
+            ki        = sn.get("ki_barrier")
             order_amt = sn.get("total_order_amount")
+            temp_set  = sn.get("temp_settlement")
+            chu       = sn.get("chu") or ""
+
+            coupon_str = f"  配息 {coupon*100:.1f}%" if coupon else ""
+            ko_str     = f"KO {ko*100:.0f}%" if ko else ""
+            ki_str     = f"KI {ki*100:.0f}%" if ki else ""
+            barrier_str = "  ".join(b for b in [ko_str, ki_str] if b)
 
             lines.append(f"📌 {code}")
-            lines.append(f"   標的: {tstr}")
             lines.append(f"   金額: USD {amount:,.0f}{coupon_str}")
             if order_amt:
                 lines.append(f"   下單金: USD {order_amt:,.0f}")
             if barrier_str:
                 lines.append(f"   障礙: {barrier_str}")
-            lines.append(f"   比價: {obs}")
-            if worst_str:
-                lines.append(f"   最差: {worst_str.strip('() ')}")
+            lines.append(f"   比價日: {obs}")
             if exit_date:
                 lines.append(f"   出場日: {exit_date}")
             if temp_set:
                 lines.append(f"   暫結: {temp_set:,.0f}")
             if chu:
                 lines.append(f"   CHU: {chu}")
+
+            # ── 各標的現況 ──────────────────────────────────────
+            ticker_rows = []
+            worst_perf = None
+            worst_ticker = ""
+            for i in range(1, 6):
+                ticker = _clean_ticker(sn.get(f"underlying_{i}") or "")
+                init   = sn.get(f"initial_price_{i}")
+                if not ticker or not init or init <= 0:
+                    continue
+                price = get_stock_price(ticker)
+                if price:
+                    perf  = price / init * 100
+                    chg   = perf - 100
+                    arrow = "▲" if chg >= 0 else "▼"
+                    # KO/KI status indicator
+                    status = ""
+                    if ko and perf / 100 >= ko:
+                        status = " 🟢KO"
+                    elif ko and perf / 100 >= ko * 0.95:
+                        status = " 🟡近KO"
+                    elif ki and perf / 100 <= ki:
+                        status = " 🔴KI"
+                    elif ki and perf / 100 <= ki * 1.05:
+                        status = " 🟠近KI"
+                    ticker_rows.append(
+                        (ticker, price, init, perf, chg, arrow, status)
+                    )
+                    if worst_perf is None or perf < worst_perf:
+                        worst_perf   = perf
+                        worst_ticker = ticker
+                else:
+                    ticker_rows.append((ticker, None, init, None, None, "", ""))
+
+            if ticker_rows:
+                lines.append("   ┈┈ 標的現況 ┈┈")
+                for (t, price, init, perf, chg, arrow, status) in ticker_rows:
+                    worst_mark = " ⭐" if t == worst_ticker else ""
+                    if price:
+                        lines.append(
+                            f"   {t:6s} ${price:>8,.2f}"
+                            f"  {arrow}{abs(chg):>5.1f}%"
+                            f"  期初${init:,.0f}  [{perf:.1f}%]{status}{worst_mark}"
+                        )
+                    else:
+                        lines.append(f"   {t:6s} 無法取得報價")
+
+                if worst_perf is not None:
+                    # overall status
+                    if ko and worst_perf / 100 >= ko:
+                        overall = "🟢 KO觸發"
+                    elif ko and worst_perf / 100 >= ko * 0.95:
+                        overall = "🟡 接近KO"
+                    elif ki and worst_perf / 100 <= ki:
+                        overall = "🔴 KI觸發"
+                    elif ki and worst_perf / 100 <= ki * 1.05:
+                        overall = "🟠 接近KI"
+                    else:
+                        overall = "✅ 正常"
+                    lines.append(f"   整體: {overall}  最差 {worst_perf:.1f}% ({worst_ticker})")
+
             lines.append("")
 
         if len(investments) > 5:
