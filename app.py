@@ -270,30 +270,31 @@ if not st.session_state.authenticated and not _google_logged_in:
 
     st.markdown("""
     <style>
-    /* ── PIN login: narrow & centered ───────────────── */
+    /* ── PIN login: centered content ────────────────── */
     .main .block-container {
-        max-width: 300px !important;
         padding: 2rem 1rem 1rem 1rem !important;
-        margin: 0 auto !important;
     }
-    /* Force columns to stay horizontal on mobile */
+    /* Force PIN rows horizontal + centered */
     [data-testid="stHorizontalBlock"] {
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 8px !important;
+        justify-content: center !important;
+        gap: 10px !important;
+        max-width: 260px !important;
+        margin: 0 auto !important;
     }
     [data-testid="column"] {
-        flex: 1 1 0 !important;
+        flex: 0 0 auto !important;
+        width: clamp(58px, 22vw, 76px) !important;
         min-width: 0 !important;
         padding: 0 !important;
     }
-    /* Circular PIN buttons — responsive size */
+    /* Circular PIN buttons — fixed size */
     div[data-testid="stButton"] > button {
         border-radius: 50% !important;
-        width: 100% !important;
-        aspect-ratio: 1 / 1 !important;
-        min-height: 58px !important;
-        font-size: clamp(1rem, 6vw, 1.4rem) !important;
+        width: clamp(54px, 20vw, 72px) !important;
+        height: clamp(54px, 20vw, 72px) !important;
+        font-size: clamp(1rem, 5vw, 1.35rem) !important;
         font-weight: 600 !important;
         background: #f1f5f9 !important;
         border: 1px solid #e2e8f0 !important;
