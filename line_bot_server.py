@@ -215,7 +215,8 @@ def _check_stock(ticker: str) -> tuple[str, str]:
                             f"({perf*100:.1f}%){status}"
                         )
 
-        tv_url = f"https://www.tradingview.com/chart/?symbol={ticker}"
+        tv_url = f"https://www.tradingview.com/symbols/{ticker}/"
+        yf_url = f"https://finance.yahoo.com/quote/{ticker}"
 
         lines = [
             f"[{ticker}] 即時報價",
@@ -223,8 +224,10 @@ def _check_stock(ticker: str) -> tuple[str, str]:
             f"{arrow} {sign}{change:.2f} ({sign}{change_pct:.2f}%)",
             f"今日: ${low:.2f} – ${high:.2f}",
             f"",
-            f"📈 走勢圖:",
+            f"📈 TradingView:",
             tv_url,
+            f"📊 Yahoo Finance:",
+            yf_url,
         ]
 
         if related:
