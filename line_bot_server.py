@@ -6,15 +6,20 @@ LINE Bot Webhook Server - FastAPI
 """
 import os
 import sys
+import io
 from typing import Optional
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import hmac
 import hashlib
 import base64
 import json
 import requests
 from datetime import date
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 # ── 設定 ──────────────────────────────────────────────────────
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
@@ -22,6 +27,7 @@ LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 FINNHUB_TOKEN = os.environ.get("FINNHUB_TOKEN", "")
+BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")
 
 app = FastAPI(title="投資管理 LINE Bot")
 
@@ -79,26 +85,89 @@ def verify_signature(body: bytes, signature: str) -> bool:
 
 
 # ── 回覆 LINE 訊息 ─────────────────────────────────────────────
-def reply(reply_token: str, text: str) -> None:
+def reply(reply_token: str, text: str, chart_url: str = "") -> None:
+    messages = [{"type": "text", "text": text[:4000]}]
+    if chart_url:
+        messages.append({
+            "type": "image",
+            "originalContentUrl": chart_url,
+            "previewImageUrl": chart_url,
+        })
     requests.post(
         "https://api.line.me/v2/bot/message/reply",
         headers={
             "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
             "Content-Type": "application/json"
         },
-        json={
-            "replyToken": reply_token,
-            "messages": [{"type": "text", "text": text[:4000]}]
-        },
+        json={"replyToken": reply_token, "messages": messages},
         timeout=10
     )
 
 
+# ── 生成股票走勢圖 ────────────────────────────────────────────
+def _generate_chart(ticker: str) -> bytes:
+    import yfinance as yf
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period="3mo")
+    if hist.empty:
+        raise ValueError("No data")
+
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(10, 6),
+        gridspec_kw={"height_ratios": [3, 1]},
+        facecolor="#131722"
+    )
+
+    # ── Price ──
+    ax1.set_facecolor("#131722")
+    close = hist["Close"]
+    color = "#26a69a" if close.iloc[-1] >= close.iloc[0] else "#ef5350"
+    ax1.plot(hist.index, close, color=color, linewidth=1.8)
+    ax1.fill_between(hist.index, close, close.min(), alpha=0.15, color=color)
+
+    last_price = close.iloc[-1]
+    first_price = close.iloc[0]
+    chg_pct = (last_price / first_price - 1) * 100
+    sign = "+" if chg_pct >= 0 else ""
+    ax1.set_title(
+        f"{ticker}   ${last_price:,.2f}   {sign}{chg_pct:.2f}%  (3mo)",
+        color="white", fontsize=13, pad=8
+    )
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax1.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+    for spine in ax1.spines.values():
+        spine.set_color("#2a2e39")
+    ax1.tick_params(colors="#8391a3", labelsize=9)
+    ax1.yaxis.tick_right()
+    ax1.grid(axis="y", color="#2a2e39", linewidth=0.6)
+    ax1.set_xlim(hist.index[0], hist.index[-1])
+
+    # ── Volume ──
+    ax2.set_facecolor("#131722")
+    ax2.bar(hist.index, hist["Volume"], color=color, alpha=0.5, width=0.8)
+    ax2.set_ylabel("Vol", color="#8391a3", fontsize=8)
+    for spine in ax2.spines.values():
+        spine.set_color("#2a2e39")
+    ax2.tick_params(colors="#8391a3", labelsize=8)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax2.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+    ax2.set_xlim(hist.index[0], hist.index[-1])
+
+    plt.tight_layout(pad=1.0)
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=110, bbox_inches="tight", facecolor="#131722")
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
 # ── 查詢股票現價 ───────────────────────────────────────────────
-def _check_stock(ticker: str) -> str:
+def _check_stock(ticker: str) -> tuple[str, str]:
+    """Returns (text_reply, chart_url)"""
+    chart_url = f"{BASE_URL}/chart/{ticker}.png" if BASE_URL else ""
     try:
         if not FINNHUB_TOKEN:
-            return "股票查詢尚未設定 API Key"
+            return "股票查詢尚未設定 API Key", ""
 
         resp = requests.get(
             "https://finnhub.io/api/v1/quote",
@@ -106,18 +175,17 @@ def _check_stock(ticker: str) -> str:
             timeout=10
         )
         if not resp.ok:
-            return f"查詢「{ticker}」失敗，請稍後再試"
+            return f"查詢「{ticker}」失敗，請稍後再試", ""
 
         q = resp.json()
-        price = q.get("c")   # current price
-        prev_close = q.get("pc")  # previous close
-        high = q.get("h")    # high of day
-        low = q.get("l")     # low of day
+        price = q.get("c")
+        high = q.get("h")
+        low = q.get("l")
         change = q.get("d", 0)
         change_pct = q.get("dp", 0)
 
         if not price or price == 0:
-            return f"找不到「{ticker}」\n請確認股票代號是否正確 (例: AAPL, AMD, TSLA)"
+            return f"找不到「{ticker}」\n請確認股票代號是否正確 (例: AAPL, AMD, TSLA)", ""
 
         arrow = "▲" if change >= 0 else "▼"
         sign = "+" if change >= 0 else ""
@@ -135,9 +203,9 @@ def _check_stock(ticker: str) -> str:
                         perf = price / init
                         status = ""
                         if ko and perf >= ko:
-                            status = " [KO觸發]"
+                            status = " [KO觸発]"
                         elif ki and perf <= ki:
-                            status = " [KI觸發]"
+                            status = " [KI觸発]"
                         elif ko and perf >= ko * 0.97:
                             status = " [接近KO]"
                         elif ki and perf <= ki * 1.1:
@@ -159,14 +227,15 @@ def _check_stock(ticker: str) -> str:
             lines.append("相關持倉:")
             lines.extend(related[:5])
 
-        return "\n".join(lines)
+        return "\n".join(lines), chart_url
 
     except Exception as e:
-        return f"查詢失敗: {e}"
+        return f"查詢失敗: {e}", ""
 
 
 # ── 指令處理 ──────────────────────────────────────────────────
-def handle_command(text: str, user_id: str = "") -> str:
+def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
+    """Returns (reply_text, chart_url_or_empty)"""
     text = text.strip()
     today = date.today().strftime("%Y/%m/%d")
 
@@ -176,7 +245,7 @@ def handle_command(text: str, user_id: str = "") -> str:
             f"🔑 您的 LINE User ID:\n\n"
             f"{user_id}\n\n"
             f"請將此 ID 傳給管理員，即可接收投資通知。"
-        )
+        ), ""
 
     # เช็คราคาหุ้น — ตรวจสอบว่าเป็น ticker หรือเปล่า
     import re
@@ -188,7 +257,7 @@ def handle_command(text: str, user_id: str = "") -> str:
         return (
             "📊 投資管理系統指令說明\n\n"
             "🔍 查詢指令:\n"
-            "  [股票代號] → 查詢股票現價 (例: AAPL)\n"
+            "  [股票代號] → 查詢報價+走勢圖 (例: AAPL)\n"
             "  [客戶姓名] → 查詢個人持倉\n"
             "  例: 游家順\n\n"
             "📋 系統指令:\n"
@@ -197,7 +266,7 @@ def handle_command(text: str, user_id: str = "") -> str:
             "  客戶 → 所有客戶列表\n"
             "  myid → 查詢自己的 LINE ID\n"
             "  幫助 → 顯示此說明"
-        )
+        ), ""
 
     # 日報
     if text in ["日報", "報告", "今日", "today"]:
@@ -276,7 +345,7 @@ def handle_command(text: str, user_id: str = "") -> str:
             lines.extend(detail_lines)
 
         lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
-        return "\n".join(lines)
+        return "\n".join(lines), ""
 
     # 警示
     if text in ["警示", "alert", "KO", "KI"]:
@@ -304,13 +373,13 @@ def handle_command(text: str, user_id: str = "") -> str:
 
         if found == 0:
             alert_msgs.append("✅ 目前無警示")
-        return "\n".join(alert_msgs)
+        return "\n".join(alert_msgs), ""
 
     # 客戶列表
     if text in ["客戶", "客户", "列表", "list"]:
         customers = get_customers()
         if not customers:
-            return "尚無客戶資料"
+            return "尚無客戶資料", ""
         lines = [f"👥 客戶列表 ({len(customers)} 人)\n─────────────"]
         for c in customers[:20]:
             usd = c.get("usd_amount")
@@ -318,7 +387,7 @@ def handle_command(text: str, user_id: str = "") -> str:
             lines.append(f"• {c['name']} {usd_str}")
         if len(customers) > 20:
             lines.append(f"...共 {len(customers)} 位客戶")
-        return "\n".join(lines)
+        return "\n".join(lines), ""
 
     # 依客戶姓名查詢
     customers = get_customers()
@@ -329,7 +398,7 @@ def handle_command(text: str, user_id: str = "") -> str:
         investments = get_customer_investments(c["id"])
 
         if not investments:
-            return f"👤 {c['name']}\n目前無投資持倉記錄"
+            return f"👤 {c['name']}\n目前無投資持倉記錄", ""
 
         total = sum(i.get("amount_usd", 0) or 0 for i in investments)
         lines = [
@@ -403,7 +472,7 @@ def handle_command(text: str, user_id: str = "") -> str:
 
         lines.append("─────────────")
         lines.append("完整PDF請至管理後台下載")
-        return "\n".join(lines)
+        return "\n".join(lines), ""
 
     # 找不到
     return (
@@ -413,13 +482,23 @@ def handle_command(text: str, user_id: str = "") -> str:
         "• 日報 → 每日摘要\n"
         "• 警示 → KO/KI 警示\n"
         "• 幫助 → 指令說明"
-    )
+    ), ""
 
 
 # ── API 端點 ──────────────────────────────────────────────────
 @app.get("/")
 def root():
     return {"status": "LINE Bot Server Running", "date": str(date.today())}
+
+
+@app.get("/chart/{ticker}.png")
+def chart_endpoint(ticker: str):
+    ticker = ticker.upper()[:10]
+    try:
+        img_bytes = _generate_chart(ticker)
+        return Response(content=img_bytes, media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.post("/webhook")
@@ -443,8 +522,8 @@ async def webhook(request: Request):
             user_text = event["message"].get("text", "").strip()
             user_id = event.get("source", {}).get("userId", "")
 
-            response_text = handle_command(user_text, user_id)
-            reply(reply_token, response_text)
+            response_text, chart_url = handle_command(user_text, user_id)
+            reply(reply_token, response_text, chart_url)
 
     return JSONResponse({"status": "ok"})
 
