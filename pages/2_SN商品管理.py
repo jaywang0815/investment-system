@@ -114,7 +114,14 @@ with tab1:
                      "執行價%","配息%","KO","KI","比價日","出場日","暫結","CHU",
                      "下單金(USD)","投資金額(USD)","投資客戶","最差表現","狀態"]
         result_df = result_df[[c for c in col_order if c in result_df.columns]]
-        st.dataframe(result_df, use_container_width=True, hide_index=True)
+        styled = result_df.style.apply(
+            lambda row: [
+                "background-color: #f0f4fa" if row.name % 2 != 0 else "background-color: white"
+                for _ in row
+            ],
+            axis=1
+        )
+        st.dataframe(styled, use_container_width=True, hide_index=True)
 
         # 股票現價摘要
         st.markdown("---")
