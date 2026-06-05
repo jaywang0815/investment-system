@@ -217,7 +217,7 @@ with tab3:
             for inv in investments:
                 sn = inv.get("structured_notes") or {}
                 all_tickers += [sn.get(f"underlying_{i}") for i in range(1, 6)
-                                 if sn.get(f"underlying_{i}")]
+                                 if isinstance(sn.get(f"underlying_{i}"), str)]
             all_tickers = list(set([t for t in all_tickers if t]))
 
             prices = {}

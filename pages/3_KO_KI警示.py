@@ -131,8 +131,8 @@ else:
         obs = pd.to_datetime(row["observation_date"]).date()
         days_left = (obs - today).days
         code = row.get("product_code", "—")
-        tickers = " / ".join([row.get(f"underlying_{i}", "") for i in range(1,6)
-                               if row.get(f"underlying_{i}")])
+        tickers = " / ".join([str(row.get(f"underlying_{i}")) for i in range(1,6)
+                               if row.get(f"underlying_{i}") and isinstance(row.get(f"underlying_{i}"), str)])
         badge = "🔴" if days_left <= 3 else "🟡" if days_left <= 7 else "🟢"
         st.markdown(f"{badge} **{str(obs)[:10]}** (剩 {days_left} 天) &nbsp;|&nbsp; `{code}` &nbsp; {tickers}")
 

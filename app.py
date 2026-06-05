@@ -215,7 +215,7 @@ with col_left:
         else:
             for sn, analysis in alerts_found:
                 code = sn.get("product_code", "—")
-                tickers = " / ".join([sn.get(f"underlying_{i}", "") for i in range(1, 6) if sn.get(f"underlying_{i}")])
+                tickers = " / ".join([sn.get(f"underlying_{i}") for i in range(1, 6) if isinstance(sn.get(f"underlying_{i}"), str)])
                 obs = str(sn.get("observation_date", ""))[:10]
                 status = analysis["overall_status"]
 

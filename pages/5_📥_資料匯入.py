@@ -298,8 +298,8 @@ with tab1:
                 with st.expander(f"👀 預覽 {month} SN 商品 ({len(sns)} 筆)"):
                     preview_rows = []
                     for sn in sns:
-                        tickers = " / ".join([sn.get(f"underlying_{i}", "") for i in range(1, 4)
-                                               if sn.get(f"underlying_{i}")])
+                        tickers = " / ".join([sn.get(f"underlying_{i}") for i in range(1, 4)
+                                               if isinstance(sn.get(f"underlying_{i}"), str)])
                         preview_rows.append({
                             "代號": sn["product_code"],
                             "標的": tickers,

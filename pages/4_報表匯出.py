@@ -68,7 +68,7 @@ with tab1:
             for _, row in sns_df.iterrows():
                 for i in range(1, 6):
                     t = row.get(f"underlying_{i}")
-                    if t:
+                    if isinstance(t, str):
                         all_tickers.append(t)
             prices = get_prices(list(set(all_tickers))) if all_tickers else {}
 
@@ -226,7 +226,7 @@ with tab4:
                 all_tickers = []
                 for inv in investments:
                     sn = inv.get("structured_notes") or {}
-                    all_tickers += [sn.get(f"underlying_{i}") for i in range(1,6) if sn.get(f"underlying_{i}")]
+                    all_tickers += [sn.get(f"underlying_{i}") for i in range(1,6) if isinstance(sn.get(f"underlying_{i}"), str)]
                 prices = get_prices(list(set([t for t in all_tickers if t]))) if all_tickers else {}
 
                 total = sum(i.get("amount_usd", 0) or 0 for i in investments)
