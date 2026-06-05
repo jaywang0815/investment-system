@@ -349,7 +349,9 @@ def handle_command(text: str, user_id: str = "") -> str:
                 lines.append(f"   下單金: USD {order_amt:,.0f}")
             if barrier_str:
                 lines.append(f"   障礙: {barrier_str}")
-            lines.append(f"   比價: {obs}{worst_str}")
+            lines.append(f"   比價: {obs}")
+            if worst_str:
+                lines.append(f"   最差: {worst_str.strip('() ')}")
             if exit_date:
                 lines.append(f"   出場日: {exit_date}")
             if temp_set:
