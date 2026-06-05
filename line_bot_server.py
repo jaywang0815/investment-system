@@ -8,7 +8,7 @@ import os
 import sys
 import io
 from typing import Optional
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
 import hmac
 import hashlib
@@ -211,10 +211,11 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             f"請將此 ID 傳給管理員，即可接收投資通知。"
         ), ""
 
-    # เช็คราคาหุ้น — ตรวจสอบว่าเป็น ticker หรือเปล่า
+    # เช็คราคาหุ้น — normalize full-width chars ก่อน regex
     import re
-    if re.match(r'^[A-Za-z]{1,6}(\.[A-Za-z]{1,3})?$', text):
-        return _check_stock(text.upper())
+    text_clean = _clean_ticker(text)
+    if re.match(r'^[A-Za-z]{1,6}(\.[A-Za-z]{1,3})?$', text_clean):
+        return _check_stock(text_clean)
 
     # 幫助
     if text in ["幫助", "help", "說明", "?", "？"]:
@@ -465,16 +466,24 @@ def chart_endpoint(ticker: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
+    """รัน background — ตอบ LINE หลังจาก webhook คืนค่าแล้ว"""
+    try:
+        response_text, chart_url = handle_command(user_text, user_id)
+        reply(reply_token, response_text, chart_url)
+    except Exception:
+        pass
+
+
 @app.post("/webhook")
-async def webhook(request: Request):
-    # 驗證 LINE 簽名
+async def webhook(request: Request, background_tasks: BackgroundTasks):
+    # ตรวจ signature ก่อน
     body = await request.body()
     signature = request.headers.get("X-Line-Signature", "")
 
     if LINE_CHANNEL_SECRET and not verify_signature(body, signature):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    # 解析事件
     try:
         data = json.loads(body)
     except Exception:
@@ -485,10 +494,9 @@ async def webhook(request: Request):
             reply_token = event.get("replyToken", "")
             user_text = event["message"].get("text", "").strip()
             user_id = event.get("source", {}).get("userId", "")
+            background_tasks.add_task(_process_event, reply_token, user_text, user_id)
 
-            response_text, chart_url = handle_command(user_text, user_id)
-            reply(reply_token, response_text, chart_url)
-
+    # ตอบ LINE ทันที ก่อนที่ reply_token จะหมดอายุ
     return JSONResponse({"status": "ok"})
 
 
