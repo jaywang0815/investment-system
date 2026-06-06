@@ -361,9 +361,9 @@ def _draw_hlines(ax, hlines: dict, n: int) -> None:
     ki_eq_init = ki_p and init_p and abs(float(ki_p) - float(init_p)) < 0.01
 
     if ko_eq_init:
-        _hline(init_p, "#00E676", "KO = 期初")
+        _hline(init_p, "#00E676", "KO = INIT")
     else:
-        _hline(init_p, "#FFD700", "期初")
+        _hline(init_p, "#FFD700", "INIT")
         _hline(ko_p,   "#00E676", "KO")
 
     if not ki_eq_init:
