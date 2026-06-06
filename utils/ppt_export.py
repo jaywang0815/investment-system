@@ -20,12 +20,16 @@ from pptx.enum.text import PP_ALIGN
 
 
 # ── colours ──────────────────────────────────────────────────────
-_NAVY  = RGBColor(0x0F, 0x25, 0x57)
-_BLUE  = RGBColor(0x1E, 0x3A, 0x8A)
-_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-_GRAY  = RGBColor(0x64, 0x74, 0x8B)
-_GREEN = RGBColor(0x16, 0xA3, 0x4A)
-_RED   = RGBColor(0xDC, 0x26, 0x26)
+_NAVY    = RGBColor(0x0F, 0x25, 0x57)
+_BLUE    = RGBColor(0x1E, 0x3A, 0x8A)
+_WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
+_GRAY    = RGBColor(0x64, 0x74, 0x8B)
+_GREEN   = RGBColor(0x16, 0xA3, 0x4A)
+_RED     = RGBColor(0xDC, 0x26, 0x26)
+# reference line colours — maximally distinct
+_C_INIT  = RGBColor(0xFF, 0xD7, 0x00)   # gold/yellow  — 期初
+_C_KO    = RGBColor(0x00, 0xE6, 0x76)   # bright green — KO
+_C_KI    = RGBColor(0xFF, 0x33, 0x33)   # bright red   — KI
 
 
 def _clean_ticker(t: str) -> str:
@@ -338,21 +342,21 @@ def _draw_hlines(ax, hlines: dict, n: int) -> None:
     if not hlines:
         return
     cfg = [
-        ("initial", "#F97316", "--", "期初"),
-        ("ko",      "#22C55E", "--", "KO"),
-        ("ki",      "#EF4444", "--", "KI"),
+        ("initial", "#FFD700", "--", "期初"),   # gold
+        ("ko",      "#00E676", "--", "KO"),     # bright green
+        ("ki",      "#FF3333", "--", "KI"),     # bright red
     ]
     for key, color, ls, label in cfg:
         price = hlines.get(key)
         if price and _is_valid(price):
             ax.axhline(float(price), color=color, linestyle=ls,
-                       linewidth=2.2, alpha=0.95, zorder=5)
+                       linewidth=2.5, alpha=1.0, zorder=5)
             ax.text(n - 1, float(price),
-                    f" {label} ${float(price):,.2f}",
+                    f" {label}  ${float(price):,.2f} ",
                     va="bottom", ha="right",
-                    color=color, fontsize=9, fontweight="bold", zorder=6,
-                    bbox=dict(facecolor="white", edgecolor=color,
-                              alpha=0.85, boxstyle="round,pad=0.25", linewidth=1))
+                    color="#222222", fontsize=10, fontweight="bold", zorder=6,
+                    bbox=dict(facecolor=color, edgecolor=color,
+                              alpha=0.92, boxstyle="round,pad=0.3", linewidth=0))
 
 
 def _make_chart_png(ticker: str, period: str = "6mo",
@@ -504,20 +508,20 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         # 期初 / KO / KI (right block, 3 columns)
         col_x = [4.3, 7.0, 9.8]
         labels = [
-            ("期初", f"${float(init_p):,.2f}" if _is_valid(init_p) else "—",
-             RGBColor(0xFB, 0x92, 0x3C)),
-            ("KO",
-             f"${ko_price:,.2f}" if ko_price and (_is_valid(init_p) and abs(ko_price - float(init_p)) > 0.01) else "—",
-             RGBColor(0x4a, 0xde, 0x80)),
-            ("KI",
-             f"${ki_price:,.2f}" if ki_price and (_is_valid(init_p) and abs(ki_price - float(init_p)) > 0.01) else "—",
-             RGBColor(0xf8, 0x71, 0x71)),
+            ("● 期初", f"${float(init_p):,.2f}" if _is_valid(init_p) else "N/A", _C_INIT),
+            ("● KO",
+             f"${ko_price:,.2f}" if ko_price and _is_valid(init_p) and abs(ko_price - float(init_p)) > 0.01 else "N/A",
+             _C_KO),
+            ("● KI",
+             f"${ki_price:,.2f}" if ki_price and _is_valid(init_p) and abs(ki_price - float(init_p)) > 0.01 else "N/A",
+             _C_KI),
         ]
         for (lbl, val, col), x in zip(labels, col_x):
-            _textbox(s, Inches(x), Inches(0.88), Inches(2.5), Inches(0.35),
-                     lbl, 10, color=RGBColor(0x94, 0xA3, 0xB8))
-            _textbox(s, Inches(x), Inches(1.18), Inches(2.5), Inches(0.5),
-                     val, 16, bold=True, color=col)
+            _textbox(s, Inches(x), Inches(0.86), Inches(2.8), Inches(0.38),
+                     lbl, 12, bold=True, color=col)
+            _textbox(s, Inches(x + 0.05), Inches(1.20), Inches(2.8), Inches(0.55),
+                     val, 18, bold=True,
+                     color=_WHITE if val == "N/A" else col)
 
         # product code
         if code and str(code).strip():
