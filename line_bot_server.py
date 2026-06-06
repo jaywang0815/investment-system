@@ -700,13 +700,167 @@ def chart_endpoint(ticker: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+# ── PPT flow session state (in-memory) ───────────────────────────
+_ppt_sessions: dict = {}  # user_id → {"options": ["AMD", ...]}
+
+
+def _push_line(user_id: str, text: str) -> None:
+    requests.post(
+        "https://api.line.me/v2/bot/message/push",
+        headers={
+            "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json={"to": user_id, "messages": [{"type": "text", "text": text[:4000]}]},
+        timeout=10,
+    )
+
+
+def _upload_ppt(ppt_bytes: bytes, filename: str) -> str | None:
+    """Upload PPT to Supabase Storage, return public URL or None."""
+    try:
+        url = f"{SUPABASE_URL}/storage/v1/object/ppt-reports/{filename}"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "x-upsert": "true",
+        }
+        resp = requests.post(url, headers=headers, data=ppt_bytes, timeout=60)
+        if resp.ok:
+            return f"{SUPABASE_URL}/storage/v1/object/public/ppt-reports/{filename}"
+    except Exception as e:
+        print(f"[upload_ppt error] {e}")
+    return None
+
+
+def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo") -> None:
+    """Generate PPT, upload, push link to user."""
+    try:
+        sns = get_sns("active")
+        sn_info = {}
+        for sn in sns:
+            for i in range(1, 6):
+                t = _clean_ticker(sn.get(f"underlying_{i}") or "")
+                if t and t in tickers and t not in sn_info:
+                    sn_info[t] = {
+                        "ko": sn.get("ko_barrier"),
+                        "ki": sn.get("ki_barrier"),
+                        "product_code": sn.get("product_code", ""),
+                    }
+
+        from utils.ppt_export import build_ppt
+        ppt_bytes = build_ppt(tickers, sn_info, period=period)
+
+        filename = f"ppt_{datetime.now(TW).strftime('%Y%m%d_%H%M%S')}.pptx"
+        pub_url = _upload_ppt(ppt_bytes, filename)
+
+        if pub_url:
+            _push_line(user_id,
+                f"✅ PPT พร้อมแล้ว!\n"
+                f"📊 {', '.join(tickers)}\n\n"
+                f"⬇️ ดาวน์โหลด (กดค้างเพื่อบันทึก):\n{pub_url}"
+            )
+        else:
+            _push_line(user_id, "❌ อัพโหลดไม่สำเร็จ กรุณาลองใหม่")
+    except Exception as e:
+        print(f"[generate_ppt error] {e}")
+        _push_line(user_id, f"❌ สร้าง PPT ไม่สำเร็จ: {e}")
+
+
 def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
     """รัน background — ตอบ LINE หลังจาก webhook คืนค่าแล้ว"""
+    import re
     try:
+        text = user_text.strip()
+
+        # ── Step 1: เริ่ม PPT flow ──────────────────────────────
+        if text in ["給我PPT", "给我PPT", "給我ppt", "给我ppt", "PPT", "ppt"]:
+            sns = get_sns("active")
+            seen = []
+            for sn in sns:
+                for i in range(1, 6):
+                    t = _clean_ticker(sn.get(f"underlying_{i}") or "")
+                    if t and t not in seen:
+                        seen.append(t)
+
+            if not seen:
+                reply(reply_token, "❌ ยังไม่มีหุ้นในระบบ")
+                return
+
+            _ppt_sessions[user_id] = {"step": "tickers", "options": seen}
+            lines = ["📊 เลือกหุ้นที่ต้องการสร้าง PPT\n"]
+            for idx, t in enumerate(seen, 1):
+                lines.append(f"{idx}. {t}")
+            lines += ["", "輸入號碼 (可多選，逗號分隔)", "例: 1,3,5  หรือ  全部"]
+            reply(reply_token, "\n".join(lines))
+            return
+
+        # ── Step 2: รับคำตอบ PPT flow ──────────────────────────
+        if user_id in _ppt_sessions:
+            session = _ppt_sessions[user_id]
+
+            # Step 2a: เลือกหุ้น
+            if session.get("step") == "tickers":
+                options = session["options"]
+                selected = []
+
+                if text in ["全部", "ทั้งหมด", "all", "ALL"]:
+                    selected = options[:]
+                else:
+                    nums = re.findall(r'\d+', text)
+                    for n in nums:
+                        idx = int(n) - 1
+                        if 0 <= idx < len(options):
+                            selected.append(options[idx])
+                    if not selected:
+                        for part in re.split(r'[\s,]+', text):
+                            t = _clean_ticker(part)
+                            if t:
+                                selected.append(t)
+
+                if not selected:
+                    _ppt_sessions.pop(user_id)
+                    reply(reply_token, "❌ ไม่พบหุ้นที่เลือก\nกรุณาพิมพ์ 給我PPT ใหม่อีกครั้ง")
+                    return
+
+                _ppt_sessions[user_id] = {"step": "period", "selected": selected}
+                reply(reply_token,
+                    f"✅ เลือกแล้ว: {', '.join(selected)}\n\n"
+                    "📅 เลือกระยะเวลากราฟ:\n"
+                    "1. 1 เดือน\n"
+                    "2. 3 เดือน\n"
+                    "3. 6 เดือน\n"
+                    "4. 1 ปี\n"
+                    "5. 2 ปี"
+                )
+                return
+
+            # Step 2b: เลือก period
+            if session.get("step") == "period":
+                _ppt_sessions.pop(user_id)
+                selected = session["selected"]
+                period_map = {
+                    "1": "1mo", "2": "3mo", "3": "6mo", "4": "1y", "5": "2y",
+                    "1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y",
+                }
+                period = period_map.get(text.strip(), "6mo")
+                period_label = {"1mo":"1 เดือน","3mo":"3 เดือน","6mo":"6 เดือน","1y":"1 ปี","2y":"2 ปี"}.get(period, period)
+
+                reply(reply_token,
+                    f"⏳ กำลังสร้าง PPT\n"
+                    f"📊 {', '.join(selected)}\n"
+                    f"📅 {period_label}\n"
+                    f"รอประมาณ 1 นาที..."
+                )
+                _generate_and_send_ppt(user_id, selected, period)
+                return
+
+        # ── คำสั่งปกติ ──────────────────────────────────────────
         response_text, chart_url = handle_command(user_text, user_id)
         reply(reply_token, response_text, chart_url)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[process_event error] {e}")
 
 
 @app.post("/webhook")
