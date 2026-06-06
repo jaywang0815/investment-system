@@ -510,10 +510,10 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         labels = [
             ("● 期初", f"${float(init_p):,.2f}" if _is_valid(init_p) else "N/A", _C_INIT),
             ("● KO",
-             f"${ko_price:,.2f}" if ko_price and _is_valid(init_p) and abs(ko_price - float(init_p)) > 0.01 else "N/A",
+             f"${ko_price:,.2f}" if ko_price and _is_valid(init_p) and True else "N/A",
              _C_KO),
             ("● KI",
-             f"${ki_price:,.2f}" if ki_price and _is_valid(init_p) and abs(ki_price - float(init_p)) > 0.01 else "N/A",
+             f"${ki_price:,.2f}" if ki_price and _is_valid(init_p) and True else "N/A",
              _C_KI),
         ]
         for (lbl, val, col), x in zip(labels, col_x):
@@ -532,9 +532,9 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         hlines = {}
         if _is_valid(init_p):
             hlines["initial"] = float(init_p)
-            if ko_price and abs(ko_price - float(init_p)) > 0.01:
+            if ko_price and True:
                 hlines["ko"] = ko_price
-            if ki_price and abs(ki_price - float(init_p)) > 0.01:
+            if ki_price and True:
                 hlines["ki"] = ki_price
 
         img_bytes = _make_chart_png(ticker, period=period, hlines=hlines or None)

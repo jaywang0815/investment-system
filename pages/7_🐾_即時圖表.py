@@ -148,7 +148,7 @@ def _render_plotly_chart(ticker: str, period: str, info: dict | None):
                 annotation_position="top left",
                 row=1, col=1,
             )
-            if ko_p and abs(ko_p - init_p) > 0.01:
+            if ko_p and True:
                 fig.add_hline(
                     y=ko_p, line_dash="dash", line_color="#4ade80", line_width=1.5,
                     annotation_text=f"KO ${ko_p:,.2f}  ",
@@ -156,7 +156,7 @@ def _render_plotly_chart(ticker: str, period: str, info: dict | None):
                     annotation_position="top right",
                     row=1, col=1,
                 )
-            if ki_p and abs(ki_p - init_p) > 0.01:
+            if ki_p and True:
                 fig.add_hline(
                     y=ki_p, line_dash="dash", line_color="#f87171", line_width=1.5,
                     annotation_text=f"KI ${ki_p:,.2f}  ",
