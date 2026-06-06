@@ -54,6 +54,16 @@ def _render_plotly_chart(ticker: str, period: str, info: dict | None):
             st.warning(f"無法取得 {ticker} 資料")
             return
 
+        # resample to weekly for long periods so candles are readable
+        use_weekly = period in ("1y", "18mo", "2y", "3y", "4y", "5y")
+        if use_weekly:
+            agg = {
+                "Open": "first", "High": "max",
+                "Low": "min",  "Close": "last", "Volume": "sum",
+            }
+            hist = hist.resample("W").agg(agg).dropna()
+        freq_label = "週線" if use_weekly else "日線"
+
         close = hist["Close"]
         delta = close.diff()
         gain  = delta.clip(lower=0).rolling(14).mean()
@@ -66,59 +76,61 @@ def _render_plotly_chart(ticker: str, period: str, info: dict | None):
         sig_line  = macd_line.ewm(span=9, adjust=False).mean()
         macd_hist = macd_line - sig_line
 
-        fig = make_subplots(
-            rows=4, cols=1,
-            shared_xaxes=True,
-            row_heights=[0.50, 0.14, 0.18, 0.18],
-            vertical_spacing=0.02,
-            subplot_titles=(ticker, "Volume", "RSI 14", "MACD"),
-        )
-
         up   = hist["Close"] >= hist["Open"]
         c_up = "#26a69a"
         c_dn = "#ef5350"
+        bg   = "#131722"
+        grid = "#1e2535"
+
+        fig = make_subplots(
+            rows=3, cols=1,
+            shared_xaxes=True,
+            row_heights=[0.62, 0.19, 0.19],
+            vertical_spacing=0.02,
+        )
 
         fig.add_trace(go.Candlestick(
             x=hist.index,
             open=hist["Open"], high=hist["High"],
             low=hist["Low"],   close=hist["Close"],
             name=ticker,
-            increasing=dict(line=dict(color=c_up), fillcolor=c_up),
-            decreasing=dict(line=dict(color=c_dn), fillcolor=c_dn),
+            increasing=dict(line=dict(color=c_up, width=1), fillcolor=c_up),
+            decreasing=dict(line=dict(color=c_dn, width=1), fillcolor=c_dn),
             showlegend=False,
+            whiskerwidth=0.5,
         ), row=1, col=1)
-
-        fig.add_trace(go.Bar(
-            x=hist.index, y=hist["Volume"],
-            marker_color=[c_up if u else c_dn for u in up],
-            opacity=0.65, showlegend=False, name="Vol",
-        ), row=2, col=1)
 
         fig.add_trace(go.Scatter(
             x=hist.index, y=rsi,
-            line=dict(color="#9333ea", width=1.5),
-            name="RSI 14", showlegend=False,
-        ), row=3, col=1)
-        for lvl, col in [(70, c_dn), (30, c_up)]:
+            line=dict(color="#a78bfa", width=1.5),
+            name="RSI", showlegend=False,
+        ), row=2, col=1)
+        for lvl, col in [(70, "#ef5350"), (30, "#26a69a")]:
             fig.add_hline(y=lvl, line_dash="dash", line_color=col,
-                          line_width=0.8, opacity=0.5, row=3, col=1)
+                          line_width=0.8, opacity=0.5, row=2, col=1)
+        fig.add_annotation(x=0, xref="x2 domain", y=75, yref="y2",
+                           text="RSI 14", showarrow=False,
+                           font=dict(color="#a78bfa", size=10), xanchor="left")
 
         bar_cols = [c_up if v >= 0 else c_dn for v in macd_hist]
         fig.add_trace(go.Bar(
             x=hist.index, y=macd_hist,
-            marker_color=bar_cols, opacity=0.65,
+            marker_color=bar_cols, opacity=0.7,
             showlegend=False, name="Hist",
-        ), row=4, col=1)
+        ), row=3, col=1)
         fig.add_trace(go.Scatter(
             x=hist.index, y=macd_line,
-            line=dict(color="#3B82F6", width=1.2),
+            line=dict(color="#60a5fa", width=1.5),
             showlegend=False, name="MACD",
-        ), row=4, col=1)
+        ), row=3, col=1)
         fig.add_trace(go.Scatter(
             x=hist.index, y=sig_line,
-            line=dict(color="#F97316", width=1.2),
+            line=dict(color="#fb923c", width=1.5),
             showlegend=False, name="Signal",
-        ), row=4, col=1)
+        ), row=3, col=1)
+        fig.add_annotation(x=0, xref="x3 domain", y=1, yref="y3 domain",
+                           text="MACD 12/26/9", showarrow=False,
+                           font=dict(color="#94a3b8", size=10), xanchor="left", yanchor="top")
 
         # ── 期初 / KO / KI reference lines ─────────────────────
         if info and info.get("initial_price"):
@@ -126,45 +138,45 @@ def _render_plotly_chart(ticker: str, period: str, info: dict | None):
             ko     = info.get("ko")
             ki     = info.get("ki")
 
-            fig.add_hline(
-                y=init_p, line_dash="dot",
-                line_color="#F97316", line_width=2,
-                annotation_text=f"  期初 ${init_p:,.2f}",
-                annotation_font=dict(color="#F97316", size=11),
-                annotation_position="right", row=1, col=1,
-            )
+            fig.add_hline(y=init_p, line_dash="dot", line_color="#fb923c", line_width=1.5,
+                          annotation_text=f"期初 ${init_p:,.2f}",
+                          annotation_font=dict(color="#fb923c", size=10),
+                          annotation_position="top right", row=1, col=1)
             if ko:
                 ko_p = round(init_p * float(ko), 2)
-                fig.add_hline(
-                    y=ko_p, line_dash="dash",
-                    line_color="#16A34A", line_width=2,
-                    annotation_text=f"  KO ${ko_p:,.2f}",
-                    annotation_font=dict(color="#16A34A", size=11),
-                    annotation_position="right", row=1, col=1,
-                )
+                fig.add_hline(y=ko_p, line_dash="dash", line_color="#4ade80", line_width=1.5,
+                              annotation_text=f"KO ${ko_p:,.2f}",
+                              annotation_font=dict(color="#4ade80", size=10),
+                              annotation_position="top right", row=1, col=1)
             if ki:
                 ki_p = round(init_p * float(ki), 2)
-                fig.add_hline(
-                    y=ki_p, line_dash="dash",
-                    line_color="#DC2626", line_width=2,
-                    annotation_text=f"  KI ${ki_p:,.2f}",
-                    annotation_font=dict(color="#DC2626", size=11),
-                    annotation_position="right", row=1, col=1,
-                )
+                fig.add_hline(y=ki_p, line_dash="dash", line_color="#f87171", line_width=1.5,
+                              annotation_text=f"KI ${ki_p:,.2f}",
+                              annotation_font=dict(color="#f87171", size=10),
+                              annotation_position="bottom right", row=1, col=1)
+
+        fig.add_annotation(
+            x=0, xref="x domain", y=1.02, yref="y domain",
+            text=f"<b>{ticker}</b>  ({freq_label})",
+            showarrow=False, font=dict(color="white", size=13),
+            xanchor="left", yanchor="bottom",
+        )
 
         fig.update_layout(
-            height=650,
-            paper_bgcolor="white",
-            plot_bgcolor="white",
+            height=700,
+            paper_bgcolor=bg,
+            plot_bgcolor=bg,
             xaxis_rangeslider_visible=False,
-            margin=dict(l=10, r=100, t=30, b=10),
-            font=dict(color="#374151", size=11),
+            margin=dict(l=10, r=90, t=40, b=10),
+            font=dict(color="#94a3b8", size=11),
         )
-        for i in range(1, 5):
-            fig.update_xaxes(showgrid=True, gridcolor="#F1F5F9",
-                             showticklabels=(i == 4), row=i, col=1)
-            fig.update_yaxes(showgrid=True, gridcolor="#F1F5F9",
-                             side="right", row=i, col=1)
+        for i in range(1, 4):
+            fig.update_xaxes(showgrid=True, gridcolor=grid, zeroline=False,
+                             showticklabels=(i == 3), row=i, col=1,
+                             tickfont=dict(color="#64748b"))
+            fig.update_yaxes(showgrid=True, gridcolor=grid, zeroline=False,
+                             side="right", row=i, col=1,
+                             tickfont=dict(color="#64748b"))
 
         st.plotly_chart(fig, use_container_width=True)
 
