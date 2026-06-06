@@ -95,7 +95,7 @@ def _strip_tz(idx):
 
 
 # ── mplfinance chart ──────────────────────────────────────────────
-def _chart_mplfinance(ohlcv, ticker) -> bytes | None:
+def _chart_mplfinance(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
     try:
         import mplfinance as mpf
 
@@ -166,6 +166,8 @@ def _chart_mplfinance(ohlcv, ticker) -> bytes | None:
         axes[0].title.set_fontsize(13)
         axes[0].title.set_fontweight("bold")
 
+        _draw_hlines(axes[0], hlines, len(ohlcv))
+
         # RSI shaded zones — axes order: [candle, candle_twin, vol, vol_twin, rsi, ...]
         try:
             rsi_ax = axes[4]
@@ -188,7 +190,7 @@ def _chart_mplfinance(ohlcv, ticker) -> bytes | None:
 
 
 # ── fallback: pure matplotlib candlestick + RSI + MACD ───────────
-def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
+def _chart_matplotlib(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
     try:
         close  = ohlcv["Close"].astype(float)
         opens  = ohlcv["Open"].astype(float)
@@ -246,6 +248,7 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
             ))
         ax1.set_xlim(-1, n)
         ax1.yaxis.tick_right()
+        _draw_hlines(ax1, hlines, n)
 
         # ── Volume ───────────────────────────────────────────────
         vol_cols = ["#26a69a" if cl_arr[i] >= op_arr[i] else "#ef5350"
@@ -296,7 +299,7 @@ def _chart_matplotlib(ohlcv, ticker) -> bytes | None:
 
 
 # ── last-resort: simple line chart ───────────────────────────────
-def _chart_simple(ohlcv, ticker) -> bytes | None:
+def _chart_simple(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
     try:
         close = ohlcv["Close"].astype(float)
         dates = ohlcv.index
@@ -330,6 +333,7 @@ def _chart_simple(ohlcv, ticker) -> bytes | None:
             [dates[i].strftime("%m/%d") for i in tick_pos],
             rotation=0, fontsize=8, color="#64748B",
         )
+        _draw_hlines(ax, hlines, n)
         plt.tight_layout(pad=0.8)
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=150,
@@ -342,7 +346,29 @@ def _chart_simple(ohlcv, ticker) -> bytes | None:
         return None
 
 
-def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
+def _draw_hlines(ax, hlines: dict, n: int) -> None:
+    """Draw 期初/KO/KI reference lines on a price axis."""
+    if not hlines:
+        return
+    cfg = [
+        ("initial", "#F97316", ":", "期初"),
+        ("ko",      "#16A34A", "--", "KO"),
+        ("ki",      "#DC2626", "--", "KI"),
+    ]
+    for key, color, ls, label in cfg:
+        price = hlines.get(key)
+        if price and _is_valid(price):
+            ax.axhline(float(price), color=color, linestyle=ls,
+                       linewidth=1.3, alpha=0.85, zorder=3)
+            ax.text(n - 1, float(price),
+                    f" {label} ${float(price):,.2f}",
+                    va="bottom", ha="right",
+                    color=color, fontsize=8, fontweight="bold",
+                    zorder=4)
+
+
+def _make_chart_png(ticker: str, period: str = "6mo",
+                    hlines: dict | None = None) -> bytes | None:
     try:
         import yfinance as yf
         ticker = _clean_ticker(ticker)
@@ -352,7 +378,6 @@ def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
             return None
 
         hist.index = _strip_tz(hist.index)
-        # Drop rows where Close is NaN
         hist = hist.dropna(subset=["Close", "Open", "High", "Low"])
         if len(hist) < 10:
             print(f"[chart] {ticker}: not enough clean data after dropna")
@@ -361,14 +386,13 @@ def _make_chart_png(ticker: str, period: str = "6mo") -> bytes | None:
         ohlcv = hist[["Open", "High", "Low", "Close", "Volume"]].copy()
         ohlcv["Volume"] = ohlcv["Volume"].fillna(0)
 
-        # Try mplfinance → matplotlib candlestick → simple line (last resort)
-        result = _chart_mplfinance(ohlcv, ticker)
+        result = _chart_mplfinance(ohlcv, ticker, hlines=hlines)
         if result is None:
             print(f"[chart] {ticker}: mplfinance failed, trying matplotlib")
-            result = _chart_matplotlib(ohlcv, ticker)
+            result = _chart_matplotlib(ohlcv, ticker, hlines=hlines)
         if result is None:
             print(f"[chart] {ticker}: matplotlib failed, trying simple line")
-            result = _chart_simple(ohlcv, ticker)
+            result = _chart_simple(ohlcv, ticker, hlines=hlines)
         if result is None:
             print(f"[chart] {ticker}: all chart methods failed")
         return result
@@ -429,13 +453,16 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
                  14, color=RGBColor(0xBF, 0xDB, 0xFF), align=PP_ALIGN.RIGHT)
 
         # KO / KI badge — skip NaN values
-        info = (sn_info or {}).get(ticker, {})
-        ko   = info.get("ko")
-        ki   = info.get("ki")
-        code = info.get("product_code", "")
+        info      = (sn_info or {}).get(ticker, {})
+        ko        = info.get("ko")
+        ki        = info.get("ki")
+        init_p    = info.get("initial_price")
+        code      = info.get("product_code", "")
         badge_parts = []
         if code and str(code).strip():
             badge_parts.append(str(code))
+        if _is_valid(init_p):
+            badge_parts.append(f"期初 ${float(init_p):,.2f}")
         if _is_valid(ko):
             badge_parts.append(f"KO {float(ko)*100:.0f}%")
         if _is_valid(ki):
@@ -445,7 +472,16 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
                      "  ·  ".join(badge_parts),
                      11, color=_GRAY)
 
-        img_bytes = _make_chart_png(ticker, period=period)
+        # คำนวณ hlines จาก initial_price
+        hlines = {}
+        if _is_valid(init_p):
+            hlines["initial"] = float(init_p)
+            if _is_valid(ko):
+                hlines["ko"] = round(float(init_p) * float(ko), 2)
+            if _is_valid(ki):
+                hlines["ki"] = round(float(init_p) * float(ki), 2)
+
+        img_bytes = _make_chart_png(ticker, period=period, hlines=hlines or None)
         if img_bytes:
             img_stream = io.BytesIO(img_bytes)
             s.shapes.add_picture(img_stream,

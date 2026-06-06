@@ -53,12 +53,17 @@ def _build_customer_ticker_map():
             code = sn.get("product_code", "")
             for i in range(1, 6):
                 t = sn.get(f"underlying_{i}")
+                init_p = sn.get(f"initial_price_{i}")
                 if t and isinstance(t, str):
                     t = _clean(t)
                     if t not in tickers:
                         tickers.append(t)
                     if t not in sn_info:
-                        sn_info[t] = {"ko": ko, "ki": ki, "product_code": code}
+                        sn_info[t] = {
+                            "ko": ko, "ki": ki,
+                            "product_code": code,
+                            "initial_price": float(init_p) if init_p else None,
+                        }
         if tickers:
             result[cname] = tickers
             for t in tickers:
@@ -181,6 +186,40 @@ with col_left:
 
 with col_right:
     st.subheader(f"{selected} 走勢圖")
+
+    # ── 期初/KO/KI info card ────────────────────────────────────
+    info = sn_info_map.get(selected)
+    if info and info.get("initial_price"):
+        from utils.stock_prices import get_price
+        curr = get_price(selected)
+        init_p = info["initial_price"]
+        ko = info.get("ko")
+        ki = info.get("ki")
+
+        cols_info = st.columns(4)
+        with cols_info[0]:
+            st.metric("期初價格", f"${init_p:,.2f}")
+        with cols_info[1]:
+            if curr:
+                perf = (curr / init_p - 1) * 100
+                st.metric("現價", f"${curr:,.2f}", f"{perf:+.1f}%")
+        with cols_info[2]:
+            if ko and init_p:
+                ko_price = init_p * ko
+                if curr:
+                    gap = (ko_price / curr - 1) * 100
+                    st.metric("KO水位", f"${ko_price:,.2f}", f"距離 {gap:+.1f}%")
+                else:
+                    st.metric("KO水位", f"${ko_price:,.2f}", f"{ko*100:.0f}%")
+        with cols_info[3]:
+            if ki and init_p:
+                ki_price = init_p * ki
+                if curr:
+                    gap = (curr / ki_price - 1) * 100
+                    st.metric("KI水位", f"${ki_price:,.2f}", f"距離 {gap:+.1f}%")
+                else:
+                    st.metric("KI水位", f"${ki_price:,.2f}", f"{ki*100:.0f}%")
+        st.divider()
 
     tv_html = f"""
     <div class="tradingview-widget-container" style="height:550px">
