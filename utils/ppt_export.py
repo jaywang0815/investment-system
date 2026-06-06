@@ -189,47 +189,39 @@ def _chart_mplfinance(ohlcv, ticker, hlines: dict | None = None) -> bytes | None
         return None
 
 
-# ── fallback: pure matplotlib candlestick + RSI + MACD ───────────
+# ── fallback: pure matplotlib candlestick + RSI + MACD (3-panel) ─
 def _chart_matplotlib(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
     try:
         close  = ohlcv["Close"].astype(float)
         opens  = ohlcv["Open"].astype(float)
         highs  = ohlcv["High"].astype(float)
         lows   = ohlcv["Low"].astype(float)
-        volume = ohlcv["Volume"].fillna(0).astype(float)
         dates  = ohlcv.index
         n      = len(dates)
         xs     = list(range(n))
 
-        rsi = _calc_rsi(close).fillna(50)           # neutral while warming up
+        rsi = _calc_rsi(close).fillna(50)
         macd_line, signal_line, macd_hist = _calc_macd(close)
         macd_line   = macd_line.fillna(0)
         signal_line = signal_line.fillna(0)
         macd_hist   = macd_hist.fillna(0)
 
-        last  = float(close.iloc[-1])
-        prev  = float(close.iloc[-2]) if n > 1 else last
-        chg   = last - prev
-        chg_p = chg / prev * 100 if prev != 0 else 0
-        sign  = "+" if chg >= 0 else ""
-
         fig, axes = plt.subplots(
-            4, 1, figsize=(14, 9),
-            gridspec_kw={"height_ratios": [4, 1.2, 1.5, 1.5]},
+            3, 1, figsize=(14, 8),
+            gridspec_kw={"height_ratios": [5, 1.8, 1.8]},
             facecolor="white", sharex=True,
         )
-        ax1, ax2, ax3, ax4 = axes
-        fig.suptitle(
-            f"{ticker}   ${last:,.2f}   {sign}{chg:.2f} ({sign}{chg_p:.2f}%)",
-            fontsize=13, color="#1E3A8A", fontweight="bold", y=0.98,
-        )
+        ax1, ax2, ax3 = axes
 
         for ax in axes:
-            ax.set_facecolor("white")
-            ax.grid(axis="y", color="#E2E8F0", linewidth=0.7, linestyle="--")
+            ax.set_facecolor("#FAFBFD")
+            ax.grid(axis="both", color="#E8EDF2", linewidth=0.6, linestyle="--")
             ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.tick_params(colors="#64748B", labelsize=8)
+            ax.spines["left"].set_visible(False)
+            ax.spines["right"].set_color("#E2E8F0")
+            ax.spines["bottom"].set_color("#E2E8F0")
+            ax.tick_params(colors="#64748B", labelsize=9)
+            ax.yaxis.tick_right()
 
         # ── Candlestick ──────────────────────────────────────────
         cl_arr = close.values
@@ -241,58 +233,48 @@ def _chart_matplotlib(ohlcv, ticker, hlines: dict | None = None) -> bytes | None
             col     = "#26a69a" if is_up else "#ef5350"
             body_lo = min(op_arr[i], cl_arr[i])
             body_hi = max(op_arr[i], cl_arr[i])
-            ax1.plot([i, i], [lo_arr[i], hi_arr[i]], color=col, linewidth=0.8)
+            ax1.plot([i, i], [lo_arr[i], hi_arr[i]], color=col, linewidth=0.9, zorder=1)
             ax1.add_patch(MplRect(
-                (i - 0.35, body_lo), 0.7, max(body_hi - body_lo, 0.001),
+                (i - 0.4, body_lo), 0.8, max(body_hi - body_lo, 0.01),
                 color=col, zorder=2,
             ))
         ax1.set_xlim(-1, n)
-        ax1.yaxis.tick_right()
+        ax1.set_ylabel("Price", color="#94A3B8", fontsize=9, labelpad=6)
         _draw_hlines(ax1, hlines, n)
 
-        # ── Volume ───────────────────────────────────────────────
-        vol_cols = ["#26a69a" if cl_arr[i] >= op_arr[i] else "#ef5350"
-                    for i in xs]
-        ax2.bar(xs, volume.values, color=vol_cols, alpha=0.6, width=0.7)
-        ax2.yaxis.tick_right()
-        ax2.set_ylabel("Vol", color="#94A3B8", fontsize=8)
-        import matplotlib.ticker as mticker
-        ax2.yaxis.set_major_formatter(mticker.FuncFormatter(
-            lambda v, _: f"{v/1e6:.0f}M" if v >= 1e6 else f"{v/1e3:.0f}K"
-        ))
-
         # ── RSI ──────────────────────────────────────────────────
-        ax3.plot(xs, rsi.values, color="#9333ea", linewidth=1.3)
-        ax3.axhline(70, color="#ef5350", linestyle="--", linewidth=0.7)
-        ax3.axhline(30, color="#26a69a", linestyle="--", linewidth=0.7)
-        ax3.axhspan(70, 100, alpha=0.06, color="#ef5350")
-        ax3.axhspan(0,  30,  alpha=0.06, color="#26a69a")
-        ax3.set_ylim(0, 100)
-        ax3.yaxis.tick_right()
-        ax3.set_ylabel("RSI 14", color="#9333ea", fontsize=8)
+        ax2.plot(xs, rsi.values, color="#9333ea", linewidth=1.4)
+        ax2.axhline(70, color="#ef5350", linestyle="--", linewidth=0.8, alpha=0.7)
+        ax2.axhline(30, color="#26a69a", linestyle="--", linewidth=0.8, alpha=0.7)
+        ax2.axhspan(70, 100, alpha=0.05, color="#ef5350")
+        ax2.axhspan(0,  30,  alpha=0.05, color="#26a69a")
+        ax2.set_ylim(0, 100)
+        ax2.set_yticks([30, 50, 70])
+        ax2.text(1, 72, "RSI 14", transform=ax2.get_yaxis_transform(),
+                 color="#9333ea", fontsize=8, va="bottom")
 
         # ── MACD ─────────────────────────────────────────────────
         mh = macd_hist.values
         bar_cols = ["#26a69a" if v >= 0 else "#ef5350" for v in mh]
-        ax4.bar(xs, mh, color=bar_cols, alpha=0.65, width=0.7)
-        ax4.plot(xs, macd_line.values,   color="#3B82F6", linewidth=1.2)
-        ax4.plot(xs, signal_line.values, color="#F97316", linewidth=1.2)
-        ax4.axhline(0, color="#CBD5E1", linewidth=0.7)
-        ax4.yaxis.tick_right()
-        ax4.set_ylabel("MACD", color="#64748B", fontsize=8)
+        ax3.bar(xs, mh, color=bar_cols, alpha=0.6, width=0.8)
+        ax3.plot(xs, macd_line.values,   color="#3B82F6", linewidth=1.3)
+        ax3.plot(xs, signal_line.values, color="#F97316", linewidth=1.3)
+        ax3.axhline(0, color="#CBD5E1", linewidth=0.6)
+        ax3.text(1, 0.95, "MACD", transform=ax3.get_yaxis_transform(),
+                 color="#3B82F6", fontsize=8, va="top")
 
         # x-axis date labels
-        tick_step = max(1, n // 8)
+        tick_step = max(1, n // 10)
         tick_pos  = list(range(0, n, tick_step))
-        ax4.set_xticks(tick_pos)
+        ax3.set_xticks(tick_pos)
         span_days = (dates[-1] - dates[0]).days if n > 1 else 0
         fmt = "%Y/%m" if span_days > 180 else "%m/%d"
-        ax4.set_xticklabels(
+        ax3.set_xticklabels(
             [dates[i].strftime(fmt) for i in tick_pos],
-            rotation=0, fontsize=8, color="#64748B",
+            rotation=0, fontsize=9, color="#64748B",
         )
 
-        plt.tight_layout(pad=0.8)
+        plt.tight_layout(pad=0.5)
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=150,
                     bbox_inches="tight", facecolor="white")
@@ -456,64 +438,97 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
              f"共 {len(tickers)} 個標的",
              13, color=RGBColor(0x64, 0x74, 0x8B), align=PP_ALIGN.CENTER)
 
+    # ── fetch current prices once ─────────────────────────────────
+    def _fetch_price(tk_str: str):
+        try:
+            import yfinance as yf
+            fi = yf.Ticker(_clean_ticker(tk_str)).fast_info
+            price = fi.get("last_price") or fi.get("regularMarketPrice")
+            prev  = fi.get("previous_close")
+            if price:
+                chg   = float(price) - float(prev) if prev else 0.0
+                chg_p = chg / float(prev) * 100 if prev else 0.0
+                return float(price), chg, chg_p
+        except Exception:
+            pass
+        return None, None, None
+
     # ── One slide per ticker ──────────────────────────────────────
     for ticker in tickers:
         s = prs.slides.add_slide(blank)
         s.background.fill.solid()
         s.background.fill.fore_color.rgb = _WHITE
 
-        _rect(s, 0, 0, W, Inches(0.85), _BLUE)
-
-        _textbox(s, Inches(0.3), Inches(0.08), Inches(6), Inches(0.7),
-                 ticker, 28, bold=True, color=_WHITE)
-
-        _textbox(s, Inches(8), Inches(0.15), Inches(5), Inches(0.55),
+        # header bar
+        _rect(s, 0, 0, W, Inches(0.75), _BLUE)
+        _textbox(s, Inches(0.3), Inches(0.05), Inches(7), Inches(0.65),
+                 ticker, 30, bold=True, color=_WHITE)
+        _textbox(s, Inches(7.5), Inches(0.12), Inches(5.5), Inches(0.5),
                  date.today().strftime("%Y/%m/%d"),
-                 14, color=RGBColor(0xBF, 0xDB, 0xFF), align=PP_ALIGN.RIGHT)
+                 13, color=RGBColor(0xBF, 0xDB, 0xFF), align=PP_ALIGN.RIGHT)
 
-        # KO / KI badge — skip NaN values
-        info      = (sn_info or {}).get(ticker, {})
-        ko        = info.get("ko")
-        ki        = info.get("ki")
-        init_p    = info.get("initial_price")
-        code      = info.get("product_code", "")
-        badge_parts = []
-        if code and str(code).strip():
-            badge_parts.append(str(code))
+        # info from SN data
+        info   = (sn_info or {}).get(ticker, {})
+        ko     = info.get("ko")
+        ki     = info.get("ki")
+        init_p = info.get("initial_price")
+        code   = info.get("product_code", "")
+
+        ko_price = round(float(init_p) * float(ko), 2) if _is_valid(init_p) and _is_valid(ko) else None
+        ki_price = round(float(init_p) * float(ki), 2) if _is_valid(init_p) and _is_valid(ki) else None
+
+        # ── info row (dark bg) ────────────────────────────────────
+        _rect(s, 0, Inches(0.75), W, Inches(0.9), _NAVY)
+
+        curr, chg, chg_p = _fetch_price(ticker)
+        if curr is not None:
+            price_str = f"${curr:,.2f}"
+            chg_str   = f"{'▲' if chg >= 0 else '▼'} {abs(chg):.2f}  ({'+' if chg >= 0 else ''}{chg_p:.2f}%)"
+            chg_col   = RGBColor(0x26, 0xa6, 0x9a) if chg >= 0 else RGBColor(0xef, 0x53, 0x50)
+            _textbox(s, Inches(0.3), Inches(0.78), Inches(3), Inches(0.55),
+                     price_str, 22, bold=True, color=_WHITE)
+            _textbox(s, Inches(3.1), Inches(0.82), Inches(3.5), Inches(0.5),
+                     chg_str, 13, color=chg_col)
+
+        # 期初 / KO / KI badges
+        badge_x = 6.8
         if _is_valid(init_p):
-            badge_parts.append(f"期初 ${float(init_p):,.2f}")
-        if _is_valid(ko):
-            if _is_valid(init_p):
-                badge_parts.append(f"KO ${round(float(init_p)*float(ko),2):,.2f}")
-            else:
-                badge_parts.append(f"KO {float(ko)*100:.0f}%")
-        if _is_valid(ki):
-            if _is_valid(init_p):
-                badge_parts.append(f"KI ${round(float(init_p)*float(ki),2):,.2f}")
-            else:
-                badge_parts.append(f"KI {float(ki)*100:.0f}%")
-        if badge_parts:
-            _textbox(s, Inches(0.3), Inches(0.88), Inches(12), Inches(0.45),
-                     "  ·  ".join(badge_parts),
-                     11, color=_GRAY)
+            _textbox(s, Inches(badge_x), Inches(0.78), Inches(2.0), Inches(0.5),
+                     f"期初\n${float(init_p):,.2f}", 10, bold=True,
+                     color=RGBColor(0xFB, 0x92, 0x3C))
+            badge_x += 2.1
+        if ko_price is not None and (not _is_valid(init_p) or abs(ko_price - float(init_p)) > 0.01):
+            _textbox(s, Inches(badge_x), Inches(0.78), Inches(2.0), Inches(0.5),
+                     f"KO\n${ko_price:,.2f}", 10, bold=True,
+                     color=RGBColor(0x4a, 0xde, 0x80))
+            badge_x += 2.1
+        if ki_price is not None and (not _is_valid(init_p) or abs(ki_price - float(init_p)) > 0.01):
+            _textbox(s, Inches(badge_x), Inches(0.78), Inches(2.0), Inches(0.5),
+                     f"KI\n${ki_price:,.2f}", 10, bold=True,
+                     color=RGBColor(0xf8, 0x71, 0x71))
 
-        # คำนวณ hlines จาก initial_price
+        # product code (small)
+        if code and str(code).strip():
+            _textbox(s, Inches(0.3), Inches(1.62), Inches(6), Inches(0.3),
+                     str(code), 9, color=_GRAY)
+
+        # ── hlines for chart ──────────────────────────────────────
         hlines = {}
         if _is_valid(init_p):
             hlines["initial"] = float(init_p)
-            if _is_valid(ko):
-                hlines["ko"] = round(float(init_p) * float(ko), 2)
-            if _is_valid(ki):
-                hlines["ki"] = round(float(init_p) * float(ki), 2)
+            if ko_price:
+                hlines["ko"] = ko_price
+            if ki_price:
+                hlines["ki"] = ki_price
 
         img_bytes = _make_chart_png(ticker, period=period, hlines=hlines or None)
         if img_bytes:
             img_stream = io.BytesIO(img_bytes)
             s.shapes.add_picture(img_stream,
-                                 Inches(0.2), Inches(1.35),
-                                 Inches(12.9), Inches(5.9))
+                                 Inches(0.1), Inches(1.72),
+                                 Inches(13.1), Inches(5.65))
         else:
-            _textbox(s, Inches(1), Inches(3), Inches(11), Inches(1),
+            _textbox(s, Inches(1), Inches(3.5), Inches(11), Inches(1),
                      f"無法取得 {ticker} 圖表資料",
                      18, color=_GRAY, align=PP_ALIGN.CENTER)
 
