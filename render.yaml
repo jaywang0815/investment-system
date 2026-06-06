@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: investment-line-bot
+    runtime: python
+    buildCommand: pip install -r requirements-bot.txt
+    startCommand: uvicorn line_bot_server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
