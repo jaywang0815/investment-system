@@ -341,22 +341,33 @@ def _chart_simple(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
 def _draw_hlines(ax, hlines: dict, n: int) -> None:
     if not hlines:
         return
-    cfg = [
-        ("initial", "#FFD700", "--", "期初"),   # gold
-        ("ko",      "#00E676", "--", "KO"),     # bright green
-        ("ki",      "#FF3333", "--", "KI"),     # bright red
-    ]
-    for key, color, ls, label in cfg:
-        price = hlines.get(key)
-        if price and _is_valid(price):
-            ax.axhline(float(price), color=color, linestyle=ls,
-                       linewidth=2.5, alpha=1.0, zorder=5)
-            ax.text(n - 1, float(price),
-                    f" {label}  ${float(price):,.2f} ",
-                    va="bottom", ha="right",
-                    color="#222222", fontsize=10, fontweight="bold", zorder=6,
-                    bbox=dict(facecolor=color, edgecolor=color,
-                              alpha=0.92, boxstyle="round,pad=0.3", linewidth=0))
+    init_p = hlines.get("initial")
+    ko_p   = hlines.get("ko")
+    ki_p   = hlines.get("ki")
+
+    def _hline(price, color, label):
+        if not (price and _is_valid(price)):
+            return
+        ax.axhline(float(price), color=color, linestyle="--",
+                   linewidth=2.5, alpha=1.0, zorder=5)
+        ax.text(n - 1, float(price),
+                f" {label}  ${float(price):,.2f} ",
+                va="bottom", ha="right",
+                color="#222222", fontsize=10, fontweight="bold", zorder=6,
+                bbox=dict(facecolor=color, edgecolor=color,
+                          alpha=0.92, boxstyle="round,pad=0.3", linewidth=0))
+
+    ko_eq_init = ko_p and init_p and abs(float(ko_p) - float(init_p)) < 0.01
+    ki_eq_init = ki_p and init_p and abs(float(ki_p) - float(init_p)) < 0.01
+
+    if ko_eq_init:
+        _hline(init_p, "#00E676", "KO = 期初")
+    else:
+        _hline(init_p, "#FFD700", "期初")
+        _hline(ko_p,   "#00E676", "KO")
+
+    if not ki_eq_init:
+        _hline(ki_p, "#FF3333", "KI")
 
 
 def _make_chart_png(ticker: str, period: str = "6mo",
