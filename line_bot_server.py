@@ -700,8 +700,62 @@ def chart_endpoint(ticker: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 
-# ── PPT flow session state (in-memory) ───────────────────────────
-_ppt_sessions: dict = {}  # user_id → {"options": ["AMD", ...]}
+# ── PPT flow session state ────────────────────────────────────────
+_ppt_sessions: dict = {}  # user_id → session dict (backed by Supabase)
+
+
+def _session_save(user_id: str, data: dict) -> None:
+    _ppt_sessions[user_id] = data
+    try:
+        import json as _json
+        sb_get("app_settings", {})  # reuse connection check
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/app_settings",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "resolution=merge-duplicates",
+            },
+            json={"key": f"ppt_session_{user_id}", "value": _json.dumps(data)},
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def _session_load(user_id: str) -> dict | None:
+    if user_id in _ppt_sessions:
+        return _ppt_sessions[user_id]
+    try:
+        import json as _json
+        rows = sb_get("app_settings", {
+            "select": "value",
+            "key": f"eq.ppt_session_{user_id}",
+        })
+        if rows:
+            data = _json.loads(rows[0]["value"])
+            _ppt_sessions[user_id] = data
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def _session_clear(user_id: str) -> None:
+    _ppt_sessions.pop(user_id, None)
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/app_settings",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+            },
+            params={"key": f"eq.ppt_session_{user_id}"},
+            timeout=5,
+        )
+    except Exception:
+        pass
 
 
 def _push_line(user_id: str, text: str) -> None:
@@ -785,20 +839,20 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                         seen.append(t)
 
             if not seen:
-                reply(reply_token, "❌ ยังไม่มีหุ้นในระบบ")
+                reply(reply_token, "❌ 系統中尚無標的資料")
                 return
 
-            _ppt_sessions[user_id] = {"step": "tickers", "options": seen}
-            lines = ["📊 เลือกหุ้นที่ต้องการสร้าง PPT\n"]
+            _session_save(user_id, {"step": "tickers", "options": seen})
+            lines = ["📊 選擇要製作 PPT 的標的\n"]
             for idx, t in enumerate(seen, 1):
                 lines.append(f"{idx}. {t}")
-            lines += ["", "輸入號碼 (可多選，逗號分隔)", "例: 1,3,5  หรือ  全部"]
+            lines += ["", "輸入號碼 (可多選，逗號分隔)", "例: 1,3,5  或  全部"]
             reply(reply_token, "\n".join(lines))
             return
 
         # ── Step 2: รับคำตอบ PPT flow ──────────────────────────
-        if user_id in _ppt_sessions:
-            session = _ppt_sessions[user_id]
+        session = _session_load(user_id)
+        if session:
 
             # Step 2a: เลือกหุ้น
             if session.get("step") == "tickers":
@@ -820,11 +874,11 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                                 selected.append(t)
 
                 if not selected:
-                    _ppt_sessions.pop(user_id)
-                    reply(reply_token, "❌ ไม่พบหุ้นที่เลือก\nกรุณาพิมพ์ 給我PPT ใหม่อีกครั้ง")
+                    _session_clear(user_id)
+                    reply(reply_token, "❌ 找不到所選標的\n請重新輸入「給我PPT」")
                     return
 
-                _ppt_sessions[user_id] = {"step": "period", "selected": selected}
+                _session_save(user_id, {"step": "period", "selected": selected})
                 reply(reply_token,
                     f"✅ 已選: {', '.join(selected)}\n\n"
                     "📅 選擇圖表區間:\n"
@@ -838,7 +892,7 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
 
             # Step 2b: เลือก period
             if session.get("step") == "period":
-                _ppt_sessions.pop(user_id)
+                _session_clear(user_id)
                 selected = session["selected"]
                 period_map = {
                     "1": "1mo", "2": "3mo", "3": "6mo", "4": "1y", "5": "2y",
