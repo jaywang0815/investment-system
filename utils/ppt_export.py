@@ -12,6 +12,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle as MplRect
+from matplotlib.font_manager import FontProperties
+
+# load bundled CJK font so Chinese labels render on Linux
+_FONT_PATH = Path(__file__).parent.parent / "assets" / "NotoSansTC-Regular.ttf"
+_CJK_FONT  = FontProperties(fname=str(_FONT_PATH)) if _FONT_PATH.exists() else None
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -345,25 +350,28 @@ def _draw_hlines(ax, hlines: dict, n: int) -> None:
     ko_p   = hlines.get("ko")
     ki_p   = hlines.get("ki")
 
+    fp = _CJK_FONT  # may be None if font file missing
+
     def _hline(price, color, label):
         if not (price and _is_valid(price)):
             return
         ax.axhline(float(price), color=color, linestyle="--",
                    linewidth=2.5, alpha=1.0, zorder=5)
-        ax.text(n - 1, float(price),
-                f" {label}  ${float(price):,.2f} ",
-                va="bottom", ha="right",
-                color="#222222", fontsize=10, fontweight="bold", zorder=6,
-                bbox=dict(facecolor=color, edgecolor=color,
-                          alpha=0.92, boxstyle="round,pad=0.3", linewidth=0))
+        txt_kw = dict(va="bottom", ha="right",
+                      color="#222222", fontsize=10, fontweight="bold", zorder=6,
+                      bbox=dict(facecolor=color, edgecolor=color,
+                                alpha=0.92, boxstyle="round,pad=0.3", linewidth=0))
+        if fp:
+            txt_kw["fontproperties"] = fp
+        ax.text(n - 1, float(price), f" {label}  ${float(price):,.2f} ", **txt_kw)
 
     ko_eq_init = ko_p and init_p and abs(float(ko_p) - float(init_p)) < 0.01
     ki_eq_init = ki_p and init_p and abs(float(ki_p) - float(init_p)) < 0.01
 
     if ko_eq_init:
-        _hline(init_p, "#00E676", "KO = INIT")
+        _hline(init_p, "#00E676", "KO = 期初")
     else:
-        _hline(init_p, "#FFD700", "INIT")
+        _hline(init_p, "#FFD700", "期初")
         _hline(ko_p,   "#00E676", "KO")
 
     if not ki_eq_init:
