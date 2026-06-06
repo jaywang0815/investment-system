@@ -363,7 +363,11 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             else:
                 overall = "✅ 正常"
 
+            sn_id = sn.get("id", "")
+            names = sn_customers.get(sn_id, [])
             lines.append(f"\n{overall} {code}")
+            if names:
+                lines.append(f"  👤 {' / '.join(names)}")
             if obs:
                 lines.append(f"  {badge} 比價: {obs} ({days_str})")
             lines.extend(detail_lines)
@@ -673,7 +677,10 @@ def _run_daily_report() -> None:
             else:
                 overall = "✅ 正常"
 
+            names = sn_customers.get(sn_id, [])
             lines.append(f"\n{overall} {code}")
+            if names:
+                lines.append(f"  👤 {' / '.join(names)}")
             lines.append(f"  {badge} 比價日: {obs} ({days_str})")
             lines.extend(detail_lines)
 
