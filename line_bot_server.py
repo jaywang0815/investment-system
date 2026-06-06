@@ -802,6 +802,10 @@ def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo") -> 
                         "ki": sn.get("ki_barrier"),
                         "initial_price": sn.get(f"initial_price_{i}"),
                         "product_code": sn.get("product_code", ""),
+                        "strike_pct": sn.get("strike_pct"),
+                        "coupon_pct": sn.get("coupon_pct"),
+                        "observation_date": sn.get("observation_date"),
+                        "exit_date": sn.get("exit_date"),
                     }
 
         from utils.ppt_export import build_ppt

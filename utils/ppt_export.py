@@ -534,26 +534,52 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
                      val, 18, bold=True,
                      color=_WHITE if val == "N/A" else col)
 
-        # product code
+        # ── second info row: 執行價 / 配息 / 比價日 / 出場日 ────────
+        strike      = info.get("strike_pct")
+        coupon      = info.get("coupon_pct")
+        obs_date    = str(info.get("observation_date") or "")[:10]
+        exit_date_v = str(info.get("exit_date") or "")[:10]
+
+        row2_items = []
+        if _is_valid(strike):
+            row2_items.append(("執行價", f"{float(strike)*100:.1f}%"))
+        if _is_valid(coupon):
+            row2_items.append(("配息", f"{float(coupon)*100:.2f}%"))
+        if obs_date and obs_date != "None":
+            row2_items.append(("比價日", obs_date))
+        if exit_date_v and exit_date_v != "None":
+            row2_items.append(("出場日", exit_date_v))
         if code and str(code).strip():
-            _textbox(s, Inches(11.5), Inches(1.55), Inches(1.7), Inches(0.28),
-                     str(code), 8, color=RGBColor(0x64, 0x74, 0x8B), align=PP_ALIGN.RIGHT)
+            row2_items.append(("商品", str(code)))
+
+        if row2_items:
+            _rect(s, 0, Inches(1.82), W, Inches(0.42), RGBColor(0x1A, 0x33, 0x5C))
+            x_step = 13.33 / max(len(row2_items), 1)
+            for idx, (lbl, val) in enumerate(row2_items):
+                x = idx * x_step + 0.2
+                _textbox(s, Inches(x), Inches(1.84), Inches(x_step - 0.1), Inches(0.18),
+                         lbl, 8, color=RGBColor(0x94, 0xA3, 0xB8))
+                _textbox(s, Inches(x), Inches(1.99), Inches(x_step - 0.1), Inches(0.22),
+                         val, 10, bold=True, color=_WHITE)
+
+        chart_top = Inches(2.28) if row2_items else Inches(1.95)
+        chart_h   = Inches(5.1)  if row2_items else Inches(5.42)
 
         # ── hlines for chart ──────────────────────────────────────
         hlines = {}
         if _is_valid(init_p):
             hlines["initial"] = float(init_p)
-            if ko_price and True:
+            if ko_price:
                 hlines["ko"] = ko_price
-            if ki_price and True:
+            if ki_price:
                 hlines["ki"] = ki_price
 
         img_bytes = _make_chart_png(ticker, period=period, hlines=hlines or None)
         if img_bytes:
             img_stream = io.BytesIO(img_bytes)
             s.shapes.add_picture(img_stream,
-                                 Inches(0.1), Inches(1.95),
-                                 Inches(13.1), Inches(5.42))
+                                 Inches(0.1), chart_top,
+                                 Inches(13.1), chart_h)
         else:
             _textbox(s, Inches(1), Inches(4), Inches(11), Inches(1),
                      f"無法取得 {ticker} 圖表資料",
