@@ -308,7 +308,9 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                 badge = "📅"
                 days_str = ""
 
-            # คำนวณ worst performance (ไม่แสดง KO/KI ใน日報 เพื่อไม่ซ้ำกับ警示)
+            # คำนวณ worst performance + KO/KI status
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
             worst_pct = None
             detail_lines = []
             for i in range(1, 6):
@@ -323,12 +325,24 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                         worst_pct = pct
                     chg = (pct - 1) * 100
                     arrow = "▲" if chg >= 0 else "▼"
-                    detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%)")
+                    ko_s = (" 🟢KO" if ko and pct >= ko else " 🟡近KO" if ko and pct >= ko * 0.95 else "")
+                    ki_s = (" 🔴KI" if ki and pct <= ki else " 🟠近KI" if ki and pct <= ki * 1.05 else "")
+                    detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
 
             if worst_pct is None:
                 continue  # ไม่มีข้อมูลราคา ข้ามไปเลย
+            elif ko and worst_pct >= ko:
+                overall = "🟢 KO觸發"
+            elif ko and worst_pct >= ko * 0.95:
+                overall = "🟡 接近KO"
+            elif ki and worst_pct <= ki:
+                overall = "🔴 KI觸發"
+            elif ki and worst_pct <= ki * 1.05:
+                overall = "🟠 接近KI"
+            else:
+                overall = "✅ 正常"
 
-            lines.append(f"\n📌 {code}")
+            lines.append(f"\n{overall} {code}")
             if obs:
                 lines.append(f"  {badge} 比價: {obs} ({days_str})")
             lines.extend(detail_lines)
