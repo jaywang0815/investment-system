@@ -371,8 +371,9 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             lines.append(f"\n─────────────")
             lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
             for (code, obs_short, badge, days_str, names) in pending_sns:
-                names_str = f"  [{', '.join(names)}]" if names else ""
-                lines.append(f"  {code}  {badge} {obs_short} ({days_str}){names_str}")
+                lines.append(f"  {code}  {badge} {obs_short} ({days_str})")
+                if names:
+                    lines.append(f"    👤 {', '.join(names)}")
 
         lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
         return "\n".join(lines), ""
