@@ -800,6 +800,7 @@ def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo") -> 
                     sn_info[t] = {
                         "ko": sn.get("ko_barrier"),
                         "ki": sn.get("ki_barrier"),
+                        "initial_price": sn.get(f"initial_price_{i}"),
                         "product_code": sn.get("product_code", ""),
                     }
 
