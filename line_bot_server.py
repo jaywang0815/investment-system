@@ -899,7 +899,8 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                 reply(reply_token,
                     f"✅ 已選標的:\n{', '.join(selected_tickers)}\n\n"
                     "📅 選擇圖表區間:\n"
-                    "1. 1個月\n2. 3個月\n3. 6個月\n4. 1年\n5. 2年"
+                    "1. 1個月\n2. 3個月\n3. 6個月\n"
+                    "4. 1年\n5. 1年半\n6. 2年\n7. 3年\n8. 4年\n9. 5年"
                 )
                 return
 
@@ -931,11 +932,8 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                 reply(reply_token,
                     f"✅ 已選: {', '.join(selected)}\n\n"
                     "📅 選擇圖表區間:\n"
-                    "1. 1個月\n"
-                    "2. 3個月\n"
-                    "3. 6個月\n"
-                    "4. 1年\n"
-                    "5. 2年"
+                    "1. 1個月\n2. 3個月\n3. 6個月\n"
+                    "4. 1年\n5. 1年半\n6. 2年\n7. 3年\n8. 4年\n9. 5年"
                 )
                 return
 
@@ -944,27 +942,28 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                 _session_clear(user_id)
                 selected = session["selected"]
                 period_map = {
-                    "1": "1mo", "2": "3mo", "3": "6mo", "4": "1y", "5": "2y",
-                    "1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y",
-                    "1個月": "1mo", "3個月": "3mo", "6個月": "6mo", "1年": "1y", "2年": "2y",
+                    "1": "1mo", "2": "3mo", "3": "6mo",
+                    "4": "1y",  "5": "18mo","6": "2y", "7": "3y", "8": "4y", "9": "5y",
+                    "1mo": "1mo", "3mo": "3mo", "6mo": "6mo",
+                    "1y": "1y", "18mo": "18mo", "2y": "2y", "3y": "3y", "4y": "4y", "5y": "5y",
+                    "1個月": "1mo", "3個月": "3mo", "6個月": "6mo",
+                    "1年": "1y", "1年半": "18mo", "2年": "2y", "3年": "3y", "4年": "4y", "5年": "5y",
                     "1个月": "1mo", "3个月": "3mo", "6个月": "6mo",
-                    "หนึ่งเดือน": "1mo", "1เดือน": "1mo", "1 เดือน": "1mo",
-                    "สามเดือน": "3mo", "3เดือน": "3mo", "3 เดือน": "3mo",
-                    "หกเดือน": "6mo", "6เดือน": "6mo", "6 เดือน": "6mo",
-                    "หนึ่งปี": "1y", "1ปี": "1y", "1 ปี": "1y",
-                    "สองปี": "2y", "2ปี": "2y", "2 ปี": "2y",
                 }
                 period = period_map.get(text.strip())
                 if not period:
-                    # ไม่ match → ถามใหม่ และ keep session ไว้
                     _session_save(user_id, {"step": "period", "selected": selected})
                     reply(reply_token,
                         "❓ 無法識別，請重新選擇\n\n"
                         "📅 選擇圖表區間:\n"
-                        "1. 1個月\n2. 3個月\n3. 6個月\n4. 1年\n5. 2年"
+                        "1. 1個月\n2. 3個月\n3. 6個月\n"
+                        "4. 1年\n5. 1年半\n6. 2年\n7. 3年\n8. 4年\n9. 5年"
                     )
                     return
-                period_label = {"1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年"}.get(period, period)
+                period_label = {
+                    "1mo":"1個月","3mo":"3個月","6mo":"6個月",
+                    "1y":"1年","18mo":"1年半","2y":"2年","3y":"3年","4y":"4年","5y":"5年",
+                }.get(period, period)
 
                 reply(reply_token,
                     f"⏳ 製作中...\n"
