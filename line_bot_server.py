@@ -59,6 +59,18 @@ def get_customer_investments(customer_id: str) -> list:
     })
 
 
+def get_sn_customer_map() -> dict:
+    """Returns {sn_id: [customer_name, ...]}"""
+    rows = sb_get("investments", {"select": "sn_id,customers(name)"})
+    result: dict = {}
+    for r in rows:
+        sn_id = r.get("sn_id")
+        name = (r.get("customers") or {}).get("name", "")
+        if sn_id and name:
+            result.setdefault(sn_id, []).append(name)
+    return result
+
+
 def _clean_ticker(t: str) -> str:
     import unicodedata
     return unicodedata.normalize("NFKC", t).lstrip("$").strip().upper()
@@ -298,6 +310,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
         ]
 
         pending_sns = []  # SN ที่ยังไม่มีข้อมูลราคา
+        sn_customers = get_sn_customer_map()
 
         for sn in sorted(sns, key=lambda s: s.get("observation_date") or ""):
             code = sn.get("product_code", "—")
@@ -333,7 +346,9 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                     detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
 
             if worst_pct is None:
-                pending_sns.append((code, obs[5:], badge, days_str))  # เก็บไว้แสดง section ล่าง
+                sn_id = sn.get("id", "")
+                names = sn_customers.get(sn_id, [])
+                pending_sns.append((code, obs[5:], badge, days_str, names))
                 continue
             elif ko and worst_pct >= ko:
                 overall = "🟢 KO觸發"
@@ -355,8 +370,9 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
         if pending_sns:
             lines.append(f"\n─────────────")
             lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
-            for (code, obs_short, badge, days_str) in pending_sns:
-                lines.append(f"  {code}  {badge} {obs_short} ({days_str})")
+            for (code, obs_short, badge, days_str, names) in pending_sns:
+                names_str = f"  [{', '.join(names)}]" if names else ""
+                lines.append(f"  {code}  {badge} {obs_short} ({days_str}){names_str}")
 
         lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
         return "\n".join(lines), ""
