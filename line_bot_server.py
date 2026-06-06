@@ -897,6 +897,8 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                 period_map = {
                     "1": "1mo", "2": "3mo", "3": "6mo", "4": "1y", "5": "2y",
                     "1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y",
+                    "1個月": "1mo", "3個月": "3mo", "6個月": "6mo", "1年": "1y", "2年": "2y",
+                    "1个月": "1mo", "3个月": "3mo", "6个月": "6mo",
                 }
                 period = period_map.get(text.strip(), "6mo")
                 period_label = {"1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年"}.get(period, period)
