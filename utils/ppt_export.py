@@ -256,6 +256,10 @@ def _chart_matplotlib(ohlcv, ticker, hlines: dict | None = None) -> bytes | None
         ax2.bar(xs, volume.values, color=vol_cols, alpha=0.6, width=0.7)
         ax2.yaxis.tick_right()
         ax2.set_ylabel("Vol", color="#94A3B8", fontsize=8)
+        import matplotlib.ticker as mticker
+        ax2.yaxis.set_major_formatter(mticker.FuncFormatter(
+            lambda v, _: f"{v/1e6:.0f}M" if v >= 1e6 else f"{v/1e3:.0f}K"
+        ))
 
         # ── RSI ──────────────────────────────────────────────────
         ax3.plot(xs, rsi.values, color="#9333ea", linewidth=1.3)
@@ -281,8 +285,10 @@ def _chart_matplotlib(ohlcv, ticker, hlines: dict | None = None) -> bytes | None
         tick_step = max(1, n // 8)
         tick_pos  = list(range(0, n, tick_step))
         ax4.set_xticks(tick_pos)
+        span_days = (dates[-1] - dates[0]).days if n > 1 else 0
+        fmt = "%Y/%m" if span_days > 180 else "%m/%d"
         ax4.set_xticklabels(
-            [dates[i].strftime("%m/%d") for i in tick_pos],
+            [dates[i].strftime(fmt) for i in tick_pos],
             rotation=0, fontsize=8, color="#64748B",
         )
 
@@ -392,6 +398,13 @@ def _make_chart_png(ticker: str, period: str = "6mo",
         ohlcv = hist[["Open", "High", "Low", "Close", "Volume"]].copy()
         ohlcv["Volume"] = ohlcv["Volume"].fillna(0)
 
+        # resample to weekly for long periods so candles are readable
+        if period in ("1y", "18mo", "2y", "3y", "4y", "5y"):
+            ohlcv = ohlcv.resample("W").agg({
+                "Open": "first", "High": "max",
+                "Low": "min", "Close": "last", "Volume": "sum",
+            }).dropna()
+
         result = _chart_mplfinance(ohlcv, ticker, hlines=hlines)
         if result is None:
             print(f"[chart] {ticker}: mplfinance failed, trying matplotlib")
@@ -470,9 +483,15 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         if _is_valid(init_p):
             badge_parts.append(f"期初 ${float(init_p):,.2f}")
         if _is_valid(ko):
-            badge_parts.append(f"KO {float(ko)*100:.0f}%")
+            if _is_valid(init_p):
+                badge_parts.append(f"KO ${round(float(init_p)*float(ko),2):,.2f}")
+            else:
+                badge_parts.append(f"KO {float(ko)*100:.0f}%")
         if _is_valid(ki):
-            badge_parts.append(f"KI {float(ki)*100:.0f}%")
+            if _is_valid(init_p):
+                badge_parts.append(f"KI ${round(float(init_p)*float(ki),2):,.2f}")
+            else:
+                badge_parts.append(f"KI {float(ki)*100:.0f}%")
         if badge_parts:
             _textbox(s, Inches(0.3), Inches(0.88), Inches(12), Inches(0.45),
                      "  ·  ".join(badge_parts),
