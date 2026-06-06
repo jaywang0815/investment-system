@@ -418,12 +418,10 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
         if not customers:
             return "尚無客戶資料", ""
         lines = [f"👥 客戶列表 ({len(customers)} 人)\n─────────────"]
-        for c in customers[:20]:
+        for c in customers:
             usd = c.get("usd_amount")
             usd_str = f"USD {usd:,.0f}" if usd else ""
             lines.append(f"• {c['name']} {usd_str}")
-        if len(customers) > 20:
-            lines.append(f"...共 {len(customers)} 位客戶")
         return "\n".join(lines), ""
 
     # 依客戶姓名查詢
