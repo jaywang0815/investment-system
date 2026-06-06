@@ -826,13 +826,13 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
 
                 _ppt_sessions[user_id] = {"step": "period", "selected": selected}
                 reply(reply_token,
-                    f"✅ เลือกแล้ว: {', '.join(selected)}\n\n"
-                    "📅 เลือกระยะเวลากราฟ:\n"
-                    "1. 1 เดือน\n"
-                    "2. 3 เดือน\n"
-                    "3. 6 เดือน\n"
-                    "4. 1 ปี\n"
-                    "5. 2 ปี"
+                    f"✅ 已選: {', '.join(selected)}\n\n"
+                    "📅 選擇圖表區間:\n"
+                    "1. 1個月\n"
+                    "2. 3個月\n"
+                    "3. 6個月\n"
+                    "4. 1年\n"
+                    "5. 2年"
                 )
                 return
 
@@ -845,13 +845,13 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                     "1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y",
                 }
                 period = period_map.get(text.strip(), "6mo")
-                period_label = {"1mo":"1 เดือน","3mo":"3 เดือน","6mo":"6 เดือน","1y":"1 ปี","2y":"2 ปี"}.get(period, period)
+                period_label = {"1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年"}.get(period, period)
 
                 reply(reply_token,
-                    f"⏳ กำลังสร้าง PPT\n"
+                    f"⏳ 製作中...\n"
                     f"📊 {', '.join(selected)}\n"
                     f"📅 {period_label}\n"
-                    f"รอประมาณ 1 นาที..."
+                    f"約需 1 分鐘，請稍候"
                 )
                 _generate_and_send_ppt(user_id, selected, period)
                 return
