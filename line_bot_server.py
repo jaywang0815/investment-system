@@ -775,7 +775,7 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
         text = user_text.strip()
 
         # ── Step 1: เริ่ม PPT flow ──────────────────────────────
-        if text in ["給我PPT", "给我PPT", "給我ppt", "给我ppt", "PPT", "ppt"]:
+        if re.match(r'^(給我|给我)?\s*ppt$', text, re.IGNORECASE):
             sns = get_sns("active")
             seen = []
             for sn in sns:
