@@ -828,25 +828,41 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
     try:
         text = user_text.strip()
 
-        # ── Step 1: เริ่ม PPT flow ──────────────────────────────
+        # ── Step 1: เริ่ม PPT flow — แสดงรายชื่อลูกค้า ──────────────
         if re.match(r'^(給我|给我)?\s*ppt$', text, re.IGNORECASE):
+            customers = get_customers()
             sns = get_sns("active")
-            seen = []
-            for sn in sns:
-                for i in range(1, 6):
-                    t = _clean_ticker(sn.get(f"underlying_{i}") or "")
-                    if t and t not in seen:
-                        seen.append(t)
 
-            if not seen:
+            # สร้าง customer → tickers map
+            cust_map = {}
+            for c in customers:
+                cid = c["id"]
+                cname = c["name"]
+                invs = get_customer_investments(cid)
+                tickers = []
+                for inv in invs:
+                    sn = inv.get("structured_notes") or {}
+                    for i in range(1, 6):
+                        t = _clean_ticker(sn.get(f"underlying_{i}") or "")
+                        if t and t not in tickers:
+                            tickers.append(t)
+                if tickers:
+                    cust_map[cname] = tickers
+
+            if not cust_map:
                 reply(reply_token, "❌ 系統中尚無標的資料")
                 return
 
-            _session_save(user_id, {"step": "tickers", "options": seen})
-            lines = ["📊 選擇要製作 PPT 的標的\n"]
-            for idx, t in enumerate(seen, 1):
-                lines.append(f"{idx}. {t}")
-            lines += ["", "輸入號碼 (可多選，逗號分隔)", "例: 1,3,5  或  全部"]
+            cust_list = list(cust_map.keys())
+            _session_save(user_id, {"step": "customer", "cust_map": cust_map, "cust_list": cust_list})
+
+            lines = ["👥 選擇客戶 (可多選，逗號分隔)\n"]
+            for idx, name in enumerate(cust_list, 1):
+                tickers_preview = ", ".join(cust_map[name][:3])
+                if len(cust_map[name]) > 3:
+                    tickers_preview += f"...+{len(cust_map[name])-3}"
+                lines.append(f"{idx}. {name}  ({tickers_preview})")
+            lines += ["", "例: 1,3  或  全部"]
             reply(reply_token, "\n".join(lines))
             return
 
@@ -854,7 +870,40 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
         session = _session_load(user_id)
         if session:
 
-            # Step 2a: เลือกหุ้น
+            # Step 2a: เลือกลูกค้า
+            if session.get("step") == "customer":
+                cust_map = session["cust_map"]
+                cust_list = session["cust_list"]
+                selected_tickers = []
+
+                if text in ["全部", "all", "ALL"]:
+                    for tickers in cust_map.values():
+                        for t in tickers:
+                            if t not in selected_tickers:
+                                selected_tickers.append(t)
+                else:
+                    nums = re.findall(r'\d+', text)
+                    for n in nums:
+                        idx = int(n) - 1
+                        if 0 <= idx < len(cust_list):
+                            for t in cust_map[cust_list[idx]]:
+                                if t not in selected_tickers:
+                                    selected_tickers.append(t)
+
+                if not selected_tickers:
+                    _session_clear(user_id)
+                    reply(reply_token, "❌ 找不到所選客戶\n請重新輸入「給我PPT」")
+                    return
+
+                _session_save(user_id, {"step": "period", "selected": selected_tickers})
+                reply(reply_token,
+                    f"✅ 已選標的:\n{', '.join(selected_tickers)}\n\n"
+                    "📅 選擇圖表區間:\n"
+                    "1. 1個月\n2. 3個月\n3. 6個月\n4. 1年\n5. 2年"
+                )
+                return
+
+            # Step 2b: เลือกหุ้น (legacy - ถ้ายังมี session เก่า)
             if session.get("step") == "tickers":
                 options = session["options"]
                 selected = []

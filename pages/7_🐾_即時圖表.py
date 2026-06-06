@@ -4,7 +4,7 @@
 import unicodedata
 import streamlit as st
 import streamlit.components.v1 as components
-from utils.database import get_all_sns
+from utils.database import get_all_sns, get_all_customers, get_investments_by_customer
 
 
 def _clean(t: str) -> str:
@@ -29,57 +29,103 @@ from utils.ui_helpers import dog_header
 dog_header("即時圖表")
 st.caption("資料來源: TradingView · 即時報價")
 
+# ── 建立客戶 → 標的 mapping ──────────────────────────────────────
+@st.cache_data(ttl=300)
+def _build_customer_ticker_map():
+    customers = get_all_customers()
+    result = {}
+    all_tickers_set = []
+    sn_info = {}
+
+    sns_df = get_all_sns(status="active")
+
+    for _, row in customers.iterrows():
+        cid = str(row["id"])
+        cname = row["name"]
+        invs = get_investments_by_customer(cid)
+        tickers = []
+        for inv in invs:
+            sn = inv.get("structured_notes") or {}
+            if not sn or sn.get("status") != "active":
+                continue
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
+            code = sn.get("product_code", "")
+            for i in range(1, 6):
+                t = sn.get(f"underlying_{i}")
+                if t and isinstance(t, str):
+                    t = _clean(t)
+                    if t not in tickers:
+                        tickers.append(t)
+                    if t not in sn_info:
+                        sn_info[t] = {"ko": ko, "ki": ki, "product_code": code}
+        if tickers:
+            result[cname] = tickers
+            for t in tickers:
+                if t not in all_tickers_set:
+                    all_tickers_set.append(t)
+
+    return result, sorted(all_tickers_set), sn_info
+
+customer_ticker_map, all_tickers, sn_info_map = _build_customer_ticker_map()
+
 # ── PPT Export ───────────────────────────────────────────────────
 with st.expander("📥 匯出 PowerPoint 簡報"):
     from utils.ppt_export import build_ppt
 
-    # Build ticker → sn_info map
-    _sns_df = get_all_sns(status="active")
-    _all_tickers = []
-    _sn_info = {}
-    if not _sns_df.empty:
-        for _, row in _sns_df.iterrows():
-            ko = row.get("ko_barrier")
-            ki = row.get("ki_barrier")
-            code = row.get("product_code", "")
-            for i in range(1, 6):
-                t = row.get(f"underlying_{i}")
-                if t and isinstance(t, str):
-                    t = _clean(t)
-                    if t not in _all_tickers:
-                        _all_tickers.append(t)
-                    if t not in _sn_info:
-                        _sn_info[t] = {"ko": ko, "ki": ki, "product_code": code}
+    # Customer selector for PPT
+    customer_names = list(customer_ticker_map.keys())
+    if customer_names:
+        st.markdown("**依客戶選擇標的**")
+        col_cust, col_mode = st.columns([3, 1])
+        with col_mode:
+            sel_mode = st.radio("模式", ["全部標的", "依客戶篩選"], horizontal=False)
+        with col_cust:
+            if sel_mode == "依客戶篩選":
+                selected_customers_ppt = st.multiselect(
+                    "選擇客戶 (可多選)",
+                    options=customer_names,
+                    placeholder="選擇客戶...",
+                )
+                if selected_customers_ppt:
+                    auto_tickers = []
+                    for c in selected_customers_ppt:
+                        for t in customer_ticker_map.get(c, []):
+                            if t not in auto_tickers:
+                                auto_tickers.append(t)
+                    st.caption(f"自動帶入標的: {', '.join(auto_tickers)}")
+                else:
+                    auto_tickers = all_tickers
+            else:
+                auto_tickers = all_tickers
 
-    if not _all_tickers:
+    else:
+        auto_tickers = all_tickers
+
+    if not all_tickers:
         st.warning("目前無持倉標的")
     else:
         col_sel, col_per = st.columns([3, 1])
         with col_sel:
             selected_tickers = st.multiselect(
                 "選擇要匯出的標的",
-                options=sorted(_all_tickers),
-                default=sorted(_all_tickers),
+                options=sorted(all_tickers),
+                default=sorted(auto_tickers),
                 placeholder="選擇標的...",
             )
         with col_per:
             period_map = {
-                "1個月": "1mo",
-                "3個月": "3mo",
-                "6個月": "6mo",
-                "1年":   "1y",
-                "2年":   "2y",
+                "1個月": "1mo", "3個月": "3mo", "6個月": "6mo",
+                "1年": "1y", "2年": "2y",
             }
             period_label = st.selectbox("圖表區間", list(period_map.keys()), index=2)
             selected_period = period_map[period_label]
 
         col_a, col_b = st.columns([2, 3])
         with col_a:
-            if st.button("🐾 產生 PPT", type="primary",
-                         disabled=not selected_tickers):
+            if st.button("🐾 產生 PPT", type="primary", disabled=not selected_tickers):
                 with st.spinner(f"正在產生 {len(selected_tickers)} 個標的圖表..."):
-                    ppt_bytes = build_ppt(selected_tickers, _sn_info,
-                                          period=selected_period)
+                    ppt_bytes = build_ppt(selected_tickers, sn_info_map, period=selected_period)
                 st.session_state["ppt_bytes"] = ppt_bytes
                 st.session_state["ppt_count"] = len(selected_tickers)
 
@@ -94,18 +140,6 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
                     type="primary",
                 )
 
-# ── 從 SN 自動抓出所有標的股票 ──────────────────────────────
-sns_df = get_all_sns(status="active")
-tickers_from_sn = []
-if not sns_df.empty:
-    for i in range(1, 6):
-        col = f"underlying_{i}"
-        if col in sns_df.columns:
-            vals = sns_df[col].dropna().tolist()
-            tickers_from_sn += [_clean(v) for v in vals
-                    if isinstance(v, str) and v.strip()]
-tickers_from_sn = sorted(set(tickers_from_sn))
-
 st.markdown("---")
 
 col_left, col_right = st.columns([1, 3])
@@ -113,9 +147,23 @@ col_left, col_right = st.columns([1, 3])
 with col_left:
     st.subheader("選擇標的")
 
-    if tickers_from_sn:
-        st.caption("目前持倉標的")
-        selected = st.radio("股票代號", tickers_from_sn, label_visibility="collapsed")
+    # Customer filter for chart
+    if customer_ticker_map:
+        filter_customer = st.selectbox(
+            "依客戶篩選",
+            options=["全部標的"] + list(customer_ticker_map.keys()),
+            index=0,
+        )
+        if filter_customer != "全部標的":
+            display_tickers = customer_ticker_map.get(filter_customer, all_tickers)
+            st.caption(f"**{filter_customer}** 的標的")
+        else:
+            display_tickers = all_tickers
+    else:
+        display_tickers = all_tickers
+
+    if display_tickers:
+        selected = st.radio("股票代號", display_tickers, label_visibility="collapsed")
     else:
         selected = "NVDA"
 
@@ -158,14 +206,15 @@ with col_right:
     """
     components.html(tv_html, height=570)
 
-# ── 多圖同時顯示 ────────────────────────────────────────────
-if tickers_from_sn and len(tickers_from_sn) > 1:
+# ── 多圖同時顯示 ────────────────────────────────────────────────
+if display_tickers and len(display_tickers) > 1:
     st.markdown("---")
-    st.subheader("📊 所有持倉標的總覽")
+    label = f"**{filter_customer}** 標的總覽" if (customer_ticker_map and filter_customer != "全部標的") else "📊 所有持倉標的總覽"
+    st.subheader(label)
     st.caption("點選右上角可放大個別圖表")
 
-    cols = st.columns(min(len(tickers_from_sn), 2))
-    for i, ticker in enumerate(tickers_from_sn):
+    cols = st.columns(min(len(display_tickers), 2))
+    for i, ticker in enumerate(display_tickers):
         with cols[i % 2]:
             mini_html = f"""
             <div class="tradingview-widget-container" style="height:320px">
