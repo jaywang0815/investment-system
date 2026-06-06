@@ -267,7 +267,7 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
                 "1年": "1y", "1年半": "18mo", "2年": "2y",
                 "3年": "3y", "4年": "4y", "5年": "5y",
             }
-            period_label = st.selectbox("圖表區間", list(period_map.keys()), index=2)
+            period_label = st.selectbox("圖表區間", list(period_map.keys()), index=2, key="ppt_period")
             selected_period = period_map[period_label]
 
         col_a, col_b = st.columns([2, 3])
@@ -335,7 +335,7 @@ with col_left:
             "1年":"1y","1年半":"18mo","2年":"2y",
             "3年":"3y","4年":"4y","5年":"5y",
         }
-        period_label = st.selectbox("圖表區間", list(period_map_ui.keys()), index=2)
+        period_label = st.selectbox("圖表區間", list(period_map_ui.keys()), index=2, key="chart_period")
         chart_period = period_map_ui[period_label]
     else:
         interval = st.selectbox("時間週期", ["D","W","M","60","30","15"], index=0,
