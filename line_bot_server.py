@@ -297,6 +297,8 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             "📋 商品狀況:",
         ]
 
+        pending_sns = []  # SN ที่ยังไม่มีข้อมูลราคา
+
         for sn in sorted(sns, key=lambda s: s.get("observation_date") or ""):
             code = sn.get("product_code", "—")
             obs = str(sn.get("observation_date") or "")[:10]
@@ -307,6 +309,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             except Exception:
                 badge = "📅"
                 days_str = ""
+                days_left = 999
 
             # คำนวณ worst performance + KO/KI status
             ko = sn.get("ko_barrier")
@@ -330,7 +333,8 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                     detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
 
             if worst_pct is None:
-                continue  # ไม่มีข้อมูลราคา ข้ามไปเลย
+                pending_sns.append((code, obs[5:], badge, days_str))  # เก็บไว้แสดง section ล่าง
+                continue
             elif ko and worst_pct >= ko:
                 overall = "🟢 KO觸發"
             elif ko and worst_pct >= ko * 0.95:
@@ -346,6 +350,13 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             if obs:
                 lines.append(f"  {badge} 比價: {obs} ({days_str})")
             lines.extend(detail_lines)
+
+        # section ด้านล่าง: SN ที่ยังไม่มีข้อมูลราคา
+        if pending_sns:
+            lines.append(f"\n─────────────")
+            lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
+            for (code, obs_short, badge, days_str) in pending_sns:
+                lines.append(f"  {code}  {badge} {obs_short} ({days_str})")
 
         lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
         return "\n".join(lines), ""
