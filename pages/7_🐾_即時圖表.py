@@ -328,6 +328,8 @@ with col_left:
         index=0,
     )
     use_plotly = chart_mode.startswith("📊")
+    interval = "D"
+    theme = "light"
 
     if use_plotly:
         period_map_ui = {
