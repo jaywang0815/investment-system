@@ -174,7 +174,7 @@ def _check_stock(ticker: str) -> tuple[str, str]:
 
     try:
         import yfinance as yf
-        info = yf.Ticker(ticker).fast_info
+        info  = yf.Ticker(ticker).fast_info
         price = info.last_price
         prev  = info.previous_close
 
@@ -183,16 +183,54 @@ def _check_stock(ticker: str) -> tuple[str, str]:
             chg_p = chg / prev * 100 if prev else 0
             arrow = "▲" if chg >= 0 else "▼"
             sign  = "+" if chg >= 0 else ""
-            text  = (
-                f"📈 {ticker}\n"
-                f"${price:,.2f}  {arrow}{sign}{chg:.2f} ({sign}{chg_p:.2f}%)\n\n"
-                f"{tv_url}"
-            )
+            lines = [
+                f"📊 {ticker}",
+                f"現價: ${price:,.2f}",
+                f"{arrow} {sign}{chg:.2f} ({sign}{chg_p:.2f}%)",
+            ]
+            if prev and prev > 0:
+                lines.append(f"昨收: ${prev:,.2f}")
+
+            # 查詢此標的在哪些 SN 中
+            try:
+                sns = get_sns("active")
+                matched_sns = []
+                for sn in sns:
+                    for i in range(1, 6):
+                        t = sn.get(f"underlying_{i}") or ""
+                        if _clean_ticker(t) == ticker:
+                            init_p = sn.get(f"initial_price_{i}")
+                            matched_sns.append((sn, init_p))
+                            break
+
+                if matched_sns:
+                    lines.append("─────────────")
+                    for sn, init_p in matched_sns[:3]:
+                        code = sn.get("product_code", "—")
+                        ko   = sn.get("ko_barrier")
+                        ki   = sn.get("ki_barrier")
+                        lines.append(f"📌 {code}")
+                        if init_p and init_p > 0:
+                            perf_pct = price / init_p * 100
+                            lines.append(f"   期初: ${init_p:,.2f}  [{perf_pct:.1f}%]")
+                            if ko:
+                                gap_ko = (ko * 100) - perf_pct
+                                ko_sign = "+" if gap_ko > 0 else ""
+                                lines.append(f"   KO {ko*100:.0f}%  距離 {ko_sign}{gap_ko:.1f}%")
+                            if ki:
+                                gap_ki = perf_pct - (ki * 100)
+                                ki_sign = "+" if gap_ki > 0 else ""
+                                lines.append(f"   KI {ki*100:.0f}%  距離 {ki_sign}{gap_ki:.1f}%")
+            except Exception:
+                pass
+
+            lines += ["─────────────", tv_url]
+            text = "\n".join(lines)
         else:
-            text = f"📈 {ticker}\n{tv_url}"
+            text = f"📊 {ticker}\n{tv_url}"
 
     except Exception:
-        text = f"📈 {ticker}\n{tv_url}"
+        text = f"📊 {ticker}\n{tv_url}"
 
     return text, ""
 
@@ -448,13 +486,15 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                 for (t, price, init, perf, chg, arrow, status) in ticker_rows:
                     worst_mark = " ⭐" if t == worst_ticker else ""
                     if price:
+                        sign = "+" if chg >= 0 else ""
                         lines.append(
-                            f"   {t:6s} ${price:>8,.2f}"
-                            f"  {arrow}{abs(chg):>5.1f}%"
-                            f"  期初${init:,.0f}  [{perf:.1f}%]{status}{worst_mark}"
+                            f"   {arrow}{t}{worst_mark}  ${price:,.2f} ({sign}{chg:.1f}%)"
+                        )
+                        lines.append(
+                            f"     期初${init:,.0f}  [{perf:.1f}%]{status}"
                         )
                     else:
-                        lines.append(f"   {t:6s} 無法取得報價")
+                        lines.append(f"   {t} 無法取得報價")
 
                 if worst_perf is not None:
                     # overall status
