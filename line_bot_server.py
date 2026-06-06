@@ -16,10 +16,6 @@ import base64
 import json
 import requests
 from datetime import date
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 
 # ── 設定 ──────────────────────────────────────────────────────
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
@@ -112,6 +108,10 @@ def reply(reply_token: str, text: str, chart_url: str = "") -> None:
 
 # ── 生成股票走勢圖 ────────────────────────────────────────────
 def _generate_chart(ticker: str) -> bytes:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
     import yfinance as yf
     stock = yf.Ticker(ticker)
     hist = stock.history(period="3mo")
