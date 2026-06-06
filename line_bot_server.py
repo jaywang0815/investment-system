@@ -302,10 +302,10 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             obs = str(sn.get("observation_date") or "")[:10]
             try:
                 days_left = (date.fromisoformat(obs) - today_date).days if obs else 0
-                badge = "🔴" if days_left <= 3 else "🟡" if days_left <= 7 else "🟢"
+                badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
                 days_str = f"剩{days_left}天"
             except Exception:
-                badge = "🟢"
+                badge = "📅"
                 days_str = ""
 
             # คำนวณ worst performance (ไม่แสดง KO/KI ใน日報 เพื่อไม่ซ้ำกับ警示)
