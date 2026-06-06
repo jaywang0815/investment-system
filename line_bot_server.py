@@ -811,15 +811,15 @@ def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo") -> 
 
         if pub_url:
             _push_line(user_id,
-                f"✅ PPT พร้อมแล้ว!\n"
+                f"✅ PPT 已完成！\n"
                 f"📊 {', '.join(tickers)}\n\n"
-                f"⬇️ ดาวน์โหลด (กดค้างเพื่อบันทึก):\n{pub_url}"
+                f"⬇️ 點擊下載:\n{pub_url}"
             )
         else:
-            _push_line(user_id, "❌ อัพโหลดไม่สำเร็จ กรุณาลองใหม่")
+            _push_line(user_id, "❌ 上傳失敗，請重試")
     except Exception as e:
         print(f"[generate_ppt error] {e}")
-        _push_line(user_id, f"❌ สร้าง PPT ไม่สำเร็จ: {e}")
+        _push_line(user_id, f"❌ PPT 製作失敗，請重試")
 
 
 def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
@@ -910,7 +910,7 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                     # ไม่ match → ถามใหม่ และ keep session ไว้
                     _session_save(user_id, {"step": "period", "selected": selected})
                     reply(reply_token,
-                        "❓ ไม่เข้าใจคำตอบ\n\n"
+                        "❓ 無法識別，請重新選擇\n\n"
                         "📅 選擇圖表區間:\n"
                         "1. 1個月\n2. 3個月\n3. 6個月\n4. 1年\n5. 2年"
                     )
@@ -921,7 +921,7 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                     f"⏳ 製作中...\n"
                     f"📊 {', '.join(selected)}\n"
                     f"📅 {period_label}\n"
-                    f"約需 1 分鐘，請稍候"
+                    f"約需 1 分鐘，請稍候⌛"
                 )
                 _generate_and_send_ppt(user_id, selected, period)
                 return
