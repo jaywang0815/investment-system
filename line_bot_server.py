@@ -330,7 +330,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                     detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
 
             if worst_pct is None:
-                overall = "❓"
+                continue  # ไม่มีข้อมูลราคา ข้ามไปเลย
             elif ko and worst_pct >= ko:
                 overall = "🟢 KO觸發"
             elif ko and worst_pct >= ko * 0.95:
