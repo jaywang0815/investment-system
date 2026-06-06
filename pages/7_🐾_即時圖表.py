@@ -29,6 +29,149 @@ from utils.ui_helpers import dog_header
 dog_header("即時圖表")
 st.caption("資料來源: TradingView · 即時報價")
 
+@st.cache_data(ttl=300)
+def _fetch_ohlcv(ticker: str, period: str):
+    import yfinance as yf
+    from datetime import datetime, timedelta
+    tk = yf.Ticker(ticker)
+    if period == "18mo":
+        start = (datetime.today() - timedelta(days=548)).strftime("%Y-%m-%d")
+        hist = tk.history(start=start)
+    else:
+        hist = tk.history(period=period)
+    if hist.index.tz is not None:
+        hist.index = hist.index.tz_convert(None)
+    return hist
+
+
+def _render_plotly_chart(ticker: str, period: str, info: dict | None):
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        hist = _fetch_ohlcv(ticker, period)
+        if hist.empty:
+            st.warning(f"無法取得 {ticker} 資料")
+            return
+
+        close = hist["Close"]
+        delta = close.diff()
+        gain  = delta.clip(lower=0).rolling(14).mean()
+        loss  = (-delta.clip(upper=0)).rolling(14).mean()
+        rsi   = 100 - (100 / (1 + gain / loss))
+
+        ema12     = close.ewm(span=12, adjust=False).mean()
+        ema26     = close.ewm(span=26, adjust=False).mean()
+        macd_line = ema12 - ema26
+        sig_line  = macd_line.ewm(span=9, adjust=False).mean()
+        macd_hist = macd_line - sig_line
+
+        fig = make_subplots(
+            rows=4, cols=1,
+            shared_xaxes=True,
+            row_heights=[0.50, 0.14, 0.18, 0.18],
+            vertical_spacing=0.02,
+            subplot_titles=(ticker, "Volume", "RSI 14", "MACD"),
+        )
+
+        up   = hist["Close"] >= hist["Open"]
+        c_up = "#26a69a"
+        c_dn = "#ef5350"
+
+        fig.add_trace(go.Candlestick(
+            x=hist.index,
+            open=hist["Open"], high=hist["High"],
+            low=hist["Low"],   close=hist["Close"],
+            name=ticker,
+            increasing=dict(line=dict(color=c_up), fillcolor=c_up),
+            decreasing=dict(line=dict(color=c_dn), fillcolor=c_dn),
+            showlegend=False,
+        ), row=1, col=1)
+
+        fig.add_trace(go.Bar(
+            x=hist.index, y=hist["Volume"],
+            marker_color=[c_up if u else c_dn for u in up],
+            opacity=0.65, showlegend=False, name="Vol",
+        ), row=2, col=1)
+
+        fig.add_trace(go.Scatter(
+            x=hist.index, y=rsi,
+            line=dict(color="#9333ea", width=1.5),
+            name="RSI 14", showlegend=False,
+        ), row=3, col=1)
+        for lvl, col in [(70, c_dn), (30, c_up)]:
+            fig.add_hline(y=lvl, line_dash="dash", line_color=col,
+                          line_width=0.8, opacity=0.5, row=3, col=1)
+
+        bar_cols = [c_up if v >= 0 else c_dn for v in macd_hist]
+        fig.add_trace(go.Bar(
+            x=hist.index, y=macd_hist,
+            marker_color=bar_cols, opacity=0.65,
+            showlegend=False, name="Hist",
+        ), row=4, col=1)
+        fig.add_trace(go.Scatter(
+            x=hist.index, y=macd_line,
+            line=dict(color="#3B82F6", width=1.2),
+            showlegend=False, name="MACD",
+        ), row=4, col=1)
+        fig.add_trace(go.Scatter(
+            x=hist.index, y=sig_line,
+            line=dict(color="#F97316", width=1.2),
+            showlegend=False, name="Signal",
+        ), row=4, col=1)
+
+        # ── 期初 / KO / KI reference lines ─────────────────────
+        if info and info.get("initial_price"):
+            init_p = float(info["initial_price"])
+            ko     = info.get("ko")
+            ki     = info.get("ki")
+
+            fig.add_hline(
+                y=init_p, line_dash="dot",
+                line_color="#F97316", line_width=2,
+                annotation_text=f"  期初 ${init_p:,.2f}",
+                annotation_font=dict(color="#F97316", size=11),
+                annotation_position="right", row=1, col=1,
+            )
+            if ko:
+                ko_p = round(init_p * float(ko), 2)
+                fig.add_hline(
+                    y=ko_p, line_dash="dash",
+                    line_color="#16A34A", line_width=2,
+                    annotation_text=f"  KO ${ko_p:,.2f}",
+                    annotation_font=dict(color="#16A34A", size=11),
+                    annotation_position="right", row=1, col=1,
+                )
+            if ki:
+                ki_p = round(init_p * float(ki), 2)
+                fig.add_hline(
+                    y=ki_p, line_dash="dash",
+                    line_color="#DC2626", line_width=2,
+                    annotation_text=f"  KI ${ki_p:,.2f}",
+                    annotation_font=dict(color="#DC2626", size=11),
+                    annotation_position="right", row=1, col=1,
+                )
+
+        fig.update_layout(
+            height=650,
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            xaxis_rangeslider_visible=False,
+            margin=dict(l=10, r=100, t=30, b=10),
+            font=dict(color="#374151", size=11),
+        )
+        for i in range(1, 5):
+            fig.update_xaxes(showgrid=True, gridcolor="#F1F5F9",
+                             showticklabels=(i == 4), row=i, col=1)
+            fig.update_yaxes(showgrid=True, gridcolor="#F1F5F9",
+                             side="right", row=i, col=1)
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"無法產生圖表: {e}")
+
+
 # ── 建立客戶 → 標的 mapping ──────────────────────────────────────
 @st.cache_data(ttl=300)
 def _build_customer_ticker_map():
@@ -121,7 +264,8 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
         with col_per:
             period_map = {
                 "1個月": "1mo", "3個月": "3mo", "6個月": "6mo",
-                "1年": "1y", "2年": "2y",
+                "1年": "1y", "1年半": "18mo", "2年": "2y",
+                "3年": "3y", "4年": "4y", "5年": "5y",
             }
             period_label = st.selectbox("圖表區間", list(period_map.keys()), index=2)
             selected_period = period_map[period_label]
@@ -178,11 +322,27 @@ with col_left:
         selected = custom.strip().upper()
 
     st.markdown("---")
-    interval = st.selectbox("時間週期", ["D", "W", "M", "60", "30", "15"], index=0,
-        format_func=lambda x: {"D": "日線", "W": "週線", "M": "月線",
-                                "60": "60分鐘", "30": "30分鐘", "15": "15分鐘"}[x])
-    theme = st.radio("主題", ["light", "dark"], horizontal=True,
-                     format_func=lambda x: "淺色" if x == "light" else "深色")
+    chart_mode = st.radio(
+        "圖表模式",
+        ["📡 即時 (TradingView)", "📊 分析模式 (期初/KO/KI)"],
+        index=0,
+    )
+    use_plotly = chart_mode.startswith("📊")
+
+    if use_plotly:
+        period_map_ui = {
+            "1個月":"1mo","3個月":"3mo","6個月":"6mo",
+            "1年":"1y","1年半":"18mo","2年":"2y",
+            "3年":"3y","4年":"4y","5年":"5y",
+        }
+        period_label = st.selectbox("圖表區間", list(period_map_ui.keys()), index=2)
+        chart_period = period_map_ui[period_label]
+    else:
+        interval = st.selectbox("時間週期", ["D","W","M","60","30","15"], index=0,
+            format_func=lambda x: {"D":"日線","W":"週線","M":"月線",
+                                    "60":"60分鐘","30":"30分鐘","15":"15分鐘"}[x])
+        theme = st.radio("主題", ["light","dark"], horizontal=True,
+                         format_func=lambda x: "淺色" if x=="light" else "深色")
 
 with col_right:
     st.subheader(f"{selected} 走勢圖")
@@ -221,29 +381,32 @@ with col_right:
                     st.metric("KI水位", f"${ki_price:,.2f}", f"{ki*100:.0f}%")
         st.divider()
 
-    tv_html = f"""
-    <div class="tradingview-widget-container" style="height:550px">
-      <div id="tv_chart" style="height:100%"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget({{
-        "autosize": true,
-        "symbol": "{selected}",
-        "interval": "{interval}",
-        "timezone": "Asia/Taipei",
-        "theme": "{theme}",
-        "style": "1",
-        "locale": "zh_TW",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "studies": ["RSI@tv-basicstudies", "MACD@tv-basicstudies"],
-        "container_id": "tv_chart"
-      }});
-      </script>
-    </div>
-    """
-    components.html(tv_html, height=570)
+    if use_plotly:
+        _render_plotly_chart(selected, chart_period, info)
+    else:
+        tv_html = f"""
+        <div class="tradingview-widget-container" style="height:550px">
+          <div id="tv_chart" style="height:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+          <script type="text/javascript">
+          new TradingView.widget({{
+            "autosize": true,
+            "symbol": "{selected}",
+            "interval": "{interval}",
+            "timezone": "Asia/Taipei",
+            "theme": "{theme}",
+            "style": "1",
+            "locale": "zh_TW",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "studies": ["RSI@tv-basicstudies", "MACD@tv-basicstudies"],
+            "container_id": "tv_chart"
+          }});
+          </script>
+        </div>
+        """
+        components.html(tv_html, height=570)
 
 # ── 多圖同時顯示 ────────────────────────────────────────────────
 if display_tickers and len(display_tickers) > 1:

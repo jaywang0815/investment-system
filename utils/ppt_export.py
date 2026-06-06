@@ -371,8 +371,14 @@ def _make_chart_png(ticker: str, period: str = "6mo",
                     hlines: dict | None = None) -> bytes | None:
     try:
         import yfinance as yf
+        from datetime import datetime, timedelta
         ticker = _clean_ticker(ticker)
-        hist = yf.Ticker(ticker).history(period=period)
+        tk = yf.Ticker(ticker)
+        if period == "18mo":
+            start = (datetime.today() - timedelta(days=548)).strftime("%Y-%m-%d")
+            hist = tk.history(start=start)
+        else:
+            hist = tk.history(period=period)
         if hist.empty or len(hist) < 10:
             print(f"[chart] {ticker}: not enough data ({len(hist)} rows)")
             return None
