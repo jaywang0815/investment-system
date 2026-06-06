@@ -335,24 +335,24 @@ def _chart_simple(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
 
 
 def _draw_hlines(ax, hlines: dict, n: int) -> None:
-    """Draw 期初/KO/KI reference lines on a price axis."""
     if not hlines:
         return
     cfg = [
-        ("initial", "#F97316", ":", "期初"),
-        ("ko",      "#16A34A", "--", "KO"),
-        ("ki",      "#DC2626", "--", "KI"),
+        ("initial", "#F97316", "--", "期初"),
+        ("ko",      "#22C55E", "--", "KO"),
+        ("ki",      "#EF4444", "--", "KI"),
     ]
     for key, color, ls, label in cfg:
         price = hlines.get(key)
         if price and _is_valid(price):
             ax.axhline(float(price), color=color, linestyle=ls,
-                       linewidth=1.3, alpha=0.85, zorder=3)
+                       linewidth=2.2, alpha=0.95, zorder=5)
             ax.text(n - 1, float(price),
                     f" {label} ${float(price):,.2f}",
                     va="bottom", ha="right",
-                    color=color, fontsize=8, fontweight="bold",
-                    zorder=4)
+                    color=color, fontsize=9, fontweight="bold", zorder=6,
+                    bbox=dict(facecolor="white", edgecolor=color,
+                              alpha=0.85, boxstyle="round,pad=0.25", linewidth=1))
 
 
 def _make_chart_png(ticker: str, period: str = "6mo",
@@ -438,17 +438,19 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
              f"共 {len(tickers)} 個標的",
              13, color=RGBColor(0x64, 0x74, 0x8B), align=PP_ALIGN.CENTER)
 
-    # ── fetch current prices once ─────────────────────────────────
+    # ── fetch current price (reliable: use history not fast_info) ──
     def _fetch_price(tk_str: str):
         try:
             import yfinance as yf
-            fi = yf.Ticker(_clean_ticker(tk_str)).fast_info
-            price = fi.get("last_price") or fi.get("regularMarketPrice")
-            prev  = fi.get("previous_close")
-            if price:
-                chg   = float(price) - float(prev) if prev else 0.0
-                chg_p = chg / float(prev) * 100 if prev else 0.0
-                return float(price), chg, chg_p
+            hist = yf.Ticker(_clean_ticker(tk_str)).history(period="5d")
+            if len(hist) >= 2:
+                price = float(hist["Close"].iloc[-1])
+                prev  = float(hist["Close"].iloc[-2])
+                chg   = price - prev
+                chg_p = chg / prev * 100 if prev else 0.0
+                return price, chg, chg_p
+            elif len(hist) == 1:
+                return float(hist["Close"].iloc[-1]), 0.0, 0.0
         except Exception:
             pass
         return None, None, None
@@ -459,15 +461,7 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         s.background.fill.solid()
         s.background.fill.fore_color.rgb = _WHITE
 
-        # header bar
-        _rect(s, 0, 0, W, Inches(0.75), _BLUE)
-        _textbox(s, Inches(0.3), Inches(0.05), Inches(7), Inches(0.65),
-                 ticker, 30, bold=True, color=_WHITE)
-        _textbox(s, Inches(7.5), Inches(0.12), Inches(5.5), Inches(0.5),
-                 date.today().strftime("%Y/%m/%d"),
-                 13, color=RGBColor(0xBF, 0xDB, 0xFF), align=PP_ALIGN.RIGHT)
-
-        # info from SN data
+        # ── SN info ───────────────────────────────────────────────
         info   = (sn_info or {}).get(ticker, {})
         ko     = info.get("ko")
         ki     = info.get("ki")
@@ -477,58 +471,76 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         ko_price = round(float(init_p) * float(ko), 2) if _is_valid(init_p) and _is_valid(ko) else None
         ki_price = round(float(init_p) * float(ki), 2) if _is_valid(init_p) and _is_valid(ki) else None
 
-        # ── info row (dark bg) ────────────────────────────────────
-        _rect(s, 0, Inches(0.75), W, Inches(0.9), _NAVY)
+        # ── header bar ────────────────────────────────────────────
+        _rect(s, 0, 0, W, Inches(0.85), _BLUE)
+        _textbox(s, Inches(0.3), Inches(0.06), Inches(7), Inches(0.72),
+                 ticker, 36, bold=True, color=_WHITE)
+        _textbox(s, Inches(7.5), Inches(0.17), Inches(5.5), Inches(0.5),
+                 date.today().strftime("%Y/%m/%d"),
+                 13, color=RGBColor(0xBF, 0xDB, 0xFF), align=PP_ALIGN.RIGHT)
+
+        # ── info row (navy bg) ────────────────────────────────────
+        _rect(s, 0, Inches(0.85), W, Inches(1.05), _NAVY)
 
         curr, chg, chg_p = _fetch_price(ticker)
+
+        # current price + change (left block)
         if curr is not None:
-            price_str = f"${curr:,.2f}"
-            chg_str   = f"{'▲' if chg >= 0 else '▼'} {abs(chg):.2f}  ({'+' if chg >= 0 else ''}{chg_p:.2f}%)"
-            chg_col   = RGBColor(0x26, 0xa6, 0x9a) if chg >= 0 else RGBColor(0xef, 0x53, 0x50)
-            _textbox(s, Inches(0.3), Inches(0.78), Inches(3), Inches(0.55),
-                     price_str, 22, bold=True, color=_WHITE)
-            _textbox(s, Inches(3.1), Inches(0.82), Inches(3.5), Inches(0.5),
-                     chg_str, 13, color=chg_col)
+            chg_col = RGBColor(0x4a, 0xde, 0x80) if chg >= 0 else RGBColor(0xf8, 0x71, 0x71)
+            arrow   = "▲" if chg >= 0 else "▼"
+            sign    = "+" if chg >= 0 else ""
+            _textbox(s, Inches(0.3), Inches(0.88), Inches(3.2), Inches(0.6),
+                     f"${curr:,.2f}", 26, bold=True, color=_WHITE)
+            _textbox(s, Inches(0.3), Inches(1.44), Inches(4.5), Inches(0.4),
+                     f"{arrow} {abs(chg):.2f}  ({sign}{chg_p:.2f}%)", 12, color=chg_col)
+        else:
+            _textbox(s, Inches(0.3), Inches(0.88), Inches(3.2), Inches(0.6),
+                     "—", 24, color=RGBColor(0x64, 0x74, 0x8B))
 
-        # 期初 / KO / KI badges
-        badge_x = 6.8
-        if _is_valid(init_p):
-            _textbox(s, Inches(badge_x), Inches(0.78), Inches(2.0), Inches(0.5),
-                     f"期初\n${float(init_p):,.2f}", 10, bold=True,
-                     color=RGBColor(0xFB, 0x92, 0x3C))
-            badge_x += 2.1
-        if ko_price is not None and (not _is_valid(init_p) or abs(ko_price - float(init_p)) > 0.01):
-            _textbox(s, Inches(badge_x), Inches(0.78), Inches(2.0), Inches(0.5),
-                     f"KO\n${ko_price:,.2f}", 10, bold=True,
-                     color=RGBColor(0x4a, 0xde, 0x80))
-            badge_x += 2.1
-        if ki_price is not None and (not _is_valid(init_p) or abs(ki_price - float(init_p)) > 0.01):
-            _textbox(s, Inches(badge_x), Inches(0.78), Inches(2.0), Inches(0.5),
-                     f"KI\n${ki_price:,.2f}", 10, bold=True,
-                     color=RGBColor(0xf8, 0x71, 0x71))
+        # separator line
+        _rect(s, Inches(4.0), Inches(0.95), Inches(0.02), Inches(0.8),
+              RGBColor(0x33, 0x4A, 0x70))
 
-        # product code (small)
+        # 期初 / KO / KI (right block, 3 columns)
+        col_x = [4.3, 7.0, 9.8]
+        labels = [
+            ("期初", f"${float(init_p):,.2f}" if _is_valid(init_p) else "—",
+             RGBColor(0xFB, 0x92, 0x3C)),
+            ("KO",
+             f"${ko_price:,.2f}" if ko_price and (_is_valid(init_p) and abs(ko_price - float(init_p)) > 0.01) else "—",
+             RGBColor(0x4a, 0xde, 0x80)),
+            ("KI",
+             f"${ki_price:,.2f}" if ki_price and (_is_valid(init_p) and abs(ki_price - float(init_p)) > 0.01) else "—",
+             RGBColor(0xf8, 0x71, 0x71)),
+        ]
+        for (lbl, val, col), x in zip(labels, col_x):
+            _textbox(s, Inches(x), Inches(0.88), Inches(2.5), Inches(0.35),
+                     lbl, 10, color=RGBColor(0x94, 0xA3, 0xB8))
+            _textbox(s, Inches(x), Inches(1.18), Inches(2.5), Inches(0.5),
+                     val, 16, bold=True, color=col)
+
+        # product code
         if code and str(code).strip():
-            _textbox(s, Inches(0.3), Inches(1.62), Inches(6), Inches(0.3),
-                     str(code), 9, color=_GRAY)
+            _textbox(s, Inches(11.5), Inches(1.55), Inches(1.7), Inches(0.28),
+                     str(code), 8, color=RGBColor(0x64, 0x74, 0x8B), align=PP_ALIGN.RIGHT)
 
         # ── hlines for chart ──────────────────────────────────────
         hlines = {}
         if _is_valid(init_p):
             hlines["initial"] = float(init_p)
-            if ko_price:
+            if ko_price and abs(ko_price - float(init_p)) > 0.01:
                 hlines["ko"] = ko_price
-            if ki_price:
+            if ki_price and abs(ki_price - float(init_p)) > 0.01:
                 hlines["ki"] = ki_price
 
         img_bytes = _make_chart_png(ticker, period=period, hlines=hlines or None)
         if img_bytes:
             img_stream = io.BytesIO(img_bytes)
             s.shapes.add_picture(img_stream,
-                                 Inches(0.1), Inches(1.72),
-                                 Inches(13.1), Inches(5.65))
+                                 Inches(0.1), Inches(1.95),
+                                 Inches(13.1), Inches(5.42))
         else:
-            _textbox(s, Inches(1), Inches(3.5), Inches(11), Inches(1),
+            _textbox(s, Inches(1), Inches(4), Inches(11), Inches(1),
                      f"無法取得 {ticker} 圖表資料",
                      18, color=_GRAY, align=PP_ALIGN.CENTER)
 
