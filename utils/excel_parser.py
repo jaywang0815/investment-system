@@ -182,8 +182,11 @@ def parse_sn_sheet(ws, month_label: str) -> list:
             i += 1
             continue
 
-        # --- แถวราคาเริ่มต้น (期初價格) ---
-        if current_sn and col_b and '期初' in str(col_b):
+        # --- แถวราคาเริ่มต้น: มีป้ายกำกับ "期初價格" หรือ col_a/col_b ว่าง + col_c เป็นตัวเลข ---
+        is_labeled   = col_b and '期初' in str(col_b)
+        is_unlabeled = (col_a is None and col_b is None and
+                        len(row) > 2 and isinstance(row[2], (int, float)) and float(row[2]) > 0)
+        if current_sn and (is_labeled or is_unlabeled):
             for j in range(5):
                 val = row[j + 2] if len(row) > j + 2 else None
                 current_sn[f"initial_price_{j+1}"] = float(val) if isinstance(val, (int, float)) else None

@@ -788,11 +788,13 @@ def _upload_ppt(ppt_bytes: bytes, filename: str) -> str | None:
     return None
 
 
-def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo") -> None:
+def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo",
+                           customer_names: list | None = None) -> None:
     """Generate PPT, upload, push link to user."""
     try:
         sns = get_sns("active")
         sn_info = {}
+        sn_id_map = {}  # ticker → sn_id
         for sn in sns:
             for i in range(1, 6):
                 t = _clean_ticker(sn.get(f"underlying_{i}") or "")
@@ -807,6 +809,27 @@ def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo") -> 
                         "observation_date": sn.get("observation_date"),
                         "exit_date": sn.get("exit_date"),
                     }
+                    sn_id_map[t] = sn.get("id")
+
+        # attach customer investment amounts
+        if customer_names:
+            all_customers = get_customers()
+            for cname in customer_names:
+                matched_c = [c for c in all_customers if c["name"] == cname]
+                if not matched_c:
+                    continue
+                investments = get_customer_investments(matched_c[0]["id"])
+                for inv in investments:
+                    sn = inv.get("structured_notes") or {}
+                    sn_id = sn.get("id")
+                    amount = inv.get("amount_usd") or 0
+                    for t, tid in sn_id_map.items():
+                        if tid == sn_id and "amount_usd" not in sn_info.get(t, {}):
+                            sn_info.setdefault(t, {})["customer_name"] = (
+                                "、".join(customer_names)
+                                if len(customer_names) > 1 else cname
+                            )
+                            sn_info[t]["amount_usd"] = amount
 
         from utils.ppt_export import build_ppt
         ppt_bytes = build_ppt(tickers, sn_info, period=period)
@@ -900,7 +923,16 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                     reply(reply_token, "❌ 找不到所選客戶\n請重新輸入「給我PPT」")
                     return
 
-                _session_save(user_id, {"step": "period", "selected": selected_tickers})
+                selected_customers = []
+                if text in ["全部", "all", "ALL"]:
+                    selected_customers = list(cust_map.keys())
+                else:
+                    for n in re.findall(r'\d+', text):
+                        idx = int(n) - 1
+                        if 0 <= idx < len(cust_list):
+                            selected_customers.append(cust_list[idx])
+
+                _session_save(user_id, {"step": "period", "selected": selected_tickers, "customers": selected_customers})
                 reply(reply_token,
                     f"✅ 已選標的:\n{', '.join(selected_tickers)}\n\n"
                     "📅 選擇圖表區間:\n"
@@ -946,6 +978,7 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
             if session.get("step") == "period":
                 _session_clear(user_id)
                 selected = session["selected"]
+                session_customers = session.get("customers") or []
                 period_map = {
                     "1": "1mo", "2": "3mo", "3": "6mo",
                     "4": "1y",  "5": "18mo","6": "2y", "7": "3y", "8": "4y", "9": "5y",
@@ -970,13 +1003,16 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                     "1y":"1年","18mo":"1年半","2y":"2年","3y":"3年","4y":"4年","5y":"5年",
                 }.get(period, period)
 
+                cust_str = "、".join(session_customers) if session_customers else ""
                 reply(reply_token,
                     f"⏳ 製作中...\n"
+                    f"{'👤 ' + cust_str + chr(10) if cust_str else ''}"
                     f"📊 {', '.join(selected)}\n"
                     f"📅 {period_label}\n"
                     f"約需 1 分鐘，請稍候⌛"
                 )
-                _generate_and_send_ppt(user_id, selected, period)
+                _generate_and_send_ppt(user_id, selected, period,
+                                       customer_names=session_customers or None)
                 return
 
         # ── คำสั่งปกติ ──────────────────────────────────────────

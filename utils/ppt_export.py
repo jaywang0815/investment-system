@@ -438,20 +438,31 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
     s.background.fill.solid()
     s.background.fill.fore_color.rgb = _NAVY
 
-    logo_path = Path(__file__).parent.parent / "assets" / "logo.png"
-    if logo_path.exists():
-        s.shapes.add_picture(str(logo_path),
-                             Inches(5.67), Inches(1.2),
-                             Inches(2.0), Inches(2.0))
+    # thin top accent line
+    _rect(s, 0, 0, W, Inches(0.06), RGBColor(0x1E, 0x3A, 0x8A))
 
-    _textbox(s, Inches(0), Inches(3.5), W, Inches(1.2),
-             "DOUU WORK", 52, bold=True, color=_WHITE, align=PP_ALIGN.CENTER)
-    _textbox(s, Inches(0), Inches(4.7), W, Inches(0.7),
-             f"持倉標的走勢報告  ·  {date.today().strftime('%Y / %m / %d')}",
-             18, color=RGBColor(0x94, 0xA3, 0xB8), align=PP_ALIGN.CENTER)
-    _textbox(s, Inches(0), Inches(5.6), W, Inches(0.5),
-             f"共 {len(tickers)} 個標的",
-             13, color=RGBColor(0x64, 0x74, 0x8B), align=PP_ALIGN.CENTER)
+    # main title — centred vertically
+    _textbox(s, Inches(0), Inches(2.4), W, Inches(1.5),
+             "投資組合持倉分析報告",
+             46, bold=True, color=_WHITE, align=PP_ALIGN.CENTER)
+
+    # english subtitle
+    _textbox(s, Inches(0), Inches(3.95), W, Inches(0.6),
+             "Investment Portfolio Holdings Analysis Report",
+             14, color=RGBColor(0x7B, 0xA7, 0xD9), align=PP_ALIGN.CENTER)
+
+    # thin horizontal rule
+    _rect(s, Inches(2.5), Inches(4.7), Inches(8.33), Inches(0.025),
+          RGBColor(0x2D, 0x4E, 0x88))
+
+    # bottom info strip
+    _rect(s, 0, Inches(6.5), W, Inches(1.0), RGBColor(0x0A, 0x1A, 0x3D))
+    _textbox(s, Inches(0.5), Inches(6.62), Inches(6), Inches(0.45),
+             date.today().strftime("%Y  /  %m  /  %d"),
+             16, color=RGBColor(0x94, 0xA3, 0xB8))
+    _textbox(s, Inches(7), Inches(6.62), Inches(6), Inches(0.45),
+             f"共  {len(tickers)}  個標的",
+             16, color=RGBColor(0x94, 0xA3, 0xB8), align=PP_ALIGN.RIGHT)
 
     # ── fetch current price (reliable: use history not fast_info) ──
     def _fetch_price(tk_str: str):
@@ -540,7 +551,14 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
         obs_date    = str(info.get("observation_date") or "")[:10]
         exit_date_v = str(info.get("exit_date") or "")[:10]
 
+        customer_name = info.get("customer_name", "")
+        amount_usd    = info.get("amount_usd")
+
         row2_items = []
+        if customer_name:
+            row2_items.append(("投資人", str(customer_name)))
+        if _is_valid(amount_usd):
+            row2_items.append(("金額", f"USD {float(amount_usd):,.0f}"))
         if _is_valid(strike):
             row2_items.append(("執行價", f"{float(strike)*100:.1f}%"))
         if _is_valid(coupon):
