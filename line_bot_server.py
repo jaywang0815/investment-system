@@ -602,7 +602,13 @@ def _run_daily_report() -> None:
         today = now_tw.strftime("%Y/%m/%d")
         now_str = now_tw.strftime("%H:%M")
         hour = now_tw.hour
-        session = "🌅 早盤報告 (美股收盤價)" if hour < 12 else "🌙 夜盤報告 (美股開盤後)"
+        is_morning = hour < 12
+        if is_morning:
+            session     = "🌅 早盤報告"
+            price_note  = "📌 價格為美股昨日收盤價"
+        else:
+            session     = "🌙 夜盤報告"
+            price_note  = "📌 價格為美股盤中即時報價"
 
         customers = get_customers()
         sns = get_sns("active")
@@ -618,6 +624,7 @@ def _run_daily_report() -> None:
         lines = [
             f"\n📊 {session}",
             f"🗓️ {today}  {now_str} (台灣時間)",
+            price_note,
             "─────────────────",
             f"\n🏦 管理總覽",
             f"• 客戶總數: {len(customers)} 人",
