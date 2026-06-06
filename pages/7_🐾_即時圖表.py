@@ -141,29 +141,29 @@ def _render_plotly_chart(ticker: str, period: str, info: dict | None):
             ko_p = round(init_p * float(ko), 2) if ko else None
             ki_p = round(init_p * float(ki), 2) if ki else None
 
-            def _hline_label(fig, y, color, dash, label, xpos, yanchor="middle"):
-                fig.add_shape(type="line", xref="paper", yref="y",
-                              x0=0, x1=1, y0=y, y1=y,
-                              line=dict(color=color, width=1.5, dash=dash),
-                              row=1, col=1)
-                fig.add_annotation(
-                    xref="paper", yref="y",
-                    x=xpos, y=y,
-                    text=f"<b>{label}</b> ${y:,.2f}",
-                    showarrow=False,
-                    font=dict(color=color, size=10),
-                    bgcolor="rgba(19,23,34,0.75)",
-                    bordercolor=color, borderwidth=1,
-                    xanchor="left" if xpos < 0.5 else "right",
-                    yanchor=yanchor,
+            fig.add_hline(
+                y=init_p, line_dash="dot", line_color="#fb923c", line_width=1.5,
+                annotation_text=f"  期初 ${init_p:,.2f}",
+                annotation_font=dict(color="#fb923c", size=10),
+                annotation_position="top left",
+                row=1, col=1,
+            )
+            if ko_p and abs(ko_p - init_p) > 0.01:
+                fig.add_hline(
+                    y=ko_p, line_dash="dash", line_color="#4ade80", line_width=1.5,
+                    annotation_text=f"KO ${ko_p:,.2f}  ",
+                    annotation_font=dict(color="#4ade80", size=10),
+                    annotation_position="top right",
                     row=1, col=1,
                 )
-
-            _hline_label(fig, init_p, "#fb923c", "dot",  "期初", xpos=0.01,  yanchor="bottom")
-            if ko_p:
-                _hline_label(fig, ko_p, "#4ade80", "dash", "KO",   xpos=0.99, yanchor="top")
-            if ki_p:
-                _hline_label(fig, ki_p, "#f87171", "dash", "KI",   xpos=0.99, yanchor="bottom")
+            if ki_p and abs(ki_p - init_p) > 0.01:
+                fig.add_hline(
+                    y=ki_p, line_dash="dash", line_color="#f87171", line_width=1.5,
+                    annotation_text=f"KI ${ki_p:,.2f}  ",
+                    annotation_font=dict(color="#f87171", size=10),
+                    annotation_position="bottom right",
+                    row=1, col=1,
+                )
 
         fig.add_annotation(
             x=0, xref="x domain", y=1.02, yref="y domain",
