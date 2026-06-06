@@ -4,8 +4,10 @@
 """
 import os
 import requests
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from supabase import create_client
+
+TW = timezone(timedelta(hours=8))
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
@@ -114,9 +116,10 @@ def analyze_sn(sn, prices):
 
 
 def build_report(stats, sns, prices):
-    today = date.today().strftime("%Y/%m/%d")
-    now = datetime.now().strftime("%H:%M")
-    hour = datetime.utcnow().hour
+    now_tw = datetime.now(TW)
+    today = now_tw.strftime("%Y/%m/%d")
+    now = now_tw.strftime("%H:%M")
+    hour = now_tw.hour
     if hour < 12:
         session = "🌅 早盤報告 (美股收盤價)"
     else:

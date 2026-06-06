@@ -15,7 +15,9 @@ import hashlib
 import base64
 import json
 import requests
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
+
+TW = timezone(timedelta(hours=8))
 
 # ── 設定 ──────────────────────────────────────────────────────
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
@@ -562,6 +564,130 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
 @app.get("/")
 def root():
     return {"status": "LINE Bot Server Running", "date": str(date.today())}
+
+
+def _push_to_admins(text: str) -> None:
+    admins = sb_get("admins", {"select": "line_user_id"})
+    for a in admins:
+        uid = a.get("line_user_id", "")
+        if uid:
+            requests.post(
+                "https://api.line.me/v2/bot/message/push",
+                headers={
+                    "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+                    "Content-Type": "application/json"
+                },
+                json={"to": uid, "messages": [{"type": "text", "text": text[:4000]}]},
+                timeout=10
+            )
+
+
+@app.get("/trigger-report")
+def trigger_report(background_tasks: BackgroundTasks, secret: str = ""):
+    """cron-job.org เรียก endpoint นี้แทน GitHub Actions"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    background_tasks.add_task(_run_daily_report)
+    return {"status": "ok", "message": "report queued"}
+
+
+def _run_daily_report() -> None:
+    try:
+        now_tw = datetime.now(TW)
+        today = now_tw.strftime("%Y/%m/%d")
+        now_str = now_tw.strftime("%H:%M")
+        hour = now_tw.hour
+        session = "🌅 早盤報告 (美股收盤價)" if hour < 12 else "🌙 夜盤報告 (美股開盤後)"
+
+        customers = get_customers()
+        sns = get_sns("active")
+        total_usd = sum(c.get("usd_amount", 0) or 0 for c in customers)
+
+        all_tickers = list(set(
+            s.get(f"underlying_{i}")
+            for s in sns for i in range(1, 6)
+            if isinstance(s.get(f"underlying_{i}"), str)
+        ))
+        prices = {t: get_stock_price(t) for t in all_tickers}
+
+        lines = [
+            f"\n📊 {session}",
+            f"🗓️ {today}  {now_str} (台灣時間)",
+            "─────────────────",
+            f"\n🏦 管理總覽",
+            f"• 客戶總數: {len(customers)} 人",
+            f"• 有效商品: {len(sns)} 筆",
+            f"• 總投資金額: USD {total_usd:,.0f}",
+            "\n📋 商品狀況",
+        ]
+
+        today_date = now_tw.date()
+        sn_customers = get_sn_customer_map()
+        pending_sns = []
+
+        for sn in sorted(sns, key=lambda s: s.get("observation_date") or ""):
+            code = sn.get("product_code", "—")
+            obs = str(sn.get("observation_date") or "")[:10]
+            sn_id = sn.get("id", "")
+            try:
+                days_left = (date.fromisoformat(obs) - today_date).days if obs else 0
+                badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
+                days_str = f"剩{days_left}天"
+            except Exception:
+                badge = "📅"
+                days_str = ""
+
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
+            worst_pct = None
+            detail_lines = []
+            for i in range(1, 6):
+                ticker = sn.get(f"underlying_{i}")
+                init_p = sn.get(f"initial_price_{i}")
+                if not ticker or not init_p or init_p <= 0:
+                    continue
+                curr = prices.get(ticker)
+                if curr:
+                    pct = curr / init_p
+                    if worst_pct is None or pct < worst_pct:
+                        worst_pct = pct
+                    chg = (pct - 1) * 100
+                    arrow = "▲" if chg >= 0 else "▼"
+                    ko_s = (" 🟢KO" if ko and pct >= ko else " 🟡近KO" if ko and pct >= ko * 0.95 else "")
+                    ki_s = (" 🔴KI" if ki and pct <= ki else " 🟠近KI" if ki and pct <= ki * 1.05 else "")
+                    detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
+
+            if worst_pct is None:
+                names = sn_customers.get(sn_id, [])
+                pending_sns.append((code, obs[5:], badge, days_str, names))
+                continue
+            elif ko and worst_pct >= ko:
+                overall = "🟢 KO觸發"
+            elif ko and worst_pct >= ko * 0.95:
+                overall = "🟡 接近KO"
+            elif ki and worst_pct <= ki:
+                overall = "🔴 KI觸發"
+            elif ki and worst_pct <= ki * 1.05:
+                overall = "🟠 接近KI"
+            else:
+                overall = "✅ 正常"
+
+            lines.append(f"\n{overall} {code}")
+            lines.append(f"  {badge} 比價日: {obs} ({days_str})")
+            lines.extend(detail_lines)
+
+        if pending_sns:
+            lines.append("\n─────────────")
+            lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
+            for (code, obs_short, badge, days_str, names) in pending_sns:
+                lines.append(f"  {code}  {badge} {obs_short} ({days_str})")
+                if names:
+                    lines.append(f"    👤 {', '.join(names)}")
+
+        _push_to_admins("\n".join(lines))
+    except Exception as e:
+        _push_to_admins(f"⚠️ 日報發送失敗: {e}")
 
 
 @app.get("/chart/{ticker}.png")
