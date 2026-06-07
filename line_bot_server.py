@@ -455,6 +455,70 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             lines.append(f"• {c['name']} {usd_str}")
         return "\n".join(lines), ""
 
+    # 匯出 Excel
+    if text in ["匯出", "excel", "Excel", "匯出Excel", "匯出excel", "導出"]:
+        return "⏳ 產生中，完成後會傳連結給你...", ""
+
+    # 美股盤 — ราคาปัจจุบัน + % เปลี่ยน ของทุก underlying ใน SN active
+    if text in ["美股盤", "美股盘", "美股", "盤況", "盘况"]:
+        sns = get_sns("active")
+        # รวบรวม ticker ที่ไม่ซ้ำ พร้อม initial_price
+        ticker_init: dict[str, float] = {}
+        for sn in sns:
+            for i in range(1, 6):
+                t = sn.get(f"underlying_{i}")
+                if not t:
+                    continue
+                t = _clean_ticker(t)
+                init_p = sn.get(f"initial_price_{i}")
+                if t and t not in ticker_init:
+                    ticker_init[t] = float(init_p) if init_p else 0.0
+
+        if not ticker_init:
+            return "目前無有效商品標的", ""
+
+        lines = [
+            f"📊 美股盤況",
+            f"🗓️ {today}",
+            "─────────────",
+        ]
+
+        results = []
+        for ticker in sorted(ticker_init.keys()):
+            try:
+                import yfinance as yf
+                info = yf.Ticker(ticker).fast_info
+                price = info.last_price
+                prev  = info.previous_close
+                if price and price > 0:
+                    chg_pct = (price / prev - 1) * 100 if prev and prev > 0 else 0
+                    results.append((ticker, price, prev, chg_pct, ticker_init[ticker]))
+                else:
+                    results.append((ticker, None, None, None, ticker_init[ticker]))
+            except Exception:
+                results.append((ticker, None, None, None, ticker_init[ticker]))
+
+        # เรียงจาก % เปลี่ยนมาก → น้อย (None ไว้ท้าย)
+        results.sort(key=lambda x: (x[3] is None, x[3] if x[3] is not None else 0), reverse=True)
+
+        for ticker, price, prev, chg_pct, init_p in results:
+            tv_url = f"https://www.tradingview.com/symbols/{ticker}/"
+            if price is None:
+                lines.append(f"• {ticker}  —\n  {tv_url}")
+                continue
+            arrow = "▲" if chg_pct >= 0 else "▼"
+            sign  = "+" if chg_pct >= 0 else ""
+            line  = f"{arrow} {ticker}  ${price:,.2f}  {sign}{chg_pct:.2f}%"
+            if init_p and init_p > 0:
+                from_init = (price / init_p - 1) * 100
+                from_sign = "+" if from_init >= 0 else ""
+                line += f"  [{from_sign}{from_init:.1f}%↑期初]" if from_init >= 0 else f"  [{from_sign}{from_init:.1f}%↓期初]"
+            lines.append(f"{line}\n  {tv_url}")
+
+        lines.append("─────────────")
+        lines.append(f"共 {len(results)} 檔標的")
+        return "\n".join(lines), ""
+
     # 依客戶姓名查詢
     customers = get_customers()
     matched = [c for c in customers if text in c["name"] or c["name"] in text]
@@ -892,31 +956,49 @@ def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "obs alert queued"}
 
 
-_GREETING = {
-    "morning": (
-        "寶寶早安～ 起床了嗎？☀️\n\n"
-        "新的一天開始囉！\n"
-        "今天也要加油喔💪\n\n"
-        "祝你工作順順的\n"
-        "遇到的都是好客戶～\n\n"
-        "寶寶最棒了！愛你喔🥰"
-    ),
-    "noon": (
-        "寶寶～ 中午了耶🍱\n\n"
-        "工作還順利嗎？\n"
-        "記得吃午飯喔\n"
-        "不吃飯怎麼有力氣工作呀～\n\n"
-        "好好休息一下\n"
-        "下午繼續加油💪 愛你🥰"
-    ),
-    "night": (
-        "寶寶～ 晚了喔🌙\n\n"
-        "今天辛苦了好好休息\n"
-        "不要太晚睡，身體最重要\n\n"
-        "快快去睡覺，做個好夢💤\n"
-        "愛你喔寶寶，晚安～😘"
-    ),
+_GREETINGS = {
+    "morning": [
+        "早安☀️ 今天也要加油喔，遇到的都是好客戶！",
+        "早安～ 新的一天，心情好一點，事情會順很多的。",
+        "起床了嗎☀️ 今天也要好好的喔。",
+        "早安！昨晚睡得好嗎？今天加油💪",
+        "早安～ 喝杯咖啡，準備出發了🫡",
+    ],
+    "noon": [
+        "中午了🍱 記得吃飯，別餓著自己。",
+        "吃飯了嗎？別忘了休息一下，下午還有硬仗。",
+        "午休時間～ 工作先放一放，吃個飯再說🍱",
+        "中午了，今天上午還順利嗎？吃飯充電繼續！",
+        "記得吃午飯喔，下午才有力氣應付客戶😄",
+    ],
+    "night": [
+        "晚了🌙 今天辛苦了，早點休息。",
+        "該休息了，明天的事明天再說🌙",
+        "收工了嗎？今天做得不錯，好好睡一覺。",
+        "晚安～ 身體最重要，別太晚睡了。",
+        "一天結束了🌙 辛苦了，明天繼續加油。",
+    ],
 }
+
+
+def _get_greeting(type: str) -> str:
+    period = {"morning": "早上", "noon": "中午", "night": "晚上"}.get(type, "")
+    if ANTHROPIC_API_KEY:
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=80,
+                messages=[{"role": "user", "content":
+                    f"用繁體中文傳一句{period}問候語給投資顧問，語氣自然像朋友，不要肉麻，不要用「寶寶」，一到兩句就好，不要加任何前綴或說明。"
+                }],
+            )
+            return resp.content[0].text.strip()
+        except Exception:
+            pass
+    import random
+    return random.choice(_GREETINGS.get(type, [""]))
 
 
 @app.get("/trigger-greeting")
@@ -925,9 +1007,9 @@ def trigger_greeting(background_tasks: BackgroundTasks, type: str = "", secret: 
     REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
     if REPORT_SECRET and secret != REPORT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    if type not in _GREETING:
+    if type not in _GREETINGS:
         raise HTTPException(status_code=400, detail="type must be morning / noon / night")
-    background_tasks.add_task(_push_to_admins, _GREETING[type])
+    background_tasks.add_task(_push_to_admins, _get_greeting(type))
     return {"status": "ok", "type": type}
 
 
@@ -1180,6 +1262,40 @@ def _push_line(user_id: str, text: str) -> None:
     )
 
 
+def _upload_excel(excel_bytes: bytes, filename: str) -> str | None:
+    """Upload Excel to Supabase Storage, return public URL or None."""
+    try:
+        url = f"{SUPABASE_URL}/storage/v1/object/excel-reports/{filename}"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "x-upsert": "true",
+        }
+        resp = requests.post(url, headers=headers, data=excel_bytes, timeout=60)
+        if resp.ok:
+            return f"{SUPABASE_URL}/storage/v1/object/public/excel-reports/{filename}"
+    except Exception as e:
+        print(f"[upload_excel error] {e}")
+    return None
+
+
+def _generate_and_send_excel(user_id: str) -> None:
+    """Style source_data.xlsx, upload to Supabase Storage, push download link."""
+    try:
+        from utils.excel_export import build_excel_bytes
+        excel_bytes = build_excel_bytes()
+        filename = f"export_{datetime.now(TW).strftime('%Y%m%d_%H%M%S')}.xlsx"
+        pub_url = _upload_excel(excel_bytes, filename)
+        if pub_url:
+            _push_line(user_id, f"✅ Excel 已完成！\n\n⬇️ 點擊下載:\n{pub_url}")
+        else:
+            _push_line(user_id, "❌ 上傳失敗，請重試")
+    except Exception as e:
+        print(f"[generate_excel error] {e}")
+        _push_line(user_id, "❌ Excel 匯出失敗，請重試")
+
+
 def _upload_ppt(ppt_bytes: bytes, filename: str) -> str | None:
     """Upload PPT to Supabase Storage, return public URL or None."""
     try:
@@ -1258,6 +1374,119 @@ def _generate_and_send_ppt(user_id: str, tickers: list, period: str = "6mo",
     except Exception as e:
         print(f"[generate_ppt error] {e}")
         _push_line(user_id, f"❌ PPT 製作失敗，請重試")
+
+
+def _parse_amount(text: str) -> int | None:
+    if text.strip() in ["跳過", "skip", "-", "無", "/"]:
+        return None
+    try:
+        val = int(float(text.replace(",", "").replace("USD", "").strip()))
+        return val if val >= 0 else None
+    except ValueError:
+        return -1  # sentinel: parse error
+
+
+def _handle_new_customer(reply_token: str, text: str, user_id: str, session: dict) -> None:
+    step = session.get("step")
+
+    if text in ["❌", "取消", "cancel", "Cancel", "不", "不要"]:
+        _session_clear(user_id)
+        reply(reply_token, "已取消。")
+        return
+
+    if step == "new_cust_name":
+        name = text.strip()
+        if not name:
+            reply(reply_token, "姓名不能空白，請重新輸入：")
+            return
+        existing = sb_get("customers", {"select": "id", "name": f"eq.{name}"})
+        if existing:
+            _session_clear(user_id)
+            reply(reply_token, f"「{name}」已存在於系統中。")
+            return
+        _session_save(user_id, {"step": "new_cust_usd", "name": name})
+        reply(reply_token, f"姓名：{name}\n\nUSD 額度？\n（沒有請輸入 跳過）")
+
+    elif step == "new_cust_usd":
+        val = _parse_amount(text)
+        if val == -1:
+            reply(reply_token, "格式不對，請輸入數字（例：500000）或輸入 跳過：")
+            return
+        _session_save(user_id, {**session, "step": "new_cust_checks", "usd": val})
+        reply(reply_token,
+            "以下項目已完成的輸入號碼（可多選，逗號分隔）：\n\n"
+            "1. 統一開戶\n"
+            "2. ＰＩ見簽\n"
+            "3. 已下單\n\n"
+            "（都沒有請輸入 跳過）"
+        )
+
+    elif step == "new_cust_checks":
+        import re
+        nums = set(re.findall(r'[123]', text))
+        if text.strip() not in ["跳過", "skip", "-", "無"] and not nums and text.strip():
+            reply(reply_token, "請輸入 1、2、3 的組合，或輸入 跳過：")
+            return
+        _session_save(user_id, {
+            **session,
+            "step": "new_cust_month",
+            "unified": "1" in nums,
+            "pi": "2" in nums,
+            "ordered": "3" in nums,
+        })
+        reply(reply_token, "下單月份？\n（例：5月  或輸入 跳過）")
+
+    elif step == "new_cust_month":
+        month = text.strip() if text.strip() not in ["跳過", "skip", "-", "無"] else ""
+        _session_save(user_id, {**session, "step": "new_cust_confirm", "month": month})
+
+        s = session
+        usd = s.get("usd")
+        unified = s.get("unified", False)
+        pi = s.get("pi", False)
+        ordered = s.get("ordered", False)
+        usd_str = f"USD {usd:,}" if usd else "未設定"
+        checks = "  ".join(filter(None, [
+            "統一開戶✓" if unified else "",
+            "PI見簽✓" if pi else "",
+            "已下單✓" if ordered else "",
+        ])) or "—"
+        reply(reply_token,
+            f"確認新增？\n\n"
+            f"姓名：{s['name']}\n"
+            f"USD 額度：{usd_str}\n"
+            f"開戶狀態：{checks}\n"
+            f"下單月份：{month or '—'}\n\n"
+            f"✅ 確認  /  ❌ 取消"
+        )
+
+    elif step == "new_cust_confirm":
+        if text not in ["✅", "確認", "ok", "OK", "是", "確定", "好"]:
+            reply(reply_token, "請回覆 ✅ 確認 或 ❌ 取消")
+            return
+
+        name = session.get("name", "")
+        usd = session.get("usd")
+        _session_clear(user_id)
+
+        data: dict = {"name": name}
+        if usd:
+            data["usd_amount"] = usd
+        if session.get("unified"):
+            data["unified_account"] = True
+        if session.get("pi"):
+            data["pi_signed"] = True
+        if session.get("ordered"):
+            data["ordered"] = True
+        if session.get("month"):
+            data["month_label"] = session["month"]
+
+        result = sb_post("customers", data)
+        if result:
+            usd_str = f"USD {usd:,}" if usd else "未設定"
+            reply(reply_token, f"✅ 已新增客戶\n\n姓名：{name}\nUSD 額度：{usd_str}")
+        else:
+            reply(reply_token, "❌ 新增失敗，請稍後再試。")
 
 
 def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
@@ -1430,6 +1659,23 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
                 _generate_and_send_ppt(user_id, selected, period,
                                        customer_names=session_customers or None)
                 return
+
+        # ── New customer flow ────────────────────────────────
+        if text in ["新增客戶", "加客戶", "新客戶", "新增客户"]:
+            _session_save(user_id, {"step": "new_cust_name"})
+            reply(reply_token, "新增客戶\n\n請輸入客戶姓名：")
+            return
+
+        _nc = _session_load(user_id)
+        if _nc and _nc.get("step", "").startswith("new_cust_"):
+            _handle_new_customer(reply_token, text, user_id, _nc)
+            return
+
+        # ── Excel export (background) ────────────────────────
+        if text in ["匯出", "excel", "Excel", "匯出Excel", "匯出excel", "導出"]:
+            reply(reply_token, "⏳ 產生中，完成後會傳連結給你...")
+            _generate_and_send_excel(user_id)
+            return
 
         # ── คำสั่งปกติ ──────────────────────────────────────────
         response_text, chart_url = handle_command(user_text, user_id)
