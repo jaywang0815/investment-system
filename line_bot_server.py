@@ -683,6 +683,45 @@ def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "obs alert queued"}
 
 
+_GREETING = {
+    "morning": (
+        "寶寶早安～ 起床了嗎？☀️\n\n"
+        "新的一天開始囉！\n"
+        "今天也要加油喔💪\n\n"
+        "祝你工作順順的\n"
+        "遇到的都是好客戶～\n\n"
+        "寶寶最棒了！愛你喔🥰"
+    ),
+    "noon": (
+        "寶寶～ 中午了耶🍱\n\n"
+        "工作還順利嗎？\n"
+        "記得吃午飯喔\n"
+        "不吃飯怎麼有力氣工作呀～\n\n"
+        "好好休息一下\n"
+        "下午繼續加油💪 愛你🥰"
+    ),
+    "night": (
+        "寶寶～ 晚了喔🌙\n\n"
+        "今天辛苦了好好休息\n"
+        "不要太晚睡，身體最重要\n\n"
+        "快快去睡覺，做個好夢💤\n"
+        "愛你喔寶寶，晚安～😘"
+    ),
+}
+
+
+@app.get("/trigger-greeting")
+def trigger_greeting(background_tasks: BackgroundTasks, type: str = "", secret: str = ""):
+    """cron-job.org ยิง 3 ครั้ง/วัน — morning / noon / night"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if type not in _GREETING:
+        raise HTTPException(status_code=400, detail="type must be morning / noon / night")
+    background_tasks.add_task(_push_to_admins, _GREETING[type])
+    return {"status": "ok", "type": type}
+
+
 def _run_obs_alert() -> None:
     try:
         today = datetime.now(TW).date()
