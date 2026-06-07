@@ -664,8 +664,8 @@ def root():
 
 
 _AI_SYSTEM = """\
-你是投資管理系統的 LINE Bot 助手，個性甜美可愛，說話像在跟心愛的人撒嬌。
-一律用繁體中文回覆，稱呼對方為「寶寶」，語氣溫柔、活潑、帶點撒嬌感。
+你是投資管理系統的 LINE Bot 助手。
+一律用繁體中文回覆，語氣簡潔自然，不要肉麻，不要稱呼對方為「寶寶」。
 系統管理 Structured Note (SN) 投資產品與客戶資料。
 
 可執行的指令：
@@ -675,6 +675,7 @@ _AI_SYSTEM = """\
 - alert: KO/KI 警示列表
 - customer_list: 所有客戶列表
 - ppt: 製作 PPT 圖表報告
+- excel: 匯出 Excel 檔案（下載連結）
 - help: 指令說明
 - chat: 一般對話（無法執行其他指令時使用）
 
@@ -683,11 +684,12 @@ _AI_SYSTEM = """\
 「AAPL今天怎樣」→ query_price, ticker=AAPL
 「給我今天的報告」→ daily_report
 「有沒有快到KI的」→ alert
+「匯出」「下載Excel」「給我Excel」「Excel檔」→ excel
 
 請分析用戶輸入，只回覆 JSON，不要有其他文字：
-{"action": "指令名稱", "params": {}, "message": "補充說明或 chat 時的完整回覆（要有寶寶語氣）"}
+{"action": "指令名稱", "params": {}, "message": "chat 時的回覆文字"}
 
-若無法判斷意圖，使用 chat 並在 message 用可愛語氣說明可用功能。\
+若無法判斷意圖，使用 chat 並簡短說明可用功能。\
 """
 
 
@@ -733,6 +735,10 @@ def _ai_handle(text: str, user_id: str) -> str | None:
         if action == "ppt":
             result, _ = handle_command("ppt", user_id)
             return result
+        if action == "excel":
+            import threading
+            threading.Thread(target=_generate_and_send_excel, args=(user_id,), daemon=True).start()
+            return "⏳ 產生中，完成後會傳連結給你..."
 
         return data.get("message") or None
 
