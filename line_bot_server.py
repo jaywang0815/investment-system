@@ -594,6 +594,77 @@ def trigger_report(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "report queued"}
 
 
+@app.get("/trigger-obs-alert")
+def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
+    """cron-job.org เรียก endpoint นี้ทุกเช้า 07:00 TWN"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    background_tasks.add_task(_run_obs_alert)
+    return {"status": "ok", "message": "obs alert queued"}
+
+
+def _run_obs_alert() -> None:
+    try:
+        today = datetime.now(TW).date()
+        today_str = today.strftime("%Y/%m/%d")
+
+        sns_today = sb_get("structured_notes", {
+            "observation_date": f"eq.{today}",
+            "status": "eq.active",
+            "select": "*",
+        })
+        if not sns_today:
+            return
+
+        lines = [
+            "📅 比價日提醒",
+            today_str,
+            f"今日共 {len(sns_today)} 檔商品比價",
+            "",
+        ]
+        for sn in sns_today:
+            tickers = [
+                (sn.get(f"underlying_{i}") or "").lstrip("$")
+                for i in range(1, 6)
+            ]
+            tickers = [t for t in tickers if t.strip()]
+            ticker_str = "  /  ".join(tickers) if tickers else "—"
+
+            ko = sn.get("ko_barrier")
+            ki = sn.get("ki_barrier")
+            ko_ki = ""
+            if ko and ki:
+                ko_ki = f"KO：{ko*100:.0f}%　KI：{ki*100:.0f}%"
+            elif ko:
+                ko_ki = f"KO：{ko*100:.0f}%"
+            elif ki:
+                ko_ki = f"KI：{ki*100:.0f}%"
+
+            invs = sb_get("investments", {
+                "sn_id": f"eq.{sn['id']}",
+                "select": "customers(name)",
+            })
+            customer_names = sorted({
+                inv["customers"]["name"]
+                for inv in invs
+                if inv.get("customers") and inv["customers"].get("name")
+            })
+
+            lines.append(f"・{sn.get('product_code', '—')}")
+            lines.append(f"  {ticker_str}")
+            if ko_ki:
+                lines.append(f"  {ko_ki}")
+            if customer_names:
+                lines.append(f"  客戶：{'、'.join(customer_names)}")
+            lines.append("")
+
+        _push_to_admins("\n".join(lines).rstrip())
+
+    except Exception as e:
+        print(f"[obs_alert error] {e}")
+
+
 def _run_daily_report() -> None:
     try:
         now_tw = datetime.now(TW)
