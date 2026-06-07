@@ -26,6 +26,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 FINNHUB_TOKEN = os.environ.get("FINNHUB_TOKEN", "")
 BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 app = FastAPI(title="投資管理 LINE Bot")
 
@@ -568,6 +569,77 @@ def root():
     return {"status": "LINE Bot Server Running", "date": str(date.today())}
 
 
+_AI_SYSTEM = """\
+你是投資管理系統的 LINE Bot 助手，使用繁體中文回覆。
+系統管理 Structured Note (SN) 投資產品與客戶資料。
+
+可執行的指令：
+- query_customer: 查詢客戶持倉，需要 {"name": "客戶姓名"}
+- query_price: 查詢股票即時報價，需要 {"ticker": "股票代號(英文)"}
+- daily_report: 每日投資摘要
+- alert: KO/KI 警示列表
+- customer_list: 所有客戶列表
+- ppt: 製作 PPT 圖表報告
+- help: 指令說明
+- chat: 一般對話（無法執行其他指令時使用）
+
+請分析用戶輸入，只回覆 JSON，不要有其他文字：
+{"action": "指令名稱", "params": {}, "message": "補充說明或 chat 時的完整回覆"}
+
+若無法判斷意圖，使用 chat 並在 message 友善說明可用功能。\
+"""
+
+
+def _ai_handle(text: str, user_id: str) -> str | None:
+    """Claude Haiku 解析意圖 → 路由到對應指令，回傳回覆文字"""
+    if not ANTHROPIC_API_KEY:
+        return None
+    try:
+        import anthropic
+        import json as _json
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=256,
+            system=_AI_SYSTEM,
+            messages=[{"role": "user", "content": text}],
+        )
+        raw = resp.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1].lstrip("json").strip()
+        data = _json.loads(raw)
+        action = data.get("action", "chat")
+        params = data.get("params", {})
+
+        if action == "query_customer":
+            result, _ = handle_command(params.get("name", ""), user_id)
+            return result
+        if action == "query_price":
+            result, _ = handle_command(params.get("ticker", ""), user_id)
+            return result
+        if action == "daily_report":
+            result, _ = handle_command("日報", user_id)
+            return result
+        if action == "alert":
+            result, _ = handle_command("警示", user_id)
+            return result
+        if action == "customer_list":
+            result, _ = handle_command("客戶", user_id)
+            return result
+        if action == "help":
+            result, _ = handle_command("幫助", user_id)
+            return result
+        if action == "ppt":
+            result, _ = handle_command("ppt", user_id)
+            return result
+
+        return data.get("message") or None
+
+    except Exception as e:
+        print(f"[ai_handle error] {e}")
+        return None
+
+
 def _push_to_admins(text: str) -> None:
     admins = sb_get("admins", {"select": "line_user_id"})
     for a in admins:
@@ -1100,6 +1172,14 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
 
         # ── คำสั่งปกติ ──────────────────────────────────────────
         response_text, chart_url = handle_command(user_text, user_id)
+
+        # ถ้าไม่รู้จำคำสั่ง → ให้ AI ช่วยตีความ
+        if response_text.startswith("❓") and ANTHROPIC_API_KEY:
+            ai_response = _ai_handle(user_text, user_id)
+            if ai_response:
+                reply(reply_token, ai_response)
+                return
+
         reply(reply_token, response_text, chart_url)
     except Exception as e:
         print(f"[process_event error] {e}")
