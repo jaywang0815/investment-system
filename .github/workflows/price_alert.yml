@@ -2,10 +2,21 @@ name: Price Alert
 
 on:
   schedule:
-    # ทุก 1 ชั่วโมงช่วงตลาด US เปิด (Mon-Fri) — เวลาไทย ~22:00-05:00
-    # UTC: 15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00
-    - cron: '0 15,16,17,18,19,20,21 * * 1-5'
-  workflow_dispatch:  # รันมือได้ตลอดเวลา
+    # ตรวจ 2–3 ครั้ง/วัน รองรับ US DST (Taiwan ไม่มี DST)
+    #
+    # [1] หลังตลาดเปิด — TWN 23:00 (ห้าทุ่ม) ทุกฤดู
+    #     ฤดูร้อน EDT: ตลาดเปิด 21:30 → เช็ค 1.5h หลังเปิด
+    #     ฤดูหนาว EST: ตลาดเปิด 22:30 → เช็ค 0.5h หลังเปิด
+    - cron: '0 15 * * 1-5'
+    #
+    # [2] หลังตลาดปิด ฤดูร้อน EDT — TWN 04:05
+    #     ตลาดปิด 04:00 TWN → เช็ค 5 นาทีหลังปิด
+    - cron: '5 20 * * 1-5'
+    #
+    # [3] หลังตลาดปิด ฤดูหนาว EST — TWN 05:05
+    #     ตลาดปิด 05:00 TWN → เช็ค 5 นาทีหลังปิด
+    - cron: '5 21 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   price-alert:
@@ -18,12 +29,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests yfinance
 
       - name: Run price alert
         env:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          FINNHUB_TOKEN: ${{ secrets.FINNHUB_TOKEN }}
         run: python scripts/price_alert.py

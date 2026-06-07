@@ -1,19 +1,19 @@
 """
-Price Alert — รันทุก 1 ชั่วโมงช่วงตลาด US เปิด (GitHub Actions)
+Price Alert — ตรวจ 2 ครั้ง/วัน ช่วงตลาด US เปิด (GitHub Actions)
 แจ้งเตือนเมื่อหุ้นลงเกิน 7% หรือขึ้นเกิน 5% จากราคาเมื่อวัน
 """
 import os
 import sys
 import requests
-from datetime import date
+import yfinance as yf
+from datetime import datetime, timezone, timedelta
 
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-FINNHUB_TOKEN = os.environ.get("FINNHUB_TOKEN", "")
 
-ALERT_DOWN_PCT = 7.0  # แจ้งเตือนเมื่อลงเกิน 7%
-ALERT_UP_PCT   = 5.0  # แจ้งเตือนเมื่อขึ้นเกิน 5%
+ALERT_DOWN_PCT = 7.0
+ALERT_UP_PCT   = 5.0
 
 
 def sb_get(table: str, params: dict = None) -> list:
@@ -39,98 +39,100 @@ def push_line(user_id: str, text: str) -> None:
 
 
 def get_quote(ticker: str):
-    """ดึงราคาจาก Finnhub → (price, prev_close, change_pct)"""
-    resp = requests.get(
-        "https://finnhub.io/api/v1/quote",
-        params={"symbol": ticker, "token": FINNHUB_TOKEN},
-        timeout=10,
-    )
-    if not resp.ok:
+    """ดึงราคาจาก yfinance → (price, prev_close, change_pct)"""
+    clean = ticker.lstrip("$")
+    try:
+        info = yf.Ticker(clean).fast_info
+        price = info.last_price
+        prev_close = info.previous_close
+        if not price or not prev_close or prev_close == 0:
+            return None, None, None
+        change_pct = (price - prev_close) / prev_close * 100
+        return round(price, 2), round(prev_close, 2), round(change_pct, 2)
+    except Exception:
         return None, None, None
-    q = resp.json()
-    return q.get("c"), q.get("pc"), q.get("dp")
 
 
-def _ticker_perf_line(ticker: str, price: float, sn: dict) -> str:
-    """Return 'KO: 100%  期初: 91.5%' string for one ticker inside a SN."""
+def _ticker_perf(ticker: str, price: float, sn: dict) -> list[str]:
+    """Return lines: 期初表現, KO/KI for the given ticker in a SN."""
+    clean = ticker.lstrip("$").upper()
     for i in range(1, 6):
-        if (sn.get(f"underlying_{i}") or "").upper() == ticker:
+        db_ticker = (sn.get(f"underlying_{i}") or "").lstrip("$").upper()
+        if db_ticker == clean:
             init = sn.get(f"initial_price_{i}")
-            ko = sn.get("ko_barrier")
-            ki = sn.get("ki_barrier")
-            parts = []
+            ko   = sn.get("ko_barrier")
+            ki   = sn.get("ki_barrier")
+            lines = []
             if init and init > 0:
-                parts.append(f"期初: {price/init*100:.1f}%")
-            if ko:
-                parts.append(f"KO: {ko*100:.0f}%")
-            if ki:
-                parts.append(f"KI: {ki*100:.0f}%")
-            return "  " + "  ".join(parts) if parts else ""
-    return ""
+                lines.append(f"期初表現：{price / init * 100:.1f}%")
+            if ko and ki:
+                lines.append(f"KO：{ko * 100:.0f}%　KI：{ki * 100:.0f}%")
+            elif ko:
+                lines.append(f"KO：{ko * 100:.0f}%")
+            elif ki:
+                lines.append(f"KI：{ki * 100:.0f}%")
+            return lines
+    return []
 
 
-def build_batch_alert_msg(alerts: list, recipient_name: str) -> str:
+def build_alert_msg(alerts: list, recipient: str = None) -> str:
     """
-    alerts = [(ticker, price, prev_close, change_pct, sn), ...]
-    Builds one combined message, up and down alerts in separate sections.
+    alerts = [(ticker, price, prev_close, change_pct, sn, customer_names), ...]
+    recipient = ชื่อลูกค้า (ใส่ใน header เมื่อส่งให้ลูกค้า), None = admin
     """
-    today = date.today().strftime("%Y/%m/%d")
-    up   = [(t,p,pc,c,s) for t,p,pc,c,s in alerts if c > 0]
-    down = [(t,p,pc,c,s) for t,p,pc,c,s in alerts if c <= 0]
+    tz_8 = timezone(timedelta(hours=8))
+    now  = datetime.now(tz_8).strftime("%Y/%m/%d  %H:%M")
 
-    up_count   = f"📈 {len(up)} 支" if up else ""
-    down_count = f"⚠️ {len(down)} 支" if down else ""
-    summary    = "  |  ".join(filter(None, [up_count, down_count]))
+    up   = [a for a in alerts if a[3] > 0]
+    down = [a for a in alerts if a[3] <= 0]
 
-    lines = [
-        f"📊 價格警示 — {recipient_name}",
-        f"日期: {today}  {summary}",
-        "═════════════",
-    ]
+    header = f"📊 價格警示 — {recipient}" if recipient else "📊 價格警示"
+    lines  = [header, now]
 
-    def _append_section(items):
-        for ticker, price, prev_close, change_pct, sn in items:
-            arrow     = "▲" if change_pct > 0 else "▼"
-            direction = "上漲" if change_pct > 0 else "下跌"
-            lines.append(f"{arrow} {ticker}  ${price:.2f}  {direction} {abs(change_pct):.2f}%")
-            lines.append(f"  昨收: ${prev_close:.2f}")
-            perf = _ticker_perf_line(ticker, price, sn)
-            if perf:
-                lines.append(perf)
-            lines.append(f"  商品: {sn.get('product_code', '—')}")
-            lines.append("─────────────")
+    def _block(ticker, price, prev_close, chg, sn, customer_names, arrow, sign):
+        block = [
+            "",
+            f"{arrow} {ticker}　{sign}{abs(chg):.2f}%",
+            f"現價：${price:.2f}",
+            f"昨收：${prev_close:.2f}",
+        ]
+        block.extend(_ticker_perf(ticker, price, sn))
+        block.append(f"商品：{sn.get('product_code', '—')}")
+        if customer_names:
+            block.append(f"客戶：{'、'.join(customer_names)}")
+        return block
 
     if up:
-        lines.append("📈 上漲警示")
-        _append_section(up)
+        lines += ["", f"📈 上漲警示（{len(up)} 支）"]
+        for t, p, pc, c, s, cnames in up:
+            lines += _block(t, p, pc, c, s, cnames, "▲", "+")
+
     if down:
-        lines.append("⚠️ 下跌警示")
-        _append_section(down)
+        lines += ["", f"⚠️ 下跌警示（{len(down)} 支）"]
+        for t, p, pc, c, s, cnames in down:
+            lines += _block(t, p, pc, c, s, cnames, "▼", "-")
 
     return "\n".join(lines)
 
 
 def get_admin_line_ids() -> list:
-    """ดึง LINE User ID ของ admin ทั้งหมด"""
     rows = sb_get("admins", {"select": "line_user_id"})
     return [r["line_user_id"] for r in rows if r.get("line_user_id")]
 
 
 def main():
-    if not all([LINE_CHANNEL_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_KEY, FINNHUB_TOKEN]):
+    if not all([LINE_CHANNEL_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_KEY]):
         print("ERROR: Missing environment variables")
         sys.exit(1)
 
     admin_ids = get_admin_line_ids()
-    print(f"Admin LINE IDs: {len(admin_ids)} คน")
+    print(f"Admins: {len(admin_ids)}")
 
-    # ดึง SN ทั้งหมดที่ active
     sns = sb_get("structured_notes", {"status": "eq.active", "select": "*"})
     if not sns:
-        print("No active SNs found")
+        print("No active SNs")
         return
 
-    # รวม ticker ทั้งหมด + SN ที่ใช้
     ticker_sns: dict[str, list] = {}
     for sn in sns:
         for i in range(1, 6):
@@ -138,33 +140,29 @@ def main():
             if ticker:
                 ticker_sns.setdefault(ticker, []).append(sn)
 
-    print(f"Checking {len(ticker_sns)} tickers: {', '.join(ticker_sns.keys())}")
+    print(f"Checking {len(ticker_sns)} tickers: {', '.join(ticker_sns)}")
 
-    # รวบ alerts ทั้งหมดก่อน แล้วค่อยส่งทีเดียว
+    # admin_alerts: (ticker, price, prev_close, change_pct, sn, [customer_names])
     admin_alerts: list = []
-    # customer_id → (line_id, name, [(ticker, price, prev, chg, sn), ...])
+    # customer_id → (line_id, name, [(ticker, price, prev_close, change_pct, sn, [])])
     customer_alerts: dict = {}
 
     for ticker, related_sns in ticker_sns.items():
         price, prev_close, change_pct = get_quote(ticker)
 
-        if not price or change_pct is None:
+        if price is None or change_pct is None:
             print(f"  {ticker}: no data")
             continue
 
         print(f"  {ticker}: ${price:.2f} ({change_pct:+.2f}%)")
 
-        triggered = (change_pct <= -ALERT_DOWN_PCT) or (change_pct >= ALERT_UP_PCT)
-        if not triggered:
+        if not (change_pct <= -ALERT_DOWN_PCT or change_pct >= ALERT_UP_PCT):
             continue
 
         print(f"  >>> ALERT: {ticker} {change_pct:+.2f}%")
 
-        # เก็บ alert สำหรับ admin
-        if related_sns:
-            admin_alerts.append((ticker, price, prev_close, change_pct, related_sns[0]))
+        ticker_customer_names: list[str] = []
 
-        # เก็บ alert สำหรับลูกค้าแต่ละคน
         for sn in related_sns:
             invs = sb_get("investments", {
                 "sn_id": f"eq.{sn['id']}",
@@ -172,34 +170,39 @@ def main():
             })
             for inv in invs:
                 customer = inv.get("customers") or {}
-                cid = customer.get("id")
-                line_id = (customer.get("line_user_id") or "").strip()
-                name = customer.get("name", "—")
-                if not line_id or not cid:
+                cid      = customer.get("id")
+                line_id  = (customer.get("line_user_id") or "").strip()
+                name     = customer.get("name", "—")
+                if not cid:
                     continue
-                if cid not in customer_alerts:
-                    customer_alerts[cid] = (line_id, name, [])
-                customer_alerts[cid][2].append((ticker, price, prev_close, change_pct, sn))
+                if name not in ticker_customer_names:
+                    ticker_customer_names.append(name)
+                if line_id:
+                    if cid not in customer_alerts:
+                        customer_alerts[cid] = (line_id, name, [])
+                    customer_alerts[cid][2].append(
+                        (ticker, price, prev_close, change_pct, sn, [])
+                    )
 
-    # ── ส่งข้อความรวมเดียว ─────────────────────────────────────
+        if related_sns:
+            admin_alerts.append(
+                (ticker, price, prev_close, change_pct, related_sns[0], ticker_customer_names)
+            )
+
     if not admin_alerts:
-        print(f"\nNo alerts triggered (down<{ALERT_DOWN_PCT}%, up<{ALERT_UP_PCT}%)")
+        print(f"No alerts (down>{ALERT_DOWN_PCT}% / up>{ALERT_UP_PCT}%)")
         return
 
-    print(f"\nAlerts triggered: {', '.join(f'{t} {c:+.2f}%' for t,_,_,c,_ in admin_alerts)}")
+    print(f"\nAlerts: {', '.join(f'{t} {c:+.2f}%' for t, _, _, c, _, _ in admin_alerts)}")
 
-    # ส่งให้ admin ทุกคน — 1 ข้อความรวม
-    if admin_ids:
-        admin_msg = build_batch_alert_msg(admin_alerts, "Douu小幫手")
-        for aid in admin_ids:
-            push_line(aid, admin_msg)
-            print(f"  Sent batch to admin ({aid[:8]}...)")
+    msg = build_alert_msg(admin_alerts)
+    for aid in admin_ids:
+        push_line(aid, msg)
+        print(f"  Sent to admin {aid[:8]}...")
 
-    # ส่งให้ลูกค้าแต่ละคน — 1 ข้อความรวมต่อคน
     for cid, (line_id, name, alerts) in customer_alerts.items():
-        msg = build_batch_alert_msg(alerts, name)
-        push_line(line_id, msg)
-        print(f"  Sent batch to {name} ({line_id[:8]}...)")
+        push_line(line_id, build_alert_msg(alerts, recipient=name))
+        print(f"  Sent to {name} ({line_id[:8]}...)")
 
 
 if __name__ == "__main__":
