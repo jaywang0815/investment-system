@@ -43,6 +43,36 @@ def sb_get(table: str, params: dict = None) -> list:
     return resp.json() if resp.ok else []
 
 
+def sb_post(table: str, data: dict) -> dict | None:
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    resp = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, json=data, timeout=15)
+    if resp.ok:
+        result = resp.json()
+        return result[0] if isinstance(result, list) and result else None
+    return None
+
+
+def sb_patch(table: str, filters: dict, data: dict) -> None:
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+    params = {k: f"eq.{v}" for k, v in filters.items()}
+    requests.patch(f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, params=params, json=data, timeout=15)
+
+
+def sb_delete(table: str, filters: dict) -> None:
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    params = {k: f"eq.{v}" for k, v in filters.items()}
+    requests.delete(f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, params=params, timeout=15)
+
+
 def get_customers() -> list:
     return sb_get("customers", {"select": "id,name,usd_amount,portal_token"})
 
@@ -647,6 +677,185 @@ def _ai_handle(text: str, user_id: str) -> str | None:
         return None
 
 
+_excel_cache: dict[str, bytes] = {}  # user_id → raw Excel bytes (short-lived, in-memory)
+
+
+def _download_line_content(message_id: str) -> bytes | None:
+    resp = requests.get(
+        f"https://api-data.line.me/v2/bot/message/{message_id}/content",
+        headers={"Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"},
+        timeout=30,
+    )
+    return resp.content if resp.ok else None
+
+
+def _process_file_event(reply_token: str, message_id: str, filename: str, user_id: str) -> None:
+    """Handle Excel file sent by user — parse, ask confirmation"""
+    if not filename.lower().endswith((".xlsx", ".xls")):
+        reply(reply_token, "寶寶～ 只支援 Excel 檔案喔（.xlsx / .xls）😊")
+        return
+
+    file_bytes = _download_line_content(message_id)
+    if not file_bytes:
+        reply(reply_token, "寶寶～ 下載檔案失敗了，再傳一次好嗎？😢")
+        return
+
+    try:
+        from utils.excel_parser import parse_excel_file, get_summary
+        parsed = parse_excel_file(BytesIO(file_bytes))
+        summary = get_summary(parsed)
+    except Exception:
+        reply(reply_token, "寶寶～ 讀取檔案失敗了耶 😢\n格式不對嗎？")
+        return
+
+    _excel_cache[user_id] = file_bytes
+    _session_save(user_id, {"step": "excel_action", "summary": summary, "filename": filename})
+
+    months = summary.get("months", [])
+    month_str = "、".join(sorted(months)) if months else "（未偵測到）"
+
+    lines = ["寶寶～ 收到檔案了！✨", "幫你看了一下：", ""]
+    if summary["customers"] > 0:
+        lines.append(f"・客戶資料：{summary['customers']} 位")
+    if summary["total_sns"] > 0:
+        lines.append(f"・SN商品：{summary['total_sns']} 筆")
+        lines.append(f"・月份：{month_str}")
+    lines += ["", "是要新增，還是更新已有的資料呢？", "1️⃣ 新增", "2️⃣ 更新（覆蓋舊資料）", "❌ 取消"]
+    reply(reply_token, "\n".join(lines))
+
+
+def _handle_excel_session(reply_token: str, text: str, user_id: str, session: dict) -> None:
+    """Handle confirmation steps for Excel import"""
+    step = session.get("step")
+    summary = session.get("summary", {})
+
+    if text in ["❌", "取消", "cancel", "Cancel", "不", "不要"]:
+        _session_clear(user_id)
+        _excel_cache.pop(user_id, None)
+        reply(reply_token, "寶寶～ 取消囉，沒關係的～ 😊")
+        return
+
+    if step == "excel_action":
+        if text in ["1", "1️⃣", "新增"]:
+            action, action_label = "new", "新增"
+        elif text in ["2", "2️⃣", "更新", "覆蓋", "更新（覆蓋舊資料）"]:
+            action, action_label = "update", "更新（覆蓋舊資料）"
+        else:
+            reply(reply_token, "寶寶～ 請選 1️⃣ 新增 或 2️⃣ 更新 喔～")
+            return
+
+        months = summary.get("months", [])
+        month_str = "、".join(sorted(months)) if months else "（未偵測到）"
+        _session_save(user_id, {**session, "step": "excel_final", "action": action, "action_label": action_label})
+
+        lines = ["寶寶確認一下～ 👀", "", f"動作：{action_label}"]
+        if summary.get("total_sns", 0) > 0:
+            lines.append(f"SN商品：{summary['total_sns']} 筆（{month_str}）")
+        if summary.get("customers", 0) > 0:
+            lines.append(f"客戶資料：{summary['customers']} 位")
+        lines += ["", "確定要匯入嗎？", "✅ 確認 / ❌ 取消"]
+        reply(reply_token, "\n".join(lines))
+
+    elif step == "excel_final":
+        if text not in ["✅", "確認", "ok", "OK", "是", "確定", "好"]:
+            reply(reply_token, "寶寶～ 請回覆 ✅ 確認 或 ❌ 取消 喔！")
+            return
+
+        file_bytes = _excel_cache.get(user_id)
+        if not file_bytes:
+            _session_clear(user_id)
+            reply(reply_token, "寶寶～ 檔案快取過期了，請重新傳送 Excel 喔 😢")
+            return
+
+        action = session.get("action", "new")
+        _session_clear(user_id)
+        reply(reply_token, "寶寶～ 開始匯入了！稍等一下喔 ⏳")
+        _do_excel_import(user_id, file_bytes, action)
+
+
+def _do_excel_import(user_id: str, file_bytes: bytes, action: str) -> None:
+    """Import Excel data to Supabase — called after user confirms"""
+    try:
+        from utils.excel_parser import parse_excel_file
+        parsed = parse_excel_file(BytesIO(file_bytes))
+        upsert = (action == "update")
+
+        total_customers = 0
+        total_sns = 0
+        total_updated = 0
+
+        # existing customers
+        existing_customers = {c["name"]: c["id"] for c in sb_get("customers", {"select": "id,name"})}
+
+        # import customers
+        for cust in parsed.get("customers", []):
+            name = cust.get("name", "")
+            if not name or name in existing_customers:
+                continue
+            result = sb_post("customers", cust)
+            if result:
+                existing_customers[name] = result["id"]
+                total_customers += 1
+
+        # import SNs
+        all_sns = [sn for month_sns in parsed.get("sn_by_month", {}).values() for sn in month_sns]
+
+        for sn in all_sns:
+            investments = sn.pop("investments", [])
+            code = sn.get("product_code", "")
+
+            existing = sb_get("structured_notes", {"product_code": f"eq.{code}", "select": "id"})
+            sn_id = None
+
+            if existing:
+                if upsert:
+                    sn_id = existing[0]["id"]
+                    sb_patch("structured_notes", {"id": sn_id}, sn)
+                    sb_delete("investments", {"sn_id": sn_id})
+                    total_updated += 1
+                else:
+                    continue
+            else:
+                result = sb_post("structured_notes", sn)
+                if result:
+                    sn_id = result["id"]
+                    total_sns += 1
+
+            if not sn_id:
+                continue
+
+            for inv in investments:
+                cname = inv.get("customer_name", "")
+                amount = inv.get("amount_usd", 0)
+                customer_id = existing_customers.get(cname)
+                if not customer_id:
+                    cname_clean = cname.replace("*", "").replace("＊", "").strip()
+                    for k, v in existing_customers.items():
+                        if cname_clean in k.replace("*", "").replace("＊", "").strip():
+                            customer_id = v
+                            break
+                if customer_id:
+                    sb_post("investments", {"customer_id": customer_id, "sn_id": sn_id, "amount_usd": amount})
+
+        lines = ["✅ 匯入完成！寶寶辛苦了～ 🎉", ""]
+        if total_customers > 0:
+            lines.append(f"新增客戶：{total_customers} 位")
+        if total_sns > 0:
+            lines.append(f"新增 SN：{total_sns} 筆")
+        if total_updated > 0:
+            lines.append(f"更新 SN：{total_updated} 筆")
+        if total_customers == 0 and total_sns == 0 and total_updated == 0:
+            lines.append("沒有新資料需要匯入喔～")
+
+        _push_line(user_id, "\n".join(lines))
+
+    except Exception as e:
+        print(f"[excel_import error] {e}")
+        _push_line(user_id, f"❌ 匯入失敗了 😢\n請確認 Excel 格式是否正確")
+    finally:
+        _excel_cache.pop(user_id, None)
+
+
 def _push_to_admins(text: str) -> None:
     admins = sb_get("admins", {"select": "line_user_id"})
     for a in admins:
@@ -1057,6 +1266,12 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
     try:
         text = user_text.strip()
 
+        # ── Excel import session (ตรวจก่อนทุกอย่าง) ─────────────────
+        _es = _session_load(user_id)
+        if _es and _es.get("step", "").startswith("excel_"):
+            _handle_excel_session(reply_token, text, user_id, _es)
+            return
+
         # ── Step 1: เริ่ม PPT flow — แสดงรายชื่อลูกค้า ──────────────
         if re.match(r'^(給我|给我)?\s*ppt$', text, re.IGNORECASE):
             customers = get_customers()
@@ -1246,11 +1461,20 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     for event in data.get("events", []):
-        if event.get("type") == "message" and event["message"].get("type") == "text":
-            reply_token = event.get("replyToken", "")
-            user_text = event["message"].get("text", "").strip()
-            user_id = event.get("source", {}).get("userId", "")
+        if event.get("type") != "message":
+            continue
+        msg = event.get("message", {})
+        reply_token = event.get("replyToken", "")
+        user_id = event.get("source", {}).get("userId", "")
+
+        if msg.get("type") == "text":
+            user_text = msg.get("text", "").strip()
             background_tasks.add_task(_process_event, reply_token, user_text, user_id)
+
+        elif msg.get("type") == "file":
+            message_id = msg.get("id", "")
+            filename = msg.get("fileName", "file.xlsx")
+            background_tasks.add_task(_process_file_event, reply_token, message_id, filename, user_id)
 
     # ตอบ LINE ทันที ก่อนที่ reply_token จะหมดอายุ
     return JSONResponse({"status": "ok"})
