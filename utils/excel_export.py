@@ -7,6 +7,173 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
+
+# ============================================================
+# Shared B-style Excel builder (used by both LINE bot and web)
+# ============================================================
+
+def build_excel_bytes(customers: list = None, sns_all: list = None, sn_inv_map: dict = None,
+                      source_bytes: bytes = None) -> bytes:
+    """
+    Style the source Excel (assets/source_data.xlsx) and return bytes.
+    source_bytes: optional raw bytes of the source file (e.g. uploaded by user).
+    customers / sns_all / sn_inv_map: unused — kept for backwards-compat signature.
+
+    Layout rules applied to the source:
+    - Title row 1: remove any existing title, add navy bar "客戶開戶明細" / "ＳＮ{月} 商品明細"
+    - Date row 2: navy subtitle with today's date
+    - Header row 3 (source row 1): navy2 bg, white bold text
+    - Data rows 4+ (source rows 2+): alternating GRAY1/WHITE bg
+      - Customer names (col A): dark near-black, bold, size 11
+      - 代號 (SN sheet col B) + 標的1-5 (cols C-G) on SN product rows: amber bold
+      - V marks: green
+    - Date columns (日期, 比價): YYYY-MM-DD format, col width ≥ 14
+    """
+    import os
+    from copy import copy as _copy
+    from openpyxl import load_workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from datetime import datetime as _dt
+
+    SRC_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "source_data.xlsx")
+    NAVY = "1E3A8A"; NAVY2 = "2D4E9E"; WHITE = "FFFFFF"
+    GREEN = "059669"; GRAY1 = "F8FAFC"; DARK = "0F172A"; AMBER = "D97706"
+    today_str = date.today().strftime("%Y年%m月%d日")
+
+    def bdr(c="CBD5E1"):
+        s = Side(style="thin", color=c)
+        return Border(left=s, right=s, top=s, bottom=s)
+
+    def apply(cell, bold=False, align="center", bg=WHITE, color=DARK, sz=10, fmt=None):
+        cell.font      = Font(name="微軟正黑體", bold=bold, color=color, size=sz)
+        cell.fill      = PatternFill("solid", fgColor=bg)
+        cell.alignment = Alignment(horizontal=align, vertical="center")
+        cell.border    = bdr()
+        if fmt:
+            cell.number_format = fmt
+
+    # ── Load source file (data untouched) ────────────────────────────
+    if source_bytes:
+        src_wb = load_workbook(io.BytesIO(source_bytes))
+    else:
+        src_wb = load_workbook(SRC_PATH)
+
+    out_wb = __import__("openpyxl").Workbook()
+    first  = True
+
+    SHEET_TITLES = {
+        "開戶明細": "客戶開戶明細",
+        "ＳＮ5月":  "ＳＮ5月 商品明細",
+    }
+
+    # SN sheet: which col indices are 代號(2) + 標的1-5(3-7)
+    SN_AMBER = {2, 3, 4, 5, 6, 7}
+    # SN sheet: date columns → YYYY-MM-DD
+    SN_DATE  = {1, 10, 13}
+    # SN sheet col widths
+    SN_W = {"A":14,"B":18,"C":12,"D":12,"E":12,"F":12,"G":12,
+            "H":10,"I":10,"J":14,"K":10,"L":12,"M":12,"N":12,"O":10,"P":14}
+
+    for src_name in src_wb.sheetnames:
+        src_ws   = src_wb[src_name]
+        is_sn    = (src_name != "開戶明細")
+        out_name = ("客戶總覽" if src_name == "開戶明細"
+                    else "SN明細_" + src_name.replace("ＳＮ", "").replace("SN", "").strip())
+        title    = SHEET_TITLES.get(src_name, src_name)
+
+        ws = out_wb.active if first else out_wb.create_sheet()
+        first = False
+        ws.title = out_name
+        ws.sheet_view.showGridLines = False
+        ws.sheet_view.zoomScale = 90
+
+        max_r = src_ws.max_row
+        max_c = src_ws.max_column
+
+        # ── Row 1: title bar ─────────────────────────────────────────
+        ws.row_dimensions[1].height = 40
+        ws.merge_cells(f"A1:{get_column_letter(max_c)}1")
+        t = ws.cell(1, 1, value=title)
+        t.font      = Font(name="微軟正黑體", bold=True, color=WHITE, size=14)
+        t.fill      = PatternFill("solid", fgColor=NAVY)
+        t.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+
+        # ── Row 2: date subtitle ──────────────────────────────────────
+        ws.row_dimensions[2].height = 20
+        ws.merge_cells(f"A2:{get_column_letter(max_c)}2")
+        s = ws.cell(2, 1, value=today_str)
+        s.font      = Font(name="微軟正黑體", color="94A3B8", size=9)
+        s.fill      = PatternFill("solid", fgColor="0F2460")
+        s.alignment = Alignment(horizontal="left", vertical="center")
+
+        # ── Row 3: source row 1 = column headers ─────────────────────
+        ws.row_dimensions[3].height = 28
+        for c in range(1, max_c + 1):
+            val  = src_ws.cell(1, c).value
+            cell = ws.cell(3, c, value=val)
+            cell.font      = Font(name="微軟正黑體", bold=True, color=WHITE, size=11)
+            cell.fill      = PatternFill("solid", fgColor=NAVY2)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border    = bdr("334155")
+
+        # ── Rows 4+: source rows 2+ = data (values unchanged) ────────
+        # Detect SN product rows: col A = datetime
+        from datetime import datetime as _dt
+        for sr in range(2, max_r + 1):
+            out_r = sr + 2
+            ws.row_dimensions[out_r].height = 20
+            bg = GRAY1 if out_r % 2 == 0 else WHITE
+
+            col_a = src_ws.cell(sr, 1).value
+            col_b = src_ws.cell(sr, 2).value
+            is_sn_prod_row = is_sn and isinstance(col_a, _dt)
+
+            for c in range(1, max_c + 1):
+                src_cell = src_ws.cell(sr, c)
+                val      = src_cell.value
+                cell     = ws.cell(out_r, c, value=val)
+                cell.number_format = src_cell.number_format
+
+                if is_sn_prod_row and c in SN_AMBER and isinstance(val, str) and val.strip():
+                    # amber bold: 代號 and 標的 on SN product rows
+                    apply(cell, bold=True, align="left" if c == 2 else "center",
+                          bg=bg, color=AMBER, sz=11)
+
+                elif c == 1 and isinstance(val, str) and val.strip():
+                    # customer name (col A, string) → dark bold
+                    apply(cell, bold=True, align="left", bg=bg, color=DARK, sz=11)
+
+                else:
+                    is_v = isinstance(val, str) and val.strip() in ("V", "Ｖ", "v", "X", "Ｘ")
+                    apply(cell, bold=is_v,
+                          align="left" if c == 1 else "center",
+                          bg=bg, color=GREEN if (is_v and val.strip() not in ("X","Ｘ")) else DARK)
+
+                # date format for date-type cells (no time)
+                if is_sn and c in SN_DATE and isinstance(val, _dt):
+                    cell.number_format = "YYYY-MM-DD"
+                # numeric format for amounts
+                if is_sn and c == 16 and isinstance(val, (int, float)):
+                    cell.number_format = "#,##0"
+
+        # column widths
+        if is_sn:
+            for col_letter, w in SN_W.items():
+                ws.column_dimensions[col_letter].width = w
+        else:
+            cust_widths = {"A":20,"B":12,"C":12,"D":12,"E":16,"F":16,"G":16,"H":16}
+            for col_letter, w in cust_widths.items():
+                ws.column_dimensions[col_letter].width = w
+            for ci in range(9, max_c + 1):
+                ws.column_dimensions[get_column_letter(ci)].width = 14
+
+        ws.freeze_panes = "A4"
+
+    buf = io.BytesIO()
+    out_wb.save(buf)
+    return buf.getvalue()
+
 try:
     import gspread
     from google.oauth2.service_account import Credentials
