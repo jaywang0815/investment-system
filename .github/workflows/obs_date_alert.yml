@@ -1,0 +1,24 @@
+name: 比價日提醒
+
+on:
+  workflow_dispatch:  # cron-job.org จัดการ schedule — ตรงเวลากว่า GitHub Actions cron
+
+jobs:
+  obs-date-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run observation date alert
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python scripts/obs_date_alert.py
