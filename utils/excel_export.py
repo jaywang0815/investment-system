@@ -5,7 +5,6 @@ import io
 from datetime import date
 from typing import Optional
 import pandas as pd
-import streamlit as st
 
 
 # ============================================================
@@ -267,6 +266,7 @@ def export_to_excel(customers_df: pd.DataFrame, sns_df: pd.DataFrame,
 def sync_to_google_sheets(customers_df: pd.DataFrame, sns_df: pd.DataFrame,
                            sheet_id: Optional[str] = None) -> bool:
     """同步資料到 Google Sheets"""
+    import streamlit as st
     if not GSPREAD_AVAILABLE:
         st.error("gspread 未安裝，請執行 pip install gspread")
         return False
