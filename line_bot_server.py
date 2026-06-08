@@ -665,7 +665,7 @@ def root():
 
 _AI_SYSTEM = """\
 你是投資管理系統的 LINE Bot 助手。
-一律用繁體中文回覆，語氣簡潔自然，不要肉麻，不要稱呼對方為「寶寶」。
+一律用繁體中文回覆，語氣自然像朋友，不要過度甜膩或撒嬌，說話簡單直接就好。
 系統管理 Structured Note (SN) 投資產品與客戶資料。
 
 可執行的指令：
@@ -762,12 +762,12 @@ def _download_line_content(message_id: str) -> bytes | None:
 def _process_file_event(reply_token: str, message_id: str, filename: str, user_id: str) -> None:
     """Handle Excel file sent by user — parse, ask confirmation"""
     if not filename.lower().endswith((".xlsx", ".xls")):
-        reply(reply_token, "只支援 Excel 檔案（.xlsx / .xls）")
+        reply(reply_token, "只支援 Excel 格式喔（.xlsx / .xls）")
         return
 
     file_bytes = _download_line_content(message_id)
     if not file_bytes:
-        reply(reply_token, "下載檔案失敗，請再傳一次")
+        reply(reply_token, "下載失敗，麻煩再傳一次")
         return
 
     try:
@@ -775,7 +775,7 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
         parsed = parse_excel_file(BytesIO(file_bytes))
         summary = get_summary(parsed)
     except Exception:
-        reply(reply_token, "讀取檔案失敗，格式不符或檔案損壞")
+        reply(reply_token, "讀不到檔案，格式可能有問題，再試試看")
         return
 
     _excel_cache[user_id] = file_bytes
@@ -784,7 +784,7 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
     months = summary.get("months", [])
     month_str = "、".join(sorted(months)) if months else "（未偵測到）"
 
-    lines = ["✅ 收到檔案，幫你看了一下：", ""]
+    lines = ["✅ 收到 Excel 了，幫你看了一下：", ""]
     if summary["customers"] > 0:
         lines.append(f"・客戶資料：{summary['customers']} 位")
     if summary["total_sns"] > 0:
@@ -802,7 +802,7 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
     if text in ["❌", "取消", "cancel", "Cancel", "不", "不要"]:
         _session_clear(user_id)
         _excel_cache.pop(user_id, None)
-        reply(reply_token, "已取消")
+        reply(reply_token, "好，取消了")
         return
 
     if step == "excel_action":
@@ -818,7 +818,7 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
         month_str = "、".join(sorted(months)) if months else "（未偵測到）"
         _session_save(user_id, {**session, "step": "excel_final", "action": action, "action_label": action_label})
 
-        lines = ["請確認以下操作：", "", f"動作：{action_label}"]
+        lines = ["確認一下：", "", f"動作：{action_label}"]
         if summary.get("total_sns", 0) > 0:
             lines.append(f"SN商品：{summary['total_sns']} 筆（{month_str}）")
         if summary.get("customers", 0) > 0:
@@ -834,7 +834,7 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
         file_bytes = _excel_cache.get(user_id)
         if not file_bytes:
             _session_clear(user_id)
-            reply(reply_token, "檔案快取已過期，請重新傳送 Excel")
+        reply(reply_token, "快取過期了，麻煩重新傳一次 Excel")
             return
 
         action = session.get("action", "new")
