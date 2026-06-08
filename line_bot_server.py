@@ -1304,7 +1304,7 @@ def _generate_and_send_excel(user_id: str) -> None:
         _push_line(user_id, f"✅ Excel 已完成！\n\n⬇️ 點擊下載:\n{url}\n\n（連結有效至伺服器重啟）")
     except Exception as e:
         print(f"[generate_excel error] {traceback.format_exc()}")
-        _push_line(user_id, f"❌ Excel 匯出失敗\n錯誤：{e}")
+        _push_line(user_id, f"❌ 自動產生失敗，請到網頁下載：\nhttps://douuwork.streamlit.app/報表匯出\n\n（切換到「Excel匯出」頁簽）")
 
 
 def _upload_ppt(ppt_bytes: bytes, filename: str) -> str | None:
