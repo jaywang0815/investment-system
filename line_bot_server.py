@@ -1290,12 +1290,14 @@ def download_file(token: str):
 
 
 def _generate_and_send_excel(user_id: str) -> None:
-    """Generate styled Excel, save to /tmp, push download link."""
-    import uuid, tempfile, os, traceback
+    """Serve source_data.xlsx directly (no openpyxl styling) to avoid OOM on Render free tier."""
+    import uuid, os
     try:
-        from utils.excel_export import build_excel_bytes
-        excel_bytes = build_excel_bytes()
+        src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "source_data.xlsx")
+        with open(src, "rb") as f:
+            excel_bytes = f.read()
         token = uuid.uuid4().hex[:12]
+        import tempfile
         path = os.path.join(tempfile.gettempdir(), f"excel_{token}.xlsx")
         with open(path, "wb") as f:
             f.write(excel_bytes)
@@ -1303,7 +1305,7 @@ def _generate_and_send_excel(user_id: str) -> None:
         url = f"{BASE_URL}/dl/{token}"
         _push_line(user_id, f"✅ Excel 已完成！\n\n⬇️ 點擊下載:\n{url}\n\n（連結有效至伺服器重啟）")
     except Exception as e:
-        print(f"[generate_excel error] {traceback.format_exc()}")
+        print(f"[generate_excel error] {e}")
         _push_line(user_id, f"❌ 自動產生失敗，請到網頁下載：\nhttps://douuwork.streamlit.app/報表匯出\n\n（切換到「Excel匯出」頁簽）")
 
 
