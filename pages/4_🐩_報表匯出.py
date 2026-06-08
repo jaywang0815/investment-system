@@ -60,6 +60,16 @@ with tab1:
         st.markdown("**報表設定**")
         include_charts = st.checkbox("包含圖表說明", value=True)
         today_str = date.today().strftime("%Y%m%d")
+        _period_map = {
+            "3個月": "3mo", "6個月": "6mo",
+            "1年": "1y", "1年半": "18mo",
+            "2年": "2y", "2年半": "2y6mo",
+            "3年": "3y", "3年半": "3y6mo",
+            "4年": "4y", "4年半": "4y6mo",
+            "5年": "5y",
+        }
+        _period_label = st.selectbox("走勢圖區間", list(_period_map.keys()), index=1)
+        chart_period = _period_map[_period_label]
 
     st.markdown("---")
 
@@ -89,7 +99,8 @@ with tab1:
                     pdf_bytes = generate_customer_report(
                         customer=customer_row.to_dict(),
                         investments=investments,
-                        prices=prices
+                        prices=prices,
+                        chart_period=chart_period,
                     )
 
                     filename = f"投資報表_{customer_name}_{today_str}.pdf"

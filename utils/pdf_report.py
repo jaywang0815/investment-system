@@ -61,9 +61,16 @@ def _clean(text) -> str:
     """Strip emoji characters that the font cannot render"""
     return _EMOJI_RE.sub("", str(text) if text is not None else "").strip()
 
+_PERIOD_DAYS = {
+    "3mo": 90, "6mo": 180, "1y": 365, "18mo": 548,
+    "2y": 730, "2y6mo": 912, "3y": 1095, "3y6mo": 1277,
+    "4y": 1460, "4y6mo": 1642, "5y": 1825,
+}
+
 def _generate_price_chart(ticker: str, initial_price: float,
                           ko_barrier: float, ki_barrier: float,
-                          strike_pct: float, width_mm: float = 155) -> bytes | None:
+                          strike_pct: float, width_mm: float = 155,
+                          period: str = "6mo") -> bytes | None:
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -72,8 +79,11 @@ def _generate_price_chart(ticker: str, initial_price: float,
         import matplotlib.patches as mpatches
         import yfinance as yf
         import numpy as np
+        from datetime import timedelta
 
-        hist = yf.Ticker(ticker).history(period="6mo")
+        days = _PERIOD_DAYS.get(period, 180)
+        start = datetime.today() - timedelta(days=days)
+        hist = yf.Ticker(ticker).history(start=start)
         if hist.empty:
             return None
 
@@ -174,7 +184,8 @@ def _valid(v):
 # 主函數: 產生客戶投資報表 PDF
 # ============================================================
 
-def generate_customer_report(customer: dict, investments: list, prices: dict) -> bytes:
+def generate_customer_report(customer: dict, investments: list, prices: dict,
+                             chart_period: str = "6mo") -> bytes:
     """
     產生單一客戶的完整投資報表
 
@@ -425,6 +436,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W):
             ki_barrier=sn.get("ki_barrier"),
             strike_pct=sn.get("strike_pct"),
             width_mm=W / mm,
+            period=chart_period,
         )
         if chart_bytes:
             img_buf = io.BytesIO(chart_bytes)
