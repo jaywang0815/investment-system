@@ -5,28 +5,53 @@ from pathlib import Path
 
 
 def require_auth():
-    """Check session state + cookie. Sets authenticated=True and returns True if valid.
-    Calls st.stop() if not authenticated so the page shows nothing else."""
+    """Check session state + cookie. If not authenticated, show inline login form."""
     if st.session_state.get("authenticated"):
         return True
 
-    # Try to restore from cookie
+    _pw     = st.secrets.get("ADMIN_PASSWORD", "")
+    _hash   = st.secrets.get("ADMIN_PASSWORD_HASH", "")
+    _secret = st.secrets.get("COOKIE_SECRET", "inv2024secret")
+    src      = f"{_pw or _hash}:{_secret}"
+    expected = hashlib.sha256(src.encode()).hexdigest()[:24]
+
+    _cc = None
     try:
         from streamlit_cookies_controller import CookieController
         _cc = CookieController()
-        _pw   = st.secrets.get("ADMIN_PASSWORD", "")
-        _hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
-        _secret = st.secrets.get("COOKIE_SECRET", "inv2024secret")
-        src = f"{_pw or _hash}:{_secret}"
-        expected = hashlib.sha256(src.encode()).hexdigest()[:24]
-        if _cc.get("inv_auth") == expected:
+        cookie_val = _cc.get("inv_auth")
+
+        if cookie_val is None and not st.session_state.get("_auth_cookie_tried"):
+            # First render — JS not ready yet; rerun once so cookie loads
+            st.session_state["_auth_cookie_tried"] = True
+            st.rerun()
+
+        if cookie_val == expected:
             st.session_state.authenticated = True
+            st.session_state.pop("_auth_cookie_tried", None)
             return True
     except Exception:
         pass
 
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
+    # Show inline login form on this page (no redirect needed)
+    st.warning("請輸入密碼以繼續")
+    with st.form("inline_auth_form"):
+        pwd = st.text_input("密碼", type="password", placeholder="輸入密碼...")
+        submitted = st.form_submit_button("🔑 登入", use_container_width=True)
+
+    if submitted:
+        if pwd == (_pw or "") or hashlib.sha256(pwd.encode()).hexdigest() == _hash:
+            st.session_state.authenticated = True
+            st.session_state.pop("_auth_cookie_tried", None)
+            if _cc is not None:
+                try:
+                    _cc.set("inv_auth", expected, max_age=30 * 24 * 3600)
+                except Exception:
+                    pass
+            st.rerun()
+        else:
+            st.error("密碼錯誤")
+
     st.stop()
 
 def _img_b64(filename: str) -> str:
