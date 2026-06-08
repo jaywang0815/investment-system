@@ -7,6 +7,7 @@ LINE Bot Webhook Server - FastAPI
 import os
 import sys
 import io
+from io import BytesIO
 from typing import Optional
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
