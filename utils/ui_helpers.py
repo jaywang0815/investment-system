@@ -15,23 +15,25 @@ def require_auth():
     src      = f"{_pw or _hash}:{_secret}"
     expected = hashlib.sha256(src.encode()).hexdigest()[:24]
 
+    # Try cookie auth — keep rerun OUTSIDE try/except so it isn't swallowed
     _cc = None
+    cookie_val = None
     try:
         from streamlit_cookies_controller import CookieController
         _cc = CookieController()
         cookie_val = _cc.get("inv_auth")
-
-        if cookie_val is None and not st.session_state.get("_auth_cookie_tried"):
-            # First render — JS not ready yet; rerun once so cookie loads
-            st.session_state["_auth_cookie_tried"] = True
-            st.rerun()
-
-        if cookie_val == expected:
-            st.session_state.authenticated = True
-            st.session_state.pop("_auth_cookie_tried", None)
-            return True
     except Exception:
         pass
+
+    if cookie_val is None and not st.session_state.get("_auth_cookie_tried"):
+        # First render — JS not ready yet; rerun once so cookie loads
+        st.session_state["_auth_cookie_tried"] = True
+        st.rerun()
+
+    if cookie_val == expected:
+        st.session_state.authenticated = True
+        st.session_state.pop("_auth_cookie_tried", None)
+        return True
 
     # Show inline login form on this page (no redirect needed)
     st.warning("請輸入密碼以繼續")
