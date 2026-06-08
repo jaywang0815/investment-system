@@ -12,21 +12,9 @@ from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
 
 st.set_page_config(page_title="SN商品管理", page_icon="📊", layout="wide")
 
-def _is_logged_in():
-    if st.session_state.get("authenticated"):
-        return True
-    try:
-        return st.user.is_logged_in
-    except Exception:
-        return False
-
-if not _is_logged_in():
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
-    st.stop()
-
-from utils.ui_helpers import dog_header
+from utils.ui_helpers import dog_header, require_auth
 dog_header("SN商品管理")
+require_auth()
 
 tab1, tab2, tab3 = st.tabs(["📋 商品列表", "➕ 新增商品", "🔍 商品詳情"])
 

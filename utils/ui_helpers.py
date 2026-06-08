@@ -1,6 +1,33 @@
 import base64
+import hashlib
 import streamlit as st
 from pathlib import Path
+
+
+def require_auth():
+    """Check session state + cookie. Sets authenticated=True and returns True if valid.
+    Calls st.stop() if not authenticated so the page shows nothing else."""
+    if st.session_state.get("authenticated"):
+        return True
+
+    # Try to restore from cookie
+    try:
+        from streamlit_cookies_controller import CookieController
+        _cc = CookieController()
+        _pw   = st.secrets.get("ADMIN_PASSWORD", "")
+        _hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
+        _secret = st.secrets.get("COOKIE_SECRET", "inv2024secret")
+        src = f"{_pw or _hash}:{_secret}"
+        expected = hashlib.sha256(src.encode()).hexdigest()[:24]
+        if _cc.get("inv_auth") == expected:
+            st.session_state.authenticated = True
+            return True
+    except Exception:
+        pass
+
+    st.error("請先登入")
+    st.page_link("app.py", label="回到登入頁面", icon="🔑")
+    st.stop()
 
 def _img_b64(filename: str) -> str:
     p = Path(__file__).parent.parent / "assets" / filename

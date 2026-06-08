@@ -10,19 +10,6 @@ from utils.line_service import send_line_notify, build_daily_report, build_alert
 
 st.set_page_config(page_title="KO/KI警示", page_icon="⚠️", layout="wide")
 
-def _is_logged_in():
-    if st.session_state.get("authenticated"):
-        return True
-    try:
-        return st.user.is_logged_in
-    except Exception:
-        return False
-
-if not _is_logged_in():
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
-    st.stop()
-
 
 def _render_sn_alert(sn, analysis, prices):
     """渲染單一 SN 的警示詳情"""
@@ -72,8 +59,9 @@ def _render_sn_alert(sn, analysis, prices):
         st.dataframe(pd.DataFrame(detail_data), use_container_width=True, hide_index=True)
 
 
-from utils.ui_helpers import dog_header
+from utils.ui_helpers import dog_header, require_auth
 dog_header("KO KI警示")
+require_auth()
 
 # ── 資料載入 ──────────────────────────────────────────────────
 with st.spinner("載入商品資料..."):

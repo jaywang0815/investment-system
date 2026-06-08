@@ -13,21 +13,9 @@ from utils.stock_prices import get_prices, analyze_sn_status
 
 st.set_page_config(page_title="月份管理", page_icon="📅", layout="wide")
 
-def _is_logged_in():
-    if st.session_state.get("authenticated"):
-        return True
-    try:
-        return st.user.is_logged_in
-    except Exception:
-        return False
-
-if not _is_logged_in():
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
-    st.stop()
-
-from utils.ui_helpers import dog_header
+from utils.ui_helpers import dog_header, require_auth
 dog_header("月份管理")
+require_auth()
 st.caption("直接在這裡新增每月 SN 商品，不需要 Excel")
 
 # ── 初始化 session state ───────────────────────────────────────

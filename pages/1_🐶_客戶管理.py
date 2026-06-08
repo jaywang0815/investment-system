@@ -14,19 +14,6 @@ from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
 
 st.set_page_config(page_title="客戶管理", page_icon="👥", layout="wide")
 
-def _is_logged_in():
-    if st.session_state.get("authenticated"):
-        return True
-    try:
-        return st.user.is_logged_in
-    except Exception:
-        return False
-
-if not _is_logged_in():
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
-    st.stop()
-
 # ── Session state ──────────────────────────────────────────────
 if "show_add_form" not in st.session_state:
     st.session_state["show_add_form"] = False
@@ -34,8 +21,9 @@ if "selected_customer_id" not in st.session_state:
     st.session_state["selected_customer_id"] = None
 
 # ── Header ─────────────────────────────────────────────────────
-from utils.ui_helpers import dog_header
+from utils.ui_helpers import dog_header, require_auth
 dog_header("客戶管理")
+require_auth()
 
 customers_df = get_all_customers()
 

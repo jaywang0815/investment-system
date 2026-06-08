@@ -11,21 +11,9 @@ from utils.excel_parser import parse_excel_file, get_summary, is_sn_sheet, is_cu
 
 st.set_page_config(page_title="資料匯入", page_icon="📥", layout="wide")
 
-def _is_logged_in():
-    if st.session_state.get("authenticated"):
-        return True
-    try:
-        return st.user.is_logged_in
-    except Exception:
-        return False
-
-if not _is_logged_in():
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
-    st.stop()
-
-from utils.ui_helpers import dog_header
+from utils.ui_helpers import dog_header, require_auth
 dog_header("資料匯入")
+require_auth()
 st.caption("支援多個檔案同時匯入，自動識別月份")
 
 try:

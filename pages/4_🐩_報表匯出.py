@@ -15,21 +15,9 @@ from utils.excel_export import export_to_excel, sync_to_google_sheets, build_exc
 
 st.set_page_config(page_title="報表匯出", page_icon="📄", layout="wide")
 
-def _is_logged_in():
-    if st.session_state.get("authenticated"):
-        return True
-    try:
-        return st.user.is_logged_in
-    except Exception:
-        return False
-
-if not _is_logged_in():
-    st.error("請先登入")
-    st.page_link("app.py", label="回到登入頁面", icon="🔑")
-    st.stop()
-
-from utils.ui_helpers import dog_header
+from utils.ui_helpers import dog_header, require_auth
 dog_header("報表匯出")
+require_auth()
 
 tab1, tab2, tab3, tab4 = st.tabs(["📑 客戶PDF報表", "📊 Excel匯出", "🔗 Google試算表", "📜 歷史報表"])
 
