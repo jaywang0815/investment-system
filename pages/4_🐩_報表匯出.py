@@ -42,6 +42,7 @@ with tab1:
         "5年": "5y",
     }
 
+    chart_period = "6mo"
     col1, col2 = st.columns([2, 1])
     with col1:
         report_mode = st.radio("報表模式", ["單一客戶", "所有客戶 (批次)"], horizontal=True)
@@ -57,8 +58,7 @@ with tab1:
         st.markdown("**報表設定**")
         include_charts = st.checkbox("包含圖表說明", value=True)
         _period_label = st.selectbox("走勢圖區間", list(_period_map.keys()), index=1)
-
-    chart_period = _period_map[_period_label]
+        chart_period = _period_map[_period_label]
 
     st.markdown("---")
 
