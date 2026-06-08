@@ -761,43 +761,12 @@ def _download_line_content(message_id: str) -> bytes | None:
 
 
 def _process_file_event(reply_token: str, message_id: str, filename: str, user_id: str) -> None:
-    """Handle Excel file sent by user — parse, ask confirmation"""
-    if not filename.lower().endswith((".xlsx", ".xls")):
-        reply(reply_token, "只支援 Excel 格式喔（.xlsx / .xls）")
-        return
-
-    # Reply immediately so LINE knows we got it (reply_token expires in 30s)
-    reply(reply_token, "⏳ 收到了，讀取中...")
-
-    file_bytes = _download_line_content(message_id)
-    if not file_bytes:
-        _push_line(user_id, "❌ 下載失敗，麻煩再傳一次")
-        return
-
-    try:
-        from utils.excel_parser import parse_excel_file, get_summary
-        parsed = parse_excel_file(BytesIO(file_bytes))
-        summary = get_summary(parsed)
-    except Exception as _pe:
-        import traceback
-        print(f"[parse_excel error] {traceback.format_exc()}")
-        _push_line(user_id, f"❌ 讀不到檔案，錯誤：{_pe}")
-        return
-
-    _excel_cache[user_id] = file_bytes
-    _session_save(user_id, {"step": "excel_action", "summary": summary, "filename": filename})
-
-    months = summary.get("months", [])
-    month_str = "、".join(sorted(months)) if months else "（未偵測到）"
-
-    lines = ["✅ 收到 Excel 了，幫你看了一下：", ""]
-    if summary["customers"] > 0:
-        lines.append(f"・客戶資料：{summary['customers']} 位")
-    if summary["total_sns"] > 0:
-        lines.append(f"・SN商品：{summary['total_sns']} 筆")
-        lines.append(f"・月份：{month_str}")
-    lines += ["", "是要新增，還是更新已有的資料呢？", "1️⃣ 新增", "2️⃣ 更新（覆蓋舊資料）", "❌ 取消"]
-    _push_line(user_id, "\n".join(lines))
+    """Handle Excel file — redirect to web import (parsing on Render causes OOM on free tier)"""
+    reply(reply_token,
+          "收到 Excel 了！\n\n"
+          "伺服器記憶體有限，無法在這裡直接處理檔案。\n\n"
+          "📥 請到這裡上傳匯入：\nhttps://douuwork.streamlit.app/資料匯入\n\n"
+          "把同一個檔案上傳到「上傳並匯入」頁簽就可以了。")
 
 
 def _handle_excel_session(reply_token: str, text: str, user_id: str, session: dict) -> None:
