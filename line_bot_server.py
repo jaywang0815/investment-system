@@ -1299,7 +1299,7 @@ def _generate_and_send_excel(user_id: str) -> None:
             _push_line(user_id, "❌ 上傳失敗，請重試")
     except Exception as e:
         print(f"[generate_excel error] {e}")
-        _push_line(user_id, "❌ Excel 匯出失敗，請重試")
+        _push_line(user_id, f"❌ Excel 匯出失敗\n錯誤：{e}")
 
 
 def _upload_ppt(ppt_bytes: bytes, filename: str) -> str | None:
