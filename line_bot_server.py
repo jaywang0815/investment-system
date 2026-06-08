@@ -774,8 +774,10 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
         from utils.excel_parser import parse_excel_file, get_summary
         parsed = parse_excel_file(BytesIO(file_bytes))
         summary = get_summary(parsed)
-    except Exception:
-        reply(reply_token, "讀不到檔案，格式可能有問題，再試試看")
+    except Exception as _pe:
+        import traceback
+        print(f"[parse_excel error] {traceback.format_exc()}")
+        reply(reply_token, f"讀不到檔案，錯誤：{_pe}")
         return
 
     _excel_cache[user_id] = file_bytes

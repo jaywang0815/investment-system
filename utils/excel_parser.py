@@ -246,9 +246,9 @@ def parse_excel_file(file_source: Union[str, BytesIO]) -> dict:
         }
     """
     if isinstance(file_source, str):
-        wb = openpyxl.load_workbook(file_source)
+        wb = openpyxl.load_workbook(file_source, data_only=True, read_only=True)
     else:
-        wb = openpyxl.load_workbook(file_source)
+        wb = openpyxl.load_workbook(file_source, data_only=True, read_only=True)
 
     result = {
         "customers": [],
