@@ -1268,9 +1268,23 @@ def _push_line(user_id: str, text: str) -> None:
     )
 
 
+def _ensure_bucket(bucket: str) -> None:
+    """Create Supabase Storage bucket if it doesn't exist."""
+    try:
+        hdrs = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json"}
+        requests.post(f"{SUPABASE_URL}/storage/v1/bucket",
+                      headers=hdrs,
+                      json={"id": bucket, "name": bucket, "public": True},
+                      timeout=10)
+    except Exception:
+        pass
+
+
 def _upload_excel(excel_bytes: bytes, filename: str) -> str | None:
     """Upload Excel to Supabase Storage, return public URL or None."""
     try:
+        _ensure_bucket("excel-reports")
         url = f"{SUPABASE_URL}/storage/v1/object/excel-reports/{filename}"
         headers = {
             "apikey": SUPABASE_KEY,
@@ -1279,6 +1293,7 @@ def _upload_excel(excel_bytes: bytes, filename: str) -> str | None:
             "x-upsert": "true",
         }
         resp = requests.post(url, headers=headers, data=excel_bytes, timeout=60)
+        print(f"[upload_excel] status={resp.status_code} body={resp.text[:200]}")
         if resp.ok:
             return f"{SUPABASE_URL}/storage/v1/object/public/excel-reports/{filename}"
     except Exception as e:
@@ -1290,15 +1305,18 @@ def _generate_and_send_excel(user_id: str) -> None:
     """Style source_data.xlsx, upload to Supabase Storage, push download link."""
     try:
         from utils.excel_export import build_excel_bytes
+        print(f"[generate_excel] building for {user_id}")
         excel_bytes = build_excel_bytes()
+        print(f"[generate_excel] built {len(excel_bytes)} bytes")
         filename = f"export_{datetime.now(TW).strftime('%Y%m%d_%H%M%S')}.xlsx"
         pub_url = _upload_excel(excel_bytes, filename)
         if pub_url:
             _push_line(user_id, f"✅ Excel 已完成！\n\n⬇️ 點擊下載:\n{pub_url}")
         else:
-            _push_line(user_id, "❌ 上傳失敗，請重試")
+            _push_line(user_id, "❌ 上傳失敗，請重試\n（請確認 Supabase Storage 設定）")
     except Exception as e:
-        print(f"[generate_excel error] {e}")
+        import traceback
+        print(f"[generate_excel error] {traceback.format_exc()}")
         _push_line(user_id, f"❌ Excel 匯出失敗\n錯誤：{e}")
 
 
