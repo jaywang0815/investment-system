@@ -1268,54 +1268,41 @@ def _push_line(user_id: str, text: str) -> None:
     )
 
 
-def _ensure_bucket(bucket: str) -> None:
-    """Create Supabase Storage bucket if it doesn't exist."""
-    try:
-        hdrs = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "application/json"}
-        requests.post(f"{SUPABASE_URL}/storage/v1/bucket",
-                      headers=hdrs,
-                      json={"id": bucket, "name": bucket, "public": True},
-                      timeout=10)
-    except Exception:
-        pass
+_dl_store: dict[str, str] = {}  # token → /tmp filepath
 
 
-def _upload_excel(excel_bytes: bytes, filename: str) -> str | None:
-    """Upload Excel to Supabase Storage, return public URL or None."""
+@app.get("/dl/{token}")
+def download_file(token: str):
+    """Serve a temp-stored Excel file by token."""
+    path = _dl_store.get(token)
+    if not path:
+        raise HTTPException(status_code=404, detail="File not found or expired")
     try:
-        _ensure_bucket("excel-reports")
-        url = f"{SUPABASE_URL}/storage/v1/object/excel-reports/{filename}"
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "x-upsert": "true",
-        }
-        resp = requests.post(url, headers=headers, data=excel_bytes, timeout=60)
-        print(f"[upload_excel] status={resp.status_code} body={resp.text[:200]}")
-        if resp.ok:
-            return f"{SUPABASE_URL}/storage/v1/object/public/excel-reports/{filename}"
-    except Exception as e:
-        print(f"[upload_excel error] {e}")
-    return None
+        with open(path, "rb") as f:
+            data = f.read()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found or expired")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=export.xlsx"},
+    )
 
 
 def _generate_and_send_excel(user_id: str) -> None:
-    """Style source_data.xlsx, upload to Supabase Storage, push download link."""
+    """Generate styled Excel, save to /tmp, push download link."""
+    import uuid, tempfile, os, traceback
     try:
         from utils.excel_export import build_excel_bytes
-        print(f"[generate_excel] building for {user_id}")
         excel_bytes = build_excel_bytes()
-        print(f"[generate_excel] built {len(excel_bytes)} bytes")
-        filename = f"export_{datetime.now(TW).strftime('%Y%m%d_%H%M%S')}.xlsx"
-        pub_url = _upload_excel(excel_bytes, filename)
-        if pub_url:
-            _push_line(user_id, f"✅ Excel 已完成！\n\n⬇️ 點擊下載:\n{pub_url}")
-        else:
-            _push_line(user_id, "❌ 上傳失敗，請重試\n（請確認 Supabase Storage 設定）")
+        token = uuid.uuid4().hex[:12]
+        path = os.path.join(tempfile.gettempdir(), f"excel_{token}.xlsx")
+        with open(path, "wb") as f:
+            f.write(excel_bytes)
+        _dl_store[token] = path
+        url = f"{BASE_URL}/dl/{token}"
+        _push_line(user_id, f"✅ Excel 已完成！\n\n⬇️ 點擊下載:\n{url}\n\n（連結有效至伺服器重啟）")
     except Exception as e:
-        import traceback
         print(f"[generate_excel error] {traceback.format_exc()}")
         _push_line(user_id, f"❌ Excel 匯出失敗\n錯誤：{e}")
 
