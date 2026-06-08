@@ -834,7 +834,7 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
         file_bytes = _excel_cache.get(user_id)
         if not file_bytes:
             _session_clear(user_id)
-        reply(reply_token, "快取過期了，麻煩重新傳一次 Excel")
+            reply(reply_token, "快取過期了，麻煩重新傳一次 Excel")
             return
 
         action = session.get("action", "new")
