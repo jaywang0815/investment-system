@@ -766,9 +766,12 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
         reply(reply_token, "只支援 Excel 格式喔（.xlsx / .xls）")
         return
 
+    # Reply immediately so LINE knows we got it (reply_token expires in 30s)
+    reply(reply_token, "⏳ 收到了，讀取中...")
+
     file_bytes = _download_line_content(message_id)
     if not file_bytes:
-        reply(reply_token, "下載失敗，麻煩再傳一次")
+        _push_line(user_id, "❌ 下載失敗，麻煩再傳一次")
         return
 
     try:
@@ -778,7 +781,7 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
     except Exception as _pe:
         import traceback
         print(f"[parse_excel error] {traceback.format_exc()}")
-        reply(reply_token, f"讀不到檔案，錯誤：{_pe}")
+        _push_line(user_id, f"❌ 讀不到檔案，錯誤：{_pe}")
         return
 
     _excel_cache[user_id] = file_bytes
@@ -794,7 +797,7 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
         lines.append(f"・SN商品：{summary['total_sns']} 筆")
         lines.append(f"・月份：{month_str}")
     lines += ["", "是要新增，還是更新已有的資料呢？", "1️⃣ 新增", "2️⃣ 更新（覆蓋舊資料）", "❌ 取消"]
-    reply(reply_token, "\n".join(lines))
+    _push_line(user_id, "\n".join(lines))
 
 
 def _handle_excel_session(reply_token: str, text: str, user_id: str, session: dict) -> None:
