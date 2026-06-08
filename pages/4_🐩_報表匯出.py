@@ -44,9 +44,18 @@ with tab1:
         st.info("尚無客戶資料")
         st.stop()
 
+    today_str = date.today().strftime("%Y%m%d")
+    _period_map = {
+        "3個月": "3mo", "6個月": "6mo",
+        "1年": "1y", "1年半": "18mo",
+        "2年": "2y", "2年半": "2y6mo",
+        "3年": "3y", "3年半": "3y6mo",
+        "4年": "4y", "4年半": "4y6mo",
+        "5年": "5y",
+    }
+
     col1, col2 = st.columns([2, 1])
     with col1:
-        # 選擇客戶 (單一或全部)
         report_mode = st.radio("報表模式", ["單一客戶", "所有客戶 (批次)"], horizontal=True)
 
         if report_mode == "單一客戶":
@@ -59,17 +68,9 @@ with tab1:
     with col2:
         st.markdown("**報表設定**")
         include_charts = st.checkbox("包含圖表說明", value=True)
-        today_str = date.today().strftime("%Y%m%d")
-        _period_map = {
-            "3個月": "3mo", "6個月": "6mo",
-            "1年": "1y", "1年半": "18mo",
-            "2年": "2y", "2年半": "2y6mo",
-            "3年": "3y", "3年半": "3y6mo",
-            "4年": "4y", "4年半": "4y6mo",
-            "5年": "5y",
-        }
         _period_label = st.selectbox("走勢圖區間", list(_period_map.keys()), index=1)
-        chart_period = _period_map[_period_label]
+
+    chart_period = _period_map[_period_label]
 
     st.markdown("---")
 
