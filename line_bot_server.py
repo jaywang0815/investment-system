@@ -762,12 +762,12 @@ def _download_line_content(message_id: str) -> bytes | None:
 def _process_file_event(reply_token: str, message_id: str, filename: str, user_id: str) -> None:
     """Handle Excel file sent by user — parse, ask confirmation"""
     if not filename.lower().endswith((".xlsx", ".xls")):
-        reply(reply_token, "寶寶～ 只支援 Excel 檔案喔（.xlsx / .xls）😊")
+        reply(reply_token, "只支援 Excel 檔案（.xlsx / .xls）")
         return
 
     file_bytes = _download_line_content(message_id)
     if not file_bytes:
-        reply(reply_token, "寶寶～ 下載檔案失敗了，再傳一次好嗎？😢")
+        reply(reply_token, "下載檔案失敗，請再傳一次")
         return
 
     try:
@@ -775,7 +775,7 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
         parsed = parse_excel_file(BytesIO(file_bytes))
         summary = get_summary(parsed)
     except Exception:
-        reply(reply_token, "寶寶～ 讀取檔案失敗了耶 😢\n格式不對嗎？")
+        reply(reply_token, "讀取檔案失敗，格式不符或檔案損壞")
         return
 
     _excel_cache[user_id] = file_bytes
@@ -784,7 +784,7 @@ def _process_file_event(reply_token: str, message_id: str, filename: str, user_i
     months = summary.get("months", [])
     month_str = "、".join(sorted(months)) if months else "（未偵測到）"
 
-    lines = ["寶寶～ 收到檔案了！✨", "幫你看了一下：", ""]
+    lines = ["✅ 收到檔案，幫你看了一下：", ""]
     if summary["customers"] > 0:
         lines.append(f"・客戶資料：{summary['customers']} 位")
     if summary["total_sns"] > 0:
@@ -802,7 +802,7 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
     if text in ["❌", "取消", "cancel", "Cancel", "不", "不要"]:
         _session_clear(user_id)
         _excel_cache.pop(user_id, None)
-        reply(reply_token, "寶寶～ 取消囉，沒關係的～ 😊")
+        reply(reply_token, "已取消")
         return
 
     if step == "excel_action":
@@ -811,14 +811,14 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
         elif text in ["2", "2️⃣", "更新", "覆蓋", "更新（覆蓋舊資料）"]:
             action, action_label = "update", "更新（覆蓋舊資料）"
         else:
-            reply(reply_token, "寶寶～ 請選 1️⃣ 新增 或 2️⃣ 更新 喔～")
+            reply(reply_token, "請選 1️⃣ 新增 或 2️⃣ 更新")
             return
 
         months = summary.get("months", [])
         month_str = "、".join(sorted(months)) if months else "（未偵測到）"
         _session_save(user_id, {**session, "step": "excel_final", "action": action, "action_label": action_label})
 
-        lines = ["寶寶確認一下～ 👀", "", f"動作：{action_label}"]
+        lines = ["請確認以下操作：", "", f"動作：{action_label}"]
         if summary.get("total_sns", 0) > 0:
             lines.append(f"SN商品：{summary['total_sns']} 筆（{month_str}）")
         if summary.get("customers", 0) > 0:
@@ -828,18 +828,18 @@ def _handle_excel_session(reply_token: str, text: str, user_id: str, session: di
 
     elif step == "excel_final":
         if text not in ["✅", "確認", "ok", "OK", "是", "確定", "好"]:
-            reply(reply_token, "寶寶～ 請回覆 ✅ 確認 或 ❌ 取消 喔！")
+            reply(reply_token, "請回覆 ✅ 確認 或 ❌ 取消")
             return
 
         file_bytes = _excel_cache.get(user_id)
         if not file_bytes:
             _session_clear(user_id)
-            reply(reply_token, "寶寶～ 檔案快取過期了，請重新傳送 Excel 喔 😢")
+            reply(reply_token, "檔案快取已過期，請重新傳送 Excel")
             return
 
         action = session.get("action", "new")
         _session_clear(user_id)
-        reply(reply_token, "寶寶～ 開始匯入了！稍等一下喔 ⏳")
+        reply(reply_token, "⏳ 開始匯入，稍等一下...")
         _do_excel_import(user_id, file_bytes, action)
 
 
@@ -907,7 +907,7 @@ def _do_excel_import(user_id: str, file_bytes: bytes, action: str) -> None:
                 if customer_id:
                     sb_post("investments", {"customer_id": customer_id, "sn_id": sn_id, "amount_usd": amount})
 
-        lines = ["✅ 匯入完成！寶寶辛苦了～ 🎉", ""]
+        lines = ["✅ 匯入完成！", ""]
         if total_customers > 0:
             lines.append(f"新增客戶：{total_customers} 位")
         if total_sns > 0:
