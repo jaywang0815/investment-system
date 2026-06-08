@@ -360,7 +360,7 @@ def _draw_hlines(ax, hlines: dict, n: int) -> None:
         txt_kw = dict(va="bottom", ha="right",
                       color="#222222", fontsize=10, fontweight="bold", zorder=6,
                       bbox=dict(facecolor=color, edgecolor=color,
-                                alpha=0.55, boxstyle="round,pad=0.3", linewidth=0))
+                                alpha=0.25, boxstyle="round,pad=0.3", linewidth=0))
         if fp:
             txt_kw["fontproperties"] = fp
         ax.text(n - 1, float(price), f" {label}  ${float(price):,.2f} ", **txt_kw)
