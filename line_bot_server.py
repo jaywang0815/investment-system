@@ -1684,10 +1684,9 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
             _handle_new_customer(reply_token, text, user_id, _nc)
             return
 
-        # ── Excel export (background) ────────────────────────
+        # ── Excel export — send web URL directly ────────────────────────
         if text in ["匯出", "excel", "Excel", "匯出Excel", "匯出excel", "導出"]:
-            reply(reply_token, "⏳ 產生中，完成後會傳連結給你...")
-            _generate_and_send_excel(user_id)
+            reply(reply_token, "⬇️ 點這裡下載 Excel：\nhttps://douuwork.streamlit.app/報表匯出\n\n進去後切換到「Excel匯出」頁簽即可下載。")
             return
 
         # ── คำสั่งปกติ ──────────────────────────────────────────
