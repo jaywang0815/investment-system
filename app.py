@@ -698,7 +698,8 @@ if "admin_name" not in st.session_state:
         st.session_state["admin_name"] = "Douu小幫手"
 _admin_name = st.session_state["admin_name"]
 
-_now = datetime.now()
+from zoneinfo import ZoneInfo
+_now = datetime.now(ZoneInfo("Asia/Taipei"))   # 伺服器在 UTC，固定用台北時間顯示
 _wd = ["一","二","三","四","五","六","日"][_now.weekday()]
 _date_str = _now.strftime(f"%Y年%m月%d日 · 週{_wd}")
 _time_str = _now.strftime("%H:%M")
@@ -756,7 +757,7 @@ with c3:
 with c4:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #8B5CF6;">
       <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;">{_IC_CALENDAR}</div>
-      <div class="scard-val" style="color:#7C3AED;font-size:1.45rem;">{date.today().strftime("%m/%d")}</div>
+      <div class="scard-val" style="color:#7C3AED;font-size:1.45rem;">{_now.strftime("%m/%d")}</div>
       <div class="scard-label">今日日期</div>
     </div>""", unsafe_allow_html=True)
 
@@ -813,7 +814,7 @@ with col_right:
 
     sns_df2 = get_all_sns(status="active")
     if not sns_df2.empty and "observation_date" in sns_df2.columns:
-        today = date.today()
+        today = _now.date()
         upcoming = sns_df2[
             pd.to_datetime(sns_df2["observation_date"]).dt.date >= today
         ].sort_values("observation_date").head(8)
