@@ -3,15 +3,22 @@
 """
 import streamlit as st
 import yfinance as yf
+import unicodedata
 from typing import Optional
 from datetime import datetime, date
 import pandas as pd
+
+
+def clean_ticker(t: str) -> str:
+    """全形 → 半形, 去除 $ 前綴 (DB 內 ticker 可能含全形字或 $)"""
+    return unicodedata.normalize("NFKC", str(t)).lstrip("$").strip().upper()
+
 
 @st.cache_data(ttl=300)  # 快取 5 分鐘
 def get_price(ticker: str) -> Optional[float]:
     """取得單一股票現價"""
     try:
-        ticker = ticker.strip().upper()
+        ticker = clean_ticker(ticker)
         stock = yf.Ticker(ticker)
         info = stock.fast_info
         price = info.last_price
@@ -22,7 +29,7 @@ def get_price(ticker: str) -> Optional[float]:
 @st.cache_data(ttl=300)
 def get_prices(tickers: list) -> dict:
     """批次取得多個股票現價"""
-    tickers = [t.strip().upper() for t in tickers if t and isinstance(t, str)]
+    tickers = [clean_ticker(t) for t in tickers if t and isinstance(t, str)]
     prices = {}
     if not tickers:
         return prices
@@ -52,7 +59,7 @@ def get_sn_underlyings(sn: dict) -> list:
         initial_price = sn.get(f"initial_price_{i}")
         if ticker and isinstance(ticker, str) and ticker.strip():
             underlyings.append({
-                "ticker": ticker.strip().upper(),
+                "ticker": clean_ticker(ticker),
                 "initial_price": float(initial_price) if initial_price else None
             })
     return underlyings
@@ -166,5 +173,5 @@ def get_all_tickers_for_active_sns(sns_df: pd.DataFrame) -> list:
         for i in range(1, 6):
             t = row.get(f"underlying_{i}")
             if t and isinstance(t, str) and t.strip():
-                tickers.add(t.strip().upper())
+                tickers.add(clean_ticker(t))
     return list(tickers)

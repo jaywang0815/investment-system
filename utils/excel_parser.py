@@ -149,7 +149,8 @@ def parse_sn_sheet(ws, month_label: str) -> list:
             for j in range(2, 7):
                 val = row[j] if len(row) > j else None
                 if val and isinstance(val, str) and val.strip():
-                    underlyings.append(val.strip().upper())
+                    # clean_code: 全形 → 半形; lstrip $ 前綴, 統一大寫
+                    underlyings.append(clean_code(val).strip().lstrip("$").upper())
                 else:
                     underlyings.append(None)
 
