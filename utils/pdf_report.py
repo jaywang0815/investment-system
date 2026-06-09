@@ -41,12 +41,13 @@ _font_registered = _register_font()
 FONT = "ChineseFont" if _font_registered else "Helvetica"
 FONT_BOLD = "ChineseFontBold" if _font_registered else "Helvetica-Bold"
 
-# ── 顏色 ──────────────────────────────────────────────────
-BLUE_DARK  = colors.HexColor("#1E3A8A")
-BLUE_MID   = colors.HexColor("#3B82F6")
-BLUE_LIGHT = colors.HexColor("#EFF6FF")
+# ── 顏色 (整份報表的主題色，改這裡即可換色) ──────────────────
+# 主色改為深綠/藍綠，與圖表一致、更現代 (原本是深藍 #1E3A8A 顯老氣)
+BLUE_DARK  = colors.HexColor("#0F766E")   # 主色 — 標題/表頭/區塊標題 (deep teal)
+BLUE_MID   = colors.HexColor("#15A34A")   # 強調綠
+BLUE_LIGHT = colors.HexColor("#ECFDF5")   # 淺色底 (標籤格/淺列) — light mint
 GRAY       = colors.HexColor("#64748B")
-GRAY_LIGHT = colors.HexColor("#F1F5F9")
+GRAY_LIGHT = colors.HexColor("#F6F8F7")   # 斑馬列中性灰
 RED        = colors.HexColor("#DC2626")
 GREEN      = colors.HexColor("#16A34A")
 ORANGE     = colors.HexColor("#EA580C")
