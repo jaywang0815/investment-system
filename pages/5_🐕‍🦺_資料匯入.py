@@ -8,6 +8,8 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from utils.excel_parser import parse_excel_file, get_summary, is_sn_sheet, is_customer_sheet
+from utils.customer_match import match_customer
+from utils.import_validator import validate_parsed
 
 st.set_page_config(page_title="資料匯入", page_icon="📥", layout="wide")
 
@@ -157,12 +159,10 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                         amount = inv["amount_usd"]
                         customer_id = existing_customers.get(cname)
                         if not customer_id:
-                            name_clean = cname.replace("*", "").replace("＊", "").strip()
-                            for k, v in existing_customers.items():
-                                if name_clean in k.replace("*","").replace("＊","").strip() or \
-                                   k.replace("*","").replace("＊","").strip() in name_clean:
-                                    customer_id = v
-                                    break
+                            # 遮罩名/全名比對 → 連到既有客戶，避免重複建立 (黃＊維 → 黃信維)
+                            r = match_customer(cname, list(existing_customers.keys()))
+                            if r["match"]:
+                                customer_id = existing_customers.get(r["match"])
                         if not customer_id:
                             try:
                                 resp = sb.table("customers").insert({"name": cname}).execute()
@@ -212,6 +212,7 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
     st.session_state.pop("parsed_data", None)
     st.session_state.pop("parsed_data_list", None)
     st.session_state.pop("use_existing", None)
+    st.session_state.pop("import_issues", None)
 
 
 # ── ปุ่ม UNDO (แสดงเมื่อมี snapshot) ─────────────────────────
@@ -374,6 +375,46 @@ with tab1:
 
             st.markdown("---")
 
+        # ── 資料健檢 ────────────────────────────────────────────
+        st.markdown("### 🔍 資料健檢 (匯入前檢查)")
+
+        # 候選客戶全名 = DB 既有 + 本次檔案 開戶 sheet 的全名
+        candidate_names = []
+        if DB_READY:
+            try:
+                candidate_names = [c["name"] for c in (sb.table("customers").select("name").execute().data or [])]
+            except Exception:
+                pass
+        for _p in parsed_list:
+            candidate_names += [c["name"] for c in _p.get("customers", [])]
+        candidate_names = list(dict.fromkeys(candidate_names))
+
+        check_prices = st.checkbox(
+            "同時比對股價 (抓期初價填錯，較慢 — 會連線 Yahoo)", value=False
+        )
+        if st.button("執行健檢", use_container_width=True):
+            all_issues = []
+            with st.spinner("檢查中..."):
+                for _p in parsed_list:
+                    all_issues += validate_parsed(_p, candidate_names, check_prices=check_prices)
+            st.session_state["import_issues"] = all_issues
+
+        issues = st.session_state.get("import_issues")
+        if issues is not None:
+            errs = [i for i in issues if i["level"] == "error"]
+            warns = [i for i in issues if i["level"] == "warn"]
+            if not issues:
+                st.success("✅ 健檢通過，未發現問題")
+            else:
+                if errs:
+                    st.error(f"🔴 {len(errs)} 個錯誤 (建議修正 Excel 後重新上傳)")
+                    for i in errs:
+                        st.markdown(f"- **{i['code']}** [{i['field']}] {i['msg']}")
+                if warns:
+                    st.warning(f"🟡 {len(warns)} 個提醒 (可確認後仍繼續匯入)")
+                    for i in warns:
+                        st.markdown(f"- **{i['code']}** [{i['field']}] {i['msg']}")
+
         # ── 匯入按鈕 ────────────────────────────────────────────
         st.markdown("### ▶️ 開始匯入")
 
@@ -455,6 +496,27 @@ with tab2:
         import io
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.worksheet.datavalidation import DataValidation
+
+        # 取得既有客戶全名 + 標的清單，做成下拉選項
+        known_tickers = sorted({"NVDA","TSLA","TSM","ANET","AMD","INTC","AVGO","MSFT","ORCL",
+                                "MU","GOOG","CRCL","LITE","COHR","QQQ","SPY","SMH","SOXX","IBB",
+                                "AAPL","AMZN","META"})
+        known_customers = []
+        if DB_READY:
+            try:
+                rows = sb.table("structured_notes").select(
+                    "underlying_1,underlying_2,underlying_3,underlying_4,underlying_5").execute().data or []
+                for r in rows:
+                    for i in range(1, 6):
+                        t = r.get(f"underlying_{i}")
+                        if t and isinstance(t, str):
+                            known_tickers.append(t.strip().upper())
+                known_tickers = sorted(set(known_tickers))
+                known_customers = sorted({c["name"] for c in
+                    (sb.table("customers").select("name").execute().data or []) if c.get("name")})
+            except Exception:
+                pass
 
         wb_template = openpyxl.Workbook()
 
@@ -464,10 +526,17 @@ with tab2:
         headers_c = ["戶名", "統一開戶", "ＰＩ見簽", "已下單", "ＵＳＤ", "中信部位", "FUND"]
         for j, h in enumerate(headers_c, 1):
             cell = ws_c.cell(row=1, column=j, value=h)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill("solid", fgColor="1E3A8A")
             cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="1E3A8A")
         ws_c.append(["範例客戶", "Ｖ", "Ｖ", "Ｖ", 500000, None, None])
+
+        # 選項 Sheet (下拉來源) — A欄=標的, B欄=客戶全名
+        ws_opt = wb_template.create_sheet("選項")
+        ws_opt["A1"] = "標的清單"; ws_opt["B1"] = "客戶全名"
+        for idx, t in enumerate(known_tickers, start=2):
+            ws_opt.cell(row=idx, column=1, value=t)
+        for idx, cn in enumerate(known_customers, start=2):
+            ws_opt.cell(row=idx, column=2, value=cn)
 
         # SN Sheet 範本
         ws_sn = wb_template.create_sheet("ＳＮ6月")
@@ -485,6 +554,15 @@ with tab2:
                        None, None, None, None, None, None, None, None, None])
         ws_sn.append(["客戶姓名", 200000, None, None, None, None, None,
                        None, None, None, None, None, None, None, None, None])
+
+        # 標的1-5 (C-G欄) 加下拉驗證，來源 = 選項!A欄
+        n_tk = max(len(known_tickers) + 1, 2)
+        dv = DataValidation(type="list", formula1=f"=選項!$A$2:$A${n_tk}", allow_blank=True)
+        dv.error = "請從清單選擇標的，或於選項sheet新增"
+        dv.errorTitle = "標的不在清單"
+        ws_sn.add_data_validation(dv)
+        for colL in ["C", "D", "E", "F", "G"]:
+            dv.add(f"{colL}2:{colL}200")
 
         buf = io.BytesIO()
         wb_template.save(buf)

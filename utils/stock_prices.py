@@ -26,6 +26,24 @@ def get_price(ticker: str) -> Optional[float]:
     except Exception:
         return None
 
+@st.cache_data(ttl=3600)
+def get_price_on(ticker: str, trade_date: str) -> Optional[float]:
+    """取得某交易日(或最接近的下一個交易日)的收盤價 — 用於自動帶入期初價"""
+    try:
+        from datetime import datetime, timedelta
+        t = clean_ticker(ticker)
+        d = datetime.strptime(str(trade_date)[:10], "%Y-%m-%d")
+        hist = yf.Ticker(t).history(
+            start=d.strftime("%Y-%m-%d"),
+            end=(d + timedelta(days=6)).strftime("%Y-%m-%d"),
+        )
+        if hist is None or hist.empty:
+            return None
+        return round(float(hist["Close"].iloc[0]), 2)
+    except Exception:
+        return None
+
+
 @st.cache_data(ttl=300)
 def get_prices(tickers: list) -> dict:
     """批次取得多個股票現價"""
