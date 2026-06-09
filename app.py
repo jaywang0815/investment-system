@@ -396,8 +396,19 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 # ถ้า cookie ยังดี → ข้ามหน้า login ไปเลย
-if _cookie_available and not st.session_state.authenticated and _cookie_ok():
-    st.session_state.authenticated = True
+# (รอบแรกของ session ใหม่ cookie ยังโหลดไม่ทัน → rerun หนึ่งครั้งให้ JS ส่ง cookie มาก่อน
+#  ไม่งั้นจะเด้งหน้า PIN ทั้งที่ยังจำ login อยู่)
+if _cookie_available and not st.session_state.authenticated:
+    try:
+        _cv = _cc.get("inv_auth")
+    except Exception:
+        _cv = None
+    if _cv == _cookie_token():
+        st.session_state.authenticated = True
+        st.session_state.pop("_auth_cookie_tried", None)
+    elif _cv is None and not st.session_state.get("_auth_cookie_tried"):
+        st.session_state["_auth_cookie_tried"] = True
+        st.rerun()
 
 # 已登入 → 繼續
 _google_logged_in = False
