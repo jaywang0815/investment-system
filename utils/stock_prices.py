@@ -26,6 +26,44 @@ def get_price(ticker: str) -> Optional[float]:
     except Exception:
         return None
 
+_BASE_TICKERS = {
+    "NVDA","TSLA","TSM","ANET","AMD","INTC","AVGO","MSFT","ORCL","MU","GOOG","GOOGL",
+    "CRCL","LITE","COHR","QQQ","SPY","SMH","SOXX","IBB","AAPL","AMZN","META","NFLX",
+}
+
+
+@st.cache_data(ttl=86400)  # 一天刷新一次
+def get_symbol_universe() -> list:
+    """美股 + ETF 全部代號清單 (NASDAQ Trader symbol directory)，供下拉選擇。
+    連線失敗時回傳常用代號。"""
+    import urllib.request
+    syms = set(_BASE_TICKERS)
+    # (url, symbol_col_index, test_issue_col_index)
+    sources = [
+        ("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", 0, 3),
+        ("https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt", 0, 6),
+    ]
+    for url, si, ti in sources:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                text = resp.read().decode("utf-8", "ignore")
+            for line in text.splitlines()[1:]:
+                if line.startswith("File Creation Time"):
+                    continue
+                parts = line.split("|")
+                if len(parts) <= max(si, ti):
+                    continue
+                sym = parts[si].strip().upper()
+                if parts[ti].strip() == "Y":          # 跳過 Test Issue
+                    continue
+                if sym and sym.isalpha() and len(sym) <= 5:
+                    syms.add(sym)
+        except Exception:
+            pass
+    return sorted(syms)
+
+
 @st.cache_data(ttl=3600)
 def get_price_on(ticker: str, trade_date: str) -> Optional[float]:
     """取得某交易日(或最接近的下一個交易日)的收盤價 — 用於自動帶入期初價"""

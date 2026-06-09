@@ -141,14 +141,30 @@ with tab1:
 # Tab 2: 新增 SN 商品
 # ──────────────────────────────────────────────────────────────
 with tab2:
-    st.subheader("新增結構型商品")
-    st.caption("標的用下拉選擇 (避免打錯/全形)，填好交易日可一鍵自動帶入期初價")
+    # ── 乾淨、現代的版面樣式 ───────────────────────────────────
+    st.markdown("""
+    <style>
+      .sn-sec{font-size:14px;font-weight:700;color:#1E3A8A;letter-spacing:.3px;
+              margin:22px 0 10px;padding-left:10px;border-left:4px solid #1E3A8A;}
+      .sn-tk{font-size:19px;font-weight:800;color:#1E3A8A;text-align:center;
+             margin:2px 0 -4px;min-height:24px;line-height:1.2;}
+      .sn-tk-empty{font-size:12px;color:#cbd5e1;text-align:center;
+                   margin:2px 0 -4px;min-height:24px;}
+      div[data-testid="stNumberInput"] input,
+      div[data-testid="stTextInput"] input{border-radius:8px;}
+      div[data-baseweb="select"]>div{border-radius:8px;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("#### 新增結構型商品")
+    st.caption("欄位順序與 Excel 相同；標的可從清單選擇 (全美股+ETF) 或自訂，填好交易日可一鍵帶入期初價")
 
     NEW_TICKER = "➕ 自訂…"
 
     @st.cache_data(ttl=600)
     def _known_tickers():
-        s = set()
+        from utils.stock_prices import get_symbol_universe
+        s = set(get_symbol_universe())
         try:
             from utils.database import get_supabase
             sb = get_supabase()
@@ -162,9 +178,7 @@ with tab2:
                         s.add(clean_ticker(t))
         except Exception:
             pass
-        base = {"NVDA","TSLA","TSM","ANET","AMD","INTC","AVGO","MSFT","ORCL","MU",
-                "GOOG","CRCL","LITE","COHR","QQQ","SPY","SMH","SOXX","IBB","AAPL","AMZN","META"}
-        return sorted(s | base)
+        return sorted(s)
 
     known = _known_tickers()
 
@@ -183,76 +197,113 @@ with tab2:
                 if pr is not None:
                     st.session_state[f"p{i}"] = float(pr)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        product_code = st.text_input("商品代號 *", placeholder="例: EQDS05027345", key="f_code")
-        trade_date = st.date_input("交易日期", value=date.today(), key="f_trade")
-        observation_date = st.date_input("比價日期 (觀察日)", key="f_obs")
+    # ── 基本資料 (日期 / 代號 / 比價 / 月份) ──────────────────────
+    st.markdown('<div class="sn-sec">基本資料</div>', unsafe_allow_html=True)
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        trade_date = st.date_input("日期 (交易日)", value=date.today(), key="f_trade")
+    with b2:
+        product_code = st.text_input("代號 *", placeholder="EQDS05027345", key="f_code")
+    with b3:
+        observation_date = st.date_input("比價 (觀察日)", key="f_obs")
+    with b4:
         month_label = st.selectbox("所屬月份",
             ["5月","6月","7月","8月","9月","10月","11月","12月","1月","2月","3月","4月"], key="f_month")
-    with col2:
-        strike_pct = st.number_input("執行價格 (%)", min_value=0.0, max_value=200.0,
-                                      value=80.0, step=0.5, key="f_strike",
-                                      help="例如填 80 表示期初價格的 80%")
-        coupon_pct = st.number_input("配息率 (% 年化)", min_value=0.0, max_value=200.0,
-                                      value=15.0, step=0.5, key="f_coupon")
-        ko_barrier = st.number_input("KO 水位 (%)", min_value=0.0, max_value=200.0,
-                                      value=100.0, step=1.0, key="f_ko",
-                                      help="填 0 表示無 KO 條件")
-        ki_barrier = st.number_input("KI 水位 (%)", min_value=0.0, max_value=200.0,
-                                      value=0.0, step=1.0, key="f_ki",
-                                      help="填 0 表示無 KI 條件")
 
-    st.markdown("**標的股票 (下拉選擇，最多5個)**")
+    # ── 標的股票 (標的1-5 + 期初價) ─────────────────────────────
+    st.markdown('<div class="sn-sec">標的股票 (最多 5 檔，可日後再補)</div>', unsafe_allow_html=True)
     cols_u = st.columns(5)
     for i, col in enumerate(cols_u, 1):
         with col:
             sel = st.selectbox(f"標的{i}", [""] + known + [NEW_TICKER], key=f"sel{i}")
             if sel == NEW_TICKER:
-                st.text_input(f"自訂代號{i}", key=f"cust{i}", placeholder="e.g. PLTR")
-            st.number_input(f"期初價{i}", min_value=0.0, step=0.01, format="%.2f", key=f"p{i}")
-
+                st.text_input("自訂代號", key=f"cust{i}", placeholder="e.g. PLTR",
+                              label_visibility="collapsed")
+            tk = _picked(i)
+            if tk:
+                st.markdown(f'<div class="sn-tk">{tk}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="sn-tk-empty">—</div>', unsafe_allow_html=True)
+            st.number_input("期初價", min_value=0.0, step=0.01, format="%.2f", key=f"p{i}")
     st.button("📥 依交易日自動帶入期初價", on_click=_autofill_prices, use_container_width=True)
 
-    total_order = st.number_input("總下單金額 (USD)", min_value=0, step=10000, value=0, key="f_order")
+    # ── 商品條件 (執行價 / 配息 / KO / KI) ───────────────────────
+    st.markdown('<div class="sn-sec">商品條件</div>', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        strike_pct = st.number_input("執行價 (%)", min_value=0.0, max_value=200.0,
+                                      value=80.0, step=0.5, key="f_strike")
+    with c2:
+        coupon_pct = st.number_input("配息 (%)", min_value=0.0, max_value=200.0,
+                                      value=15.0, step=0.5, key="f_coupon")
+    with c3:
+        ko_barrier = st.number_input("KO提前 (%)", min_value=0.0, max_value=200.0,
+                                      value=100.0, step=1.0, key="f_ko", help="填 0 表示無 KO")
+    with c4:
+        ki_barrier = st.number_input("KI下限 (%)", min_value=0.0, max_value=200.0,
+                                      value=0.0, step=1.0, key="f_ki", help="填 0 表示無 KI")
 
-    if st.button("➕ 新增商品", type="primary"):
+    # ── 其他 (出場 / 暫結 / CHU / 下單金) ───────────────────────
+    st.markdown('<div class="sn-sec">其他 (選填)</div>', unsafe_allow_html=True)
+    o1, o2, o3, o4 = st.columns(4)
+    with o1:
+        has_exit = st.checkbox("有出場日", key="f_has_exit")
+        exit_date = st.date_input("出場日", key="f_exit") if has_exit else None
+    with o2:
+        temp_settlement = st.number_input("暫結", min_value=0.0, step=1000.0,
+                                           value=0.0, format="%.0f", key="f_temp")
+    with o3:
+        chu = st.text_input("CHU", key="f_chu", placeholder="—")
+    with o4:
+        total_order = st.number_input("下單金 (USD)", min_value=0, step=10000, value=0, key="f_order")
+
+    st.markdown("")
+    if st.button("➕ 新增商品", type="primary", use_container_width=True):
         underlyings = [_picked(i) for i in range(1, 6)]
         initial_prices = [st.session_state.get(f"p{i}") or None for i in range(1, 6)]
         if not product_code.strip():
-            st.error("請填寫商品代號")
+            st.error("請填寫代號")
         elif not any(underlyings):
-            st.error("請選擇至少一個標的股票")
+            st.error("請至少選擇一個標的")
         elif any(underlyings[i] and not initial_prices[i] for i in range(5)):
             st.error("有標的缺少期初價 — 可按「自動帶入期初價」或手動填寫")
         else:
-            sn_data = {
-                "product_code": product_code.strip(),
-                "trade_date": str(trade_date),
-                "observation_date": str(observation_date),
-                "month_label": month_label,
-                "strike_pct": strike_pct / 100,
-                "coupon_pct": coupon_pct / 100,
-                "ko_barrier": ko_barrier / 100 if ko_barrier > 0 else None,
-                "ki_barrier": ki_barrier / 100 if ki_barrier > 0 else None,
-                "total_order_amount": total_order or None,
-                "status": "active",
-            }
-            for i in range(5):
-                sn_data[f"underlying_{i+1}"] = underlyings[i]
-                sn_data[f"initial_price_{i+1}"] = initial_prices[i]
-
-            result = create_sn(sn_data)
-            if result:
-                for i in range(1, 6):
-                    st.session_state.pop(f"sel{i}", None)
-                    st.session_state.pop(f"cust{i}", None)
-                    st.session_state.pop(f"p{i}", None)
-                st.session_state.pop("f_code", None)
-                st.success(f"✅ 商品 **{product_code}** 新增成功！")
-                st.rerun()
+            # 驗證自訂代號是否查得到報價 (避免打錯)
+            bad = [underlyings[i] for i in range(5)
+                   if underlyings[i] and underlyings[i] not in known and get_price_on(underlyings[i], str(trade_date)) is None]
+            if bad:
+                st.error(f"查不到報價的代號: {', '.join(bad)} — 請確認拼字")
             else:
-                st.error("新增失敗")
+                sn_data = {
+                    "product_code": product_code.strip(),
+                    "trade_date": str(trade_date),
+                    "observation_date": str(observation_date),
+                    "month_label": month_label,
+                    "strike_pct": strike_pct / 100,
+                    "coupon_pct": coupon_pct / 100,
+                    "ko_barrier": ko_barrier / 100 if ko_barrier > 0 else None,
+                    "ki_barrier": ki_barrier / 100 if ki_barrier > 0 else None,
+                    "exit_date": str(exit_date) if exit_date else None,
+                    "temp_settlement": temp_settlement or None,
+                    "chu": chu.strip() or None,
+                    "total_order_amount": total_order or None,
+                    "status": "active",
+                }
+                for i in range(5):
+                    sn_data[f"underlying_{i+1}"] = underlyings[i]
+                    sn_data[f"initial_price_{i+1}"] = initial_prices[i]
+
+                result = create_sn(sn_data)
+                if result:
+                    for i in range(1, 6):
+                        st.session_state.pop(f"sel{i}", None)
+                        st.session_state.pop(f"cust{i}", None)
+                        st.session_state.pop(f"p{i}", None)
+                    st.session_state.pop("f_code", None)
+                    st.success(f"✅ 商品 **{product_code}** 新增成功！客戶持倉可到「商品詳情」分頁逐筆加入。")
+                    st.rerun()
+                else:
+                    st.error("新增失敗")
 
 # ──────────────────────────────────────────────────────────────
 # Tab 3: 商品詳情 + 客戶投資管理
