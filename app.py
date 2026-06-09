@@ -235,6 +235,45 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
 .stInfo    { border-radius: 14px !important; }
 .stWarning { border-radius: 14px !important; }
 .stError   { border-radius: 14px !important; }
+
+/* ── Flair: motion & micro-interactions ───────────── */
+@keyframes flairRise {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes flairShimmer {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
+/* metric cards: staggered entrance + lift + accent top-line glow on hover */
+[data-testid="stMetric"] {
+    animation: flairRise .6s cubic-bezier(.22,1,.36,1) both;
+    position: relative; overflow: hidden;
+}
+[data-testid="column"]:nth-child(1) [data-testid="stMetric"] { animation-delay: .02s; }
+[data-testid="column"]:nth-child(2) [data-testid="stMetric"] { animation-delay: .10s; }
+[data-testid="column"]:nth-child(3) [data-testid="stMetric"] { animation-delay: .18s; }
+[data-testid="column"]:nth-child(4) [data-testid="stMetric"] { animation-delay: .26s; }
+[data-testid="stMetric"]:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 14px 34px rgba(21,163,90,0.16) !important;
+}
+[data-testid="stMetricValue"] {
+    background: linear-gradient(90deg,#15a34a,#2bd47e,#15a34a);
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: flairShimmer 5s linear infinite;
+}
+/* buttons: springy press */
+.stButton > button:active { transform: scale(.97) !important; }
+/* expanders & alerts gently rise in */
+[data-testid="stExpander"], [data-testid="stAlert"] {
+    animation: flairRise .5s cubic-bezier(.22,1,.36,1) both;
+}
+/* dataframe lift */
+[data-testid="stDataFrame"] { transition: box-shadow .2s ease, transform .2s ease; }
+[data-testid="stDataFrame"]:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(21,163,90,.12); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -378,24 +417,30 @@ if not st.session_state.authenticated and not _google_logged_in:
     pin_len = len(correct_pin) if correct_pin else 4
     entered = st.session_state.pin_input
 
-    _logo = _img_b64("logo.png")
-    logo_html = f'<img src="data:image/png;base64,{_logo}" style="width:88px;height:88px;">' if _logo else ""
-
     st.markdown(f"""
     <style>
     .main .block-container {{
         max-width: 380px !important;
         margin: 0 auto !important;
-        padding-top: 2.5rem !important;
+        padding-top: 3rem !important;
     }}
-    .pin-logo     {{ text-align:center; margin-bottom:0.4rem; }}
-    .pin-title    {{ font-size:1.7rem; font-weight:800; color:#1E3A8A; text-align:center; display:block; margin-bottom:0.15rem; letter-spacing:0.04em; }}
+    .pin-mark {{
+        width:72px; height:72px; margin:0 auto 1rem; border-radius:22px;
+        display:flex; align-items:center; justify-content:center;
+        font-size:1.6rem; font-weight:800; color:#fff; letter-spacing:.02em;
+        background:linear-gradient(135deg,#15a34a 0%,#2bd47e 100%);
+        box-shadow:0 10px 30px rgba(21,163,90,.35);
+        animation: pinpop .6s cubic-bezier(.22,1,.36,1) both;
+    }}
+    @keyframes pinpop {{ from {{opacity:0; transform:translateY(10px) scale(.92);}} to {{opacity:1; transform:none;}} }}
+    .pin-title    {{ font-size:1.7rem; font-weight:800; color:#0b0f0d; text-align:center; display:block; margin-bottom:0.15rem; letter-spacing:0.04em; }}
+    .pin-title span {{ color:#15a34a; }}
     .pin-subtitle {{ font-size:0.88rem; color:#94a3b8; text-align:center; display:block; margin-bottom:1.6rem; }}
     .pin-error    {{ color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }}
     </style>
-    <div class="pin-logo">{logo_html}</div>
-    <div class="pin-title">DOUU WORK</div>
-    <div class="pin-subtitle">輸入 PIN 碼解鎖 </div>
+    <div class="pin-mark">DW</div>
+    <div class="pin-title">DOUU WORK<span>.</span></div>
+    <div class="pin-subtitle">輸入 PIN 碼解鎖</div>
     """, unsafe_allow_html=True)
 
     if st.session_state.pin_error:
@@ -444,16 +489,13 @@ if not _is_admin:
 
 # ── 側邊欄 ────────────────────────────────────────────────────
 with st.sidebar:
-    _sb_logo = _img_b64("logo.png")
-    _sb_dog  = _img_b64("dog_bw.png")
-    logo_img = f'<img src="data:image/png;base64,{_sb_logo}" style="width:64px;height:64px;">' if _sb_logo else ""
-    dog_img  = f'<img src="data:image/png;base64,{_sb_dog}" style="width:100%;max-width:140px;opacity:0.75;margin-top:4px;">' if _sb_dog else ""
-    st.markdown(f"""
-    <div style='text-align:center; padding: 10px 0 6px 0;'>
-        {logo_img}
-        <div style='font-size:1.05rem; font-weight:800; color:white; margin-top:5px; letter-spacing:0.05em;'>DOUU WORK</div>
-        <div style='font-size:0.7rem; color:rgba(255,255,255,0.5); margin-top:2px;'>Structured Notes</div>
-        {dog_img}
+    st.markdown("""
+    <div style='padding: 8px 6px 4px;'>
+        <div style='font-size:1.25rem; font-weight:800; letter-spacing:0.04em; color:white;'>
+            DOUU&nbsp;WORK<span style='color:#2bd47e;'>.</span>
+        </div>
+        <div style='font-size:0.66rem; letter-spacing:0.2em; text-transform:uppercase;
+                    color:rgba(255,255,255,0.55); margin-top:3px;'>Structured Notes</div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
@@ -501,24 +543,29 @@ if not db_ok:
 # ── Dashboard CSS ──────────────────────────────────────────────
 st.markdown("""<style>
 .hero-banner {
-    background: linear-gradient(135deg, #0F7A46 0%, #3730A3 55%, #15A35A 100%);
+    background: linear-gradient(115deg, #0c7a45 0%, #15a34a 38%, #1fae8a 68%, #2bd47e 100%);
+    background-size: 220% 220%;
+    animation: heroFlow 14s ease infinite, flairRise .7s cubic-bezier(.22,1,.36,1) both;
     border-radius: 24px;
     padding: 2rem 2.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 10px 40px rgba(21,163,90,0.28);
+    box-shadow: 0 14px 44px rgba(21,163,90,0.30);
     position: relative;
     overflow: hidden;
 }
+@keyframes heroFlow { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+@keyframes heroFloat { 0%,100%{transform:translate(0,0);} 50%{transform:translate(-14px,12px);} }
 .hero-banner::before {
     content: '';
     position: absolute;
     width: 240px; height: 240px;
-    background: rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.08);
     border-radius: 50%;
     top: -80px; right: -50px;
+    animation: heroFloat 11s ease-in-out infinite;
 }
 .hero-banner::after {
     content: '';

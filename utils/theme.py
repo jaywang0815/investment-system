@@ -152,6 +152,17 @@ div[data-baseweb="select"] * {{ color: var(--text) !important; }}
 [data-testid="stSlider"] [role="slider"] {{ background: var(--accent); }}
 [data-testid="stDecoration"] {{ display: none; }}
 
+/* ── flair: motion & micro-interactions ── */
+@keyframes flairRise {{ from {{ opacity:0; transform: translateY(16px); }} to {{ opacity:1; transform: none; }} }}
+[data-testid="stMetric"] {{ animation: flairRise .55s cubic-bezier(.22,1,.36,1) both; transition: transform .2s ease, box-shadow .2s ease; }}
+[data-testid="column"]:nth-child(2) [data-testid="stMetric"] {{ animation-delay: .07s; }}
+[data-testid="column"]:nth-child(3) [data-testid="stMetric"] {{ animation-delay: .14s; }}
+[data-testid="column"]:nth-child(4) [data-testid="stMetric"] {{ animation-delay: .21s; }}
+[data-testid="stMetric"]:hover {{ transform: translateY(-4px); box-shadow: 0 14px 32px color-mix(in srgb, var(--accent) 16%, transparent); }}
+.stButton > button:active, .stFormSubmitButton > button:active {{ transform: scale(.97); }}
+[data-testid="stExpander"], [data-testid="stAlert"] {{ animation: flairRise .5s cubic-bezier(.22,1,.36,1) both; }}
+.dh-wrap {{ animation: flairRise .5s cubic-bezier(.22,1,.36,1) both; }}
+
 /* ── header card (used by dog_header) ── */
 .dh-wrap {{ margin: 0 0 2.2rem; }}
 .dh-eyebrow {{
