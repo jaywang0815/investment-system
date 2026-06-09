@@ -8,7 +8,7 @@ from utils.database import get_all_sns, get_investments_by_sn, get_dashboard_sta
 from utils.stock_prices import get_prices, get_all_tickers_for_active_sns, analyze_sn_status
 from utils.line_service import send_line_notify, build_daily_report, build_alert_message
 
-st.set_page_config(page_title="KO/KI警示", page_icon="⚠️", layout="wide")
+st.set_page_config(page_title="KO/KI警示", page_icon=None, layout="wide")
 
 
 def _render_sn_alert(sn, analysis, prices):
@@ -92,29 +92,29 @@ normal         = [a for a in analyzed if a["analysis"]["overall_status"] == "nor
 # ── 狀態摘要卡片 ──────────────────────────────────────────────
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
-    st.metric("🔴 KI 觸發", len(ki_triggered), delta="需要立即關注" if ki_triggered else None,
+    st.metric("KI 觸發", len(ki_triggered), delta="需要立即關注" if ki_triggered else None,
               delta_color="inverse")
 with c2:
-    st.metric("🟠 KI 風險", len(ki_risk), delta="接近KI水位" if ki_risk else None,
+    st.metric("KI 風險", len(ki_risk), delta="接近KI水位" if ki_risk else None,
               delta_color="inverse")
 with c3:
-    st.metric("🟢 KO 觸發", len(ko_triggered), delta="即將贖回" if ko_triggered else None)
+    st.metric("KO 觸發", len(ko_triggered), delta="即將贖回" if ko_triggered else None)
 with c4:
-    st.metric("🟡 KO 接近", len(ko_risk))
+    st.metric("KO 接近", len(ko_risk))
 with c5:
-    st.metric("✅ 正常", len(normal))
+    st.metric("正常", len(normal))
 
 st.markdown("---")
 
 # ── 比價日提醒 ────────────────────────────────────────────────
 today = date.today()
-st.subheader("📅 近 14 天比價日提醒")
+st.subheader("近 14 天比價日提醒")
 upcoming_df = sns_df[
     pd.to_datetime(sns_df["observation_date"]).dt.date.between(today, today + timedelta(days=14))
 ].sort_values("observation_date")
 
 if upcoming_df.empty:
-    st.success("✅ 未來 14 天內無比價日")
+    st.success("未來 14 天內無比價日")
 else:
     for _, row in upcoming_df.iterrows():
         obs = pd.to_datetime(row["observation_date"]).date()
@@ -122,65 +122,65 @@ else:
         code = row.get("product_code", "—")
         tickers = " / ".join([str(row.get(f"underlying_{i}")) for i in range(1,6)
                                if row.get(f"underlying_{i}") and isinstance(row.get(f"underlying_{i}"), str)])
-        badge = "🔴" if days_left <= 3 else "🟡" if days_left <= 7 else "🟢"
+        badge = "" if days_left <= 3 else "" if days_left <= 7 else ""
         st.markdown(f"{badge} **{str(obs)[:10]}** (剩 {days_left} 天) &nbsp;|&nbsp; `{code}` &nbsp; {tickers}")
 
 st.markdown("---")
 
 # ── KI 觸發警示 ───────────────────────────────────────────────
 if ki_triggered:
-    st.subheader("🔴 KI 觸發 - 立即處理")
+    st.subheader("KI 觸發 - 立即處理")
     for item in ki_triggered:
         sn = item["sn"]
         analysis = item["analysis"]
         code = sn.get("product_code", "—")
 
-        with st.expander(f"🔴 {code} — {analysis['status_label']}", expanded=True):
+        with st.expander(f"{code} — {analysis['status_label']}", expanded=True):
             _render_sn_alert(sn, analysis, prices)
 
 if ki_risk:
-    st.subheader("🟠 接近 KI 水位 - 密切關注")
+    st.subheader("接近 KI 水位 - 密切關注")
     for item in ki_risk:
         sn = item["sn"]
         analysis = item["analysis"]
         code = sn.get("product_code", "—")
-        with st.expander(f"🟠 {code} — {analysis['status_label']}"):
+        with st.expander(f"{code} — {analysis['status_label']}"):
             _render_sn_alert(sn, analysis, prices)
 
 if ko_triggered:
-    st.subheader("🟢 KO 觸發 - 即將提前贖回")
+    st.subheader("KO 觸發 - 即將提前贖回")
     for item in ko_triggered:
         sn = item["sn"]
         analysis = item["analysis"]
         code = sn.get("product_code", "—")
-        with st.expander(f"🟢 {code} — {analysis['status_label']}"):
+        with st.expander(f"{code} — {analysis['status_label']}"):
             _render_sn_alert(sn, analysis, prices)
 
 if ko_risk:
-    st.subheader("🟡 接近 KO 水位")
+    st.subheader("接近 KO 水位")
     for item in ko_risk:
         sn = item["sn"]
         analysis = item["analysis"]
         code = sn.get("product_code", "—")
-        with st.expander(f"🟡 {code} — {analysis['status_label']}"):
+        with st.expander(f"{code} — {analysis['status_label']}"):
             _render_sn_alert(sn, analysis, prices)
 
 # ── LINE 通知 ─────────────────────────────────────────────────
 st.markdown("---")
-st.subheader("📲 LINE 通知")
+st.subheader("LINE 通知")
 
 col_line1, col_line2 = st.columns(2)
 
 with col_line1:
     st.markdown("**每日報告**")
-    if st.button("📤 立即發送每日報告到 LINE", type="primary"):
+    if st.button("立即發送每日報告到 LINE", type="primary"):
         # 先檢查 Secrets 是否齊全
         access_token = st.secrets.get("LINE_CHANNEL_ACCESS_TOKEN")
         user_id = st.secrets.get("LINE_ADMIN_USER_ID")
         if not access_token:
-            st.error("❌ 缺少 LINE_CHANNEL_ACCESS_TOKEN，請至 Streamlit Cloud Secrets 新增")
+            st.error("缺少 LINE_CHANNEL_ACCESS_TOKEN，請至 Streamlit Cloud Secrets 新增")
         elif not user_id:
-            st.error("❌ 缺少 LINE_ADMIN_USER_ID，請至 Streamlit Cloud Secrets 新增")
+            st.error("缺少 LINE_ADMIN_USER_ID，請至 Streamlit Cloud Secrets 新增")
         else:
             stats = get_dashboard_stats()
             upcoming = upcoming_df.to_dict("records") if not upcoming_df.empty else []
@@ -195,9 +195,9 @@ with col_line1:
                 upcoming_obs=upcoming
             )
             if send_line_notify(report):
-                st.success("✅ 每日報告已發送到 LINE!")
+                st.success("每日報告已發送到 LINE!")
             else:
-                st.error("❌ 發送失敗 — Token 或 User ID 可能有誤，請至 LINE Developers 重新產生 Channel Access Token")
+                st.error("發送失敗 — Token 或 User ID 可能有誤，請至 LINE Developers 重新產生 Channel Access Token")
 
 with col_line2:
     st.markdown("**發送特定商品警示**")
@@ -208,7 +208,7 @@ with col_line2:
         codes_with_alerts = [a["sn"].get("product_code", "—") for a in alert_items]
         selected_alert = st.selectbox("選擇商品", codes_with_alerts, key="alert_select")
 
-        if st.button("📢 發送此商品警示", key="send_alert"):
+        if st.button("發送此商品警示", key="send_alert"):
             for item in alert_items:
                 if item["sn"].get("product_code") == selected_alert:
                     msg = build_alert_message(item["sn"], item["analysis"])
@@ -218,7 +218,7 @@ with col_line2:
                             item["analysis"]["overall_status"],
                             f"{selected_alert}: {item['analysis']['status_label']}"
                         )
-                        st.success("✅ 警示已發送到 LINE!")
+                        st.success("警示已發送到 LINE!")
                     else:
-                        st.error("❌ 發送失敗")
+                        st.error("發送失敗")
                     break

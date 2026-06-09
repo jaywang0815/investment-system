@@ -10,7 +10,7 @@ from utils.database import get_all_sns, get_all_customers, get_investments_by_cu
 def _clean(t: str) -> str:
     return unicodedata.normalize("NFKC", t).lstrip("$").strip().upper()
 
-st.set_page_config(page_title="即時圖表", page_icon="📈", layout="wide")
+st.set_page_config(page_title="即時圖表", page_icon=None, layout="wide")
 
 from utils.ui_helpers import dog_header, require_auth
 dog_header("即時圖表")
@@ -235,7 +235,7 @@ def _build_customer_ticker_map():
 customer_ticker_map, all_tickers, sn_info_map = _build_customer_ticker_map()
 
 # ── PPT Export ───────────────────────────────────────────────────
-with st.expander("📥 匯出 PowerPoint 簡報"):
+with st.expander("匯出 PowerPoint 簡報"):
     from utils.ppt_export import build_ppt
 
     # Customer selector for PPT
@@ -289,7 +289,7 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
 
         col_a, col_b = st.columns([2, 3])
         with col_a:
-            if st.button("🐾 產生 PPT", type="primary", disabled=not selected_tickers):
+            if st.button("產生 PPT", type="primary", disabled=not selected_tickers):
                 with st.spinner(f"正在產生 {len(selected_tickers)} 個標的圖表..."):
                     ppt_bytes = build_ppt(selected_tickers, sn_info_map, period=selected_period)
                 st.session_state["ppt_bytes"] = ppt_bytes
@@ -299,7 +299,7 @@ with st.expander("📥 匯出 PowerPoint 簡報"):
             fname = f"DOUU_WORK_{__import__('datetime').date.today().strftime('%Y%m%d')}.pptx"
             with col_b:
                 st.download_button(
-                    label=f"⬇️ 下載 PPT ({st.session_state['ppt_count']} 張投影片)",
+                    label=f"下載 PPT ({st.session_state['ppt_count']} 張投影片)",
                     data=st.session_state["ppt_bytes"],
                     file_name=fname,
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -341,10 +341,10 @@ with col_left:
     st.markdown("---")
     chart_mode = st.radio(
         "圖表模式",
-        ["📡 即時 (TradingView)", "📊 分析模式 (期初/KO/KI)"],
+        ["即時 (TradingView)", "分析模式 (期初/KO/KI)"],
         index=0,
     )
-    use_plotly = chart_mode.startswith("📊")
+    use_plotly = chart_mode.startswith("")
     interval = "D"
     theme = "light"
 
@@ -430,7 +430,7 @@ with col_right:
 # ── 多圖同時顯示 ────────────────────────────────────────────────
 if display_tickers and len(display_tickers) > 1:
     st.markdown("---")
-    label = f"**{filter_customer}** 標的總覽" if (customer_ticker_map and filter_customer != "全部標的") else "📊 所有持倉標的總覽"
+    label = f"**{filter_customer}** 標的總覽" if (customer_ticker_map and filter_customer != "全部標的") else "所有持倉標的總覽"
     st.subheader(label)
     st.caption("點選右上角可放大個別圖表")
 

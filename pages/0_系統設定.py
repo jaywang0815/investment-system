@@ -9,7 +9,7 @@ import toml
 import json
 from pathlib import Path
 
-st.set_page_config(page_title="系統設定", page_icon="🐾", layout="wide")
+st.set_page_config(page_title="系統設定", page_icon=None, layout="wide")
 
 # ── Admin only ─────────────────────────────────────────────────
 _ADMIN_EMAIL = "pmjatu1508@gmail.com"
@@ -25,7 +25,7 @@ def _is_admin() -> bool:
         return False
 
 if not _is_admin():
-    st.error("⛔ 此頁面僅限管理員存取")
+    st.error("此頁面僅限管理員存取")
     st.stop()
 
 SECRETS_PATH = Path(__file__).parent.parent / ".streamlit" / "secrets.toml"
@@ -56,11 +56,11 @@ def test_supabase(url: str, key: str) -> tuple[bool, str]:
         from supabase import create_client
         sb = create_client(url, key)
         sb.table("customers").select("id", count="exact").execute()
-        return True, "連線成功 ✅"
+        return True, "連線成功 "
     except Exception as e:
         msg = str(e)
         if "relation" in msg and "does not exist" in msg:
-            return False, "連線成功，但資料表尚未建立 → 請先執行 schema.sql ⚠️"
+            return False, "連線成功，但資料表尚未建立 → 請先執行 schema.sql "
         return False, f"連線失敗: {msg}"
 
 
@@ -73,7 +73,7 @@ def test_line_notify(token: str) -> tuple[bool, str]:
             timeout=8
         )
         if resp.status_code == 200:
-            return True, f"Token 有效 ✅ ({resp.json().get('targetType', '')})"
+            return True, f"Token 有效 ({resp.json().get('targetType', '')})"
         return False, f"Token 無效 (HTTP {resp.status_code})"
     except Exception as e:
         return False, f"測試失敗: {e}"
@@ -88,32 +88,32 @@ existing = load_existing_secrets()
 setup_done = SECRETS_PATH.exists()
 
 if setup_done:
-    st.success(f"✅ 設定檔已存在: `{SECRETS_PATH}`")
+    st.success(f"設定檔已存在: `{SECRETS_PATH}`")
 else:
-    st.warning("⚠️ 尚未設定，請填寫下方所有必填欄位")
+    st.warning("尚未設定，請填寫下方所有必填欄位")
 
 # ── 設定狀態總覽 ──────────────────────────────────────────────
 st.markdown("---")
-st.subheader("📊 設定狀態")
+st.subheader("設定狀態")
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     has_db = bool(existing.get("SUPABASE_URL"))
-    st.metric("資料庫 (Supabase)", "✅ 已設定" if has_db else "❌ 未設定")
+    st.metric("資料庫 (Supabase)", "已設定" if has_db else "未設定")
 with c2:
     has_auth = bool(existing.get("auth", {}).get("google", {}).get("client_id"))
-    st.metric("Gmail 登入", "✅ 已設定" if has_auth else "❌ 未設定")
+    st.metric("Gmail 登入", "已設定" if has_auth else "未設定")
 with c3:
     has_line = bool(existing.get("LINE_CHANNEL_ACCESS_TOKEN"))
-    st.metric("LINE Bot 推播", "✅ 已設定" if has_line else "❌ 未設定")
+    st.metric("LINE Bot 推播", "已設定" if has_line else "未設定")
 with c4:
     has_email = bool(existing.get("allowed_emails"))
-    st.metric("授權帳號", "✅ 已設定" if has_email else "❌ 未設定")
+    st.metric("授權帳號", "已設定" if has_email else "未設定")
 
 st.markdown("---")
 
 # ── 顯示名稱 ──────────────────────────────────────────────────
-st.subheader("✏️ 顯示名稱")
+st.subheader("顯示名稱")
 try:
     from utils.database import get_setting, upsert_setting
     _cur_name = get_setting("admin_name", "Douu小幫手")
@@ -123,10 +123,10 @@ try:
                                   label_visibility="collapsed",
                                   placeholder="例: Douu小幫手")
     with _col_btn:
-        if st.button("💾 儲存", type="primary"):
+        if st.button("儲存", type="primary"):
             if _new_name.strip() and upsert_setting("admin_name", _new_name.strip()):
                 st.session_state["admin_name"] = _new_name.strip()
-                st.success("✅ 已更新")
+                st.success("已更新")
                 st.rerun()
             else:
                 st.error("儲存失敗")
@@ -136,9 +136,9 @@ except Exception:
 st.markdown("---")
 
 # ── 設定表單 ──────────────────────────────────────────────────
-st.subheader("🔧 填寫設定")
+st.subheader("填寫設定")
 
-with st.expander("📖 取得各項設定的說明", expanded=not setup_done):
+with st.expander("取得各項設定的說明", expanded=not setup_done):
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
@@ -167,7 +167,7 @@ with st.expander("📖 取得各項設定的說明", expanded=not setup_done):
         """)
 
 # ── Section 1: Supabase ───────────────────────────────────────
-st.markdown("### 1️⃣ Supabase 資料庫")
+st.markdown("### 1⃣ Supabase 資料庫")
 col1, col2 = st.columns(2)
 with col1:
     supabase_url = st.text_input(
@@ -185,7 +185,7 @@ with col2:
     )
 
 if supabase_url and supabase_key:
-    if st.button("🧪 測試資料庫連線"):
+    if st.button("測試資料庫連線"):
         with st.spinner("測試中..."):
             ok, msg = test_supabase(supabase_url, supabase_key)
         if ok:
@@ -194,7 +194,7 @@ if supabase_url and supabase_key:
             st.warning(msg)
 
 # ── Section 2: Gmail OAuth ────────────────────────────────────
-st.markdown("### 2️⃣ Gmail 登入 (Google OAuth)")
+st.markdown("### 2⃣ Gmail 登入 (Google OAuth)")
 auth_existing = existing.get("auth", {})
 google_existing = auth_existing.get("google", {})
 
@@ -231,7 +231,7 @@ cookie_secret = st.text_input(
 )
 
 # ── Section 3: LINE ───────────────────────────────────────────
-st.markdown("### 3️⃣ LINE Bot 推播設定")
+st.markdown("### 3⃣ LINE Bot 推播設定")
 st.caption("LINE Notify ปิดให้บริการแล้ว — ใช้ LINE Messaging API แทน")
 col1, col2 = st.columns(2)
 with col1:
@@ -264,7 +264,7 @@ if _admins:
     for adm in _admins:
         ca, cb = st.columns([3, 1])
         with ca:
-            st.text(f"👤 {adm.get('name','—')}  |  {adm.get('line_user_id','')}")
+            st.text(f"{adm.get('name','—')}  |  {adm.get('line_user_id','')}")
         with cb:
             if st.button("移除", key=f"del_adm_{adm.get('id')}"):
                 try:
@@ -295,20 +295,20 @@ with st.form("add_admin_form", clear_on_submit=True):
 
 # 測試推播
 if _admins and existing.get("LINE_CHANNEL_ACCESS_TOKEN"):
-    if st.button("🧪 測試推播 (發給所有管理員)"):
+    if st.button("測試推播 (發給所有管理員)"):
         from utils.line_service import push_line_message
         ok_count = 0
         for adm in _admins:
             uid = adm.get("line_user_id", "")
             if uid:
                 ok = push_line_message(uid, [{"type": "text",
-                    "text": "✅ DOUU WORK 推播測試成功！"}])
+                    "text": "DOUU WORK 推播測試成功！"}])
                 if ok:
                     ok_count += 1
         st.success(f"已推播給 {ok_count}/{len(_admins)} 位管理員")
 
 # ── Section 4: Google Sheets (optional) ──────────────────────
-st.markdown("### 4️⃣ Google Sheets 同步 (選填)")
+st.markdown("### 4⃣ Google Sheets 同步 (選填)")
 google_sheet_id = st.text_input(
     "Google Sheet ID",
     value=existing.get("GOOGLE_SHEET_ID", ""),
@@ -320,7 +320,7 @@ st.markdown("---")
 col_save, col_reset = st.columns([3, 1])
 
 with col_save:
-    if st.button("💾 儲存所有設定", type="primary", use_container_width=True):
+    if st.button("儲存所有設定", type="primary", use_container_width=True):
         # 驗證必填
         errors = []
         if not supabase_url:
@@ -332,7 +332,7 @@ with col_save:
 
         if errors:
             for e in errors:
-                st.error(f"❌ {e}")
+                st.error(f"{e}")
         else:
             # 建構設定 dict
             emails = [e.strip() for e in allowed_emails_str.split(",") if e.strip()]
@@ -360,19 +360,19 @@ with col_save:
                 new_secrets["GOOGLE_SHEET_ID"] = google_sheet_id
 
             if save_secrets(new_secrets):
-                st.success("✅ 設定已儲存！請重新啟動程式讓設定生效。")
+                st.success("設定已儲存！請重新啟動程式讓設定生效。")
                 st.info("重新啟動方式: 在 Terminal 按 Ctrl+C，再執行 `python3 -m streamlit run app.py`")
                 st.balloons()
 
 with col_reset:
-    if st.button("🔄 重置設定", use_container_width=True):
+    if st.button("重置設定", use_container_width=True):
         if SECRETS_PATH.exists():
             SECRETS_PATH.unlink()
             st.warning("設定已清除，請重新啟動程式")
 
 # ── 設定檔預覽 ────────────────────────────────────────────────
 if setup_done:
-    with st.expander("📄 查看目前設定檔內容"):
+    with st.expander("查看目前設定檔內容"):
         safe_preview = existing.copy()
         for key in ["SUPABASE_KEY", "LINE_CHANNEL_SECRET",
                     "LINE_CHANNEL_ACCESS_TOKEN"]:
@@ -388,7 +388,7 @@ if setup_done:
 
 # ── 管理員 LINE 通知管理 ──────────────────────────────────────
 st.markdown("---")
-st.subheader("👥 管理員 LINE 通知設定")
+st.subheader("管理員 LINE 通知設定")
 st.caption("在這裡加入要接收每日報告和價格警示的管理員 LINE User ID（讓對方在 LINE Bot 傳送 myid 即可取得）")
 
 try:
@@ -410,7 +410,7 @@ try:
                 lid = adm.get("line_user_id", "")
                 st.code(f"{lid[:12]}..." if len(lid) > 12 else lid, language=None)
             with col_del:
-                if st.button("🗑️", key=f"del_admin_{adm['id']}", help="刪除此管理員"):
+                if st.button("", key=f"del_admin_{adm['id']}", help="刪除此管理員"):
                     _sb.table("admins").delete().eq("id", adm["id"]).execute()
                     st.rerun()
     else:
@@ -424,7 +424,7 @@ try:
             new_admin_name = st.text_input("姓名", placeholder="例: 游家順")
         with col_b:
             new_admin_line = st.text_input("LINE User ID", placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-        if st.form_submit_button("➕ 新增管理員", type="primary"):
+        if st.form_submit_button("新增管理員", type="primary"):
             if not new_admin_name.strip() or not new_admin_line.strip():
                 st.error("請填寫姓名和 LINE User ID")
             elif not new_admin_line.strip().startswith("U"):
@@ -435,7 +435,7 @@ try:
                         "name": new_admin_name.strip(),
                         "line_user_id": new_admin_line.strip()
                     }).execute()
-                    st.success(f"✅ 已新增管理員 {new_admin_name.strip()}")
+                    st.success(f"已新增管理員 {new_admin_name.strip()}")
                     st.rerun()
                 except Exception as _e:
                     st.error(f"新增失敗: {_e}")
@@ -445,7 +445,7 @@ except Exception as _err:
 
 # ── 執行 Schema SQL 說明 ───────────────────────────────────────
 st.markdown("---")
-st.subheader("🗄️ 建立資料庫結構")
+st.subheader("建立資料庫結構")
 st.markdown("設定完 Supabase 後，需要建立資料表。請複製下方 SQL 到 Supabase Dashboard → SQL Editor → 執行")
 
 try:
@@ -455,7 +455,7 @@ try:
     st.code(sql_content, language="sql")
 
     st.download_button(
-        "⬇️ 下載 schema.sql",
+        "下載 schema.sql",
         data=sql_content,
         file_name="schema.sql",
         mime="text/plain"

@@ -13,13 +13,13 @@ from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
 from utils.pdf_report import generate_customer_report
 from utils.excel_export import export_to_excel, sync_to_google_sheets, build_excel_bytes
 
-st.set_page_config(page_title="報表匯出", page_icon="📄", layout="wide")
+st.set_page_config(page_title="報表匯出", page_icon=None, layout="wide")
 
 from utils.ui_helpers import dog_header, require_auth
 dog_header("報表匯出")
 require_auth()
 
-tab1, tab2, tab3, tab4 = st.tabs(["📑 客戶PDF報表", "📊 Excel匯出", "🔗 Google試算表", "📜 歷史報表"])
+tab1, tab2, tab3, tab4 = st.tabs(["客戶PDF報表", "Excel匯出", "Google試算表", "歷史報表"])
 
 # ──────────────────────────────────────────────────────────────
 # Tab 1: 客戶 PDF 報表
@@ -62,7 +62,7 @@ with tab1:
 
     st.markdown("---")
 
-    if st.button("🔄 產生 PDF 報表", type="primary"):
+    if st.button("產生 PDF 報表", type="primary"):
         with st.spinner("取得股票現價中..."):
             sns_df = get_all_sns(status="active")
             all_tickers = []
@@ -81,7 +81,7 @@ with tab1:
                 investments = get_investments_by_customer(customer_id)
 
                 if not investments:
-                    st.warning(f"⚠️ {customer_name} 目前無投資記錄，跳過")
+                    st.warning(f"{customer_name} 目前無投資記錄，跳過")
                     continue
 
                 try:
@@ -94,19 +94,19 @@ with tab1:
 
                     filename = f"投資報表_{customer_name}_{today_str}.pdf"
                     st.download_button(
-                        label=f"⬇️ 下載 {customer_name} 的報表",
+                        label=f"下載 {customer_name} 的報表",
                         data=pdf_bytes,
                         file_name=filename,
                         mime="application/pdf",
                         key=f"pdf_{customer_id}"
                     )
-                    st.success(f"✅ {customer_name} 報表產生完成")
+                    st.success(f"{customer_name} 報表產生完成")
 
                 except Exception as e:
-                    st.error(f"❌ {customer_name} 報表產生失敗: {e}")
+                    st.error(f"{customer_name} 報表產生失敗: {e}")
 
     # PDF 預覽說明
-    with st.expander("📋 報表包含哪些內容？"):
+    with st.expander("報表包含哪些內容？"):
         st.markdown("""
         **客戶個人 PDF 報表包含:**
         - 客戶基本資料 (姓名、USD額度、中信部位)
@@ -153,7 +153,7 @@ with tab2:
     st.caption("每個月份一個工作表，另含「客戶資料」總表")
     st.markdown("---")
 
-    if st.button("📥 產生 Excel 檔案", type="primary", use_container_width=True):
+    if st.button("產生 Excel 檔案", type="primary", use_container_width=True):
         with st.spinner("整理資料中，請稍候..."):
             customers_df = get_all_customers()
             sns_df = get_all_sns()
@@ -181,13 +181,13 @@ with tab2:
 
         months_label = "、".join(selected_months) if selected_months else "全部"
         st.download_button(
-            label="⬇️ 下載 Excel 檔案",
+            label="下載 Excel 檔案",
             data=excel_bytes,
             file_name=f"投資資料_{months_label}_{today_str}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-        st.success("✅ Excel 產生完成")
+        st.success("Excel 產生完成")
 
 # ──────────────────────────────────────────────────────────────
 # Tab 3: Google 試算表同步
@@ -209,18 +209,18 @@ with tab3:
         placeholder="從 Sheet 網址取得: .../spreadsheets/d/[這裡]/edit"
     )
 
-    if st.button("🔄 立即同步到 Google Sheets", type="primary"):
+    if st.button("立即同步到 Google Sheets", type="primary"):
         with st.spinner("同步中..."):
             customers_df = get_all_customers()
             sns_df = get_all_sns()
             success = sync_to_google_sheets(customers_df, sns_df, sheet_id or None)
 
         if success:
-            st.success("✅ 資料已同步到 Google Sheets!")
+            st.success("資料已同步到 Google Sheets!")
             if sheet_id:
-                st.markdown(f"[🔗 開啟 Google Sheets](https://docs.google.com/spreadsheets/d/{sheet_id})")
+                st.markdown(f"[開啟 Google Sheets](https://docs.google.com/spreadsheets/d/{sheet_id})")
         else:
-            st.error("❌ 同步失敗，請檢查設定")
+            st.error("同步失敗，請檢查設定")
 
 # ──────────────────────────────────────────────────────────────
 # Tab 4: 歷史報表 (快速查詢)

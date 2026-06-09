@@ -12,7 +12,7 @@ from utils.database import (
 )
 from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
 
-st.set_page_config(page_title="客戶管理", page_icon="👥", layout="wide")
+st.set_page_config(page_title="客戶管理", page_icon=None, layout="wide")
 
 # ── Session state ──────────────────────────────────────────────
 if "show_add_form" not in st.session_state:
@@ -51,18 +51,18 @@ col_search, col_btn = st.columns([5, 1])
 with col_search:
     search = st.text_input(
         "搜尋",
-        placeholder="🔍 輸入客戶姓名、備註關鍵字...",
+        placeholder="輸入客戶姓名、備註關鍵字...",
         label_visibility="collapsed"
     )
 with col_btn:
-    if st.button("➕ 新增客戶", type="primary", use_container_width=True):
+    if st.button("新增客戶", type="primary", use_container_width=True):
         st.session_state["show_add_form"] = not st.session_state["show_add_form"]
         st.session_state["selected_customer_id"] = None
 
 # ── 新增客戶 Form ──────────────────────────────────────────────
 if st.session_state["show_add_form"]:
     with st.container(border=True):
-        st.subheader("➕ 新增客戶")
+        st.subheader("新增客戶")
         with st.form("add_customer_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
@@ -78,9 +78,9 @@ if st.session_state["show_add_form"]:
 
             col_sub, col_cancel = st.columns(2)
             with col_sub:
-                submitted = st.form_submit_button("✅ 新增", type="primary", use_container_width=True)
+                submitted = st.form_submit_button("新增", type="primary", use_container_width=True)
             with col_cancel:
-                cancelled = st.form_submit_button("✖ 取消", use_container_width=True)
+                cancelled = st.form_submit_button("取消", use_container_width=True)
 
             if submitted:
                 if not name.strip():
@@ -97,7 +97,7 @@ if st.session_state["show_add_form"]:
                         "notes": notes.strip() or None,
                     })
                     if result:
-                        st.success(f"✅ 客戶 **{name}** 新增成功！")
+                        st.success(f"客戶 **{name}** 新增成功！")
                         st.session_state["show_add_form"] = False
                         st.rerun()
                     else:
@@ -120,7 +120,7 @@ else:
     filtered_df = customers_df
 
 # ── Tabs ───────────────────────────────────────────────────────
-tab_list, tab_export = st.tabs(["📋 客戶列表", "📤 匯出資料"])
+tab_list, tab_export = st.tabs(["客戶列表", "匯出資料"])
 
 # ══════════════════════════════════════════════════════════════
 # Tab 1: 客戶列表
@@ -130,7 +130,7 @@ with tab_list:
         if search:
             st.info(f"找不到「{search}」相關的客戶")
         else:
-            st.info("尚無客戶資料，請點擊上方「➕ 新增客戶」")
+            st.info("尚無客戶資料，請點擊上方「新增客戶」")
     else:
         for _, row in filtered_df.iterrows():
             cid = row["id"]
@@ -143,8 +143,8 @@ with tab_list:
 
             # Card header label
             usd_str = f"USD {usd:,.0f}" if usd else ""
-            line_badge = "🟢 LINE" if line_id else ""
-            ordered_badge = "✅ 已下單" if ordered_val else ""
+            line_badge = "LINE" if line_id else ""
+            ordered_badge = "已下單" if ordered_val else ""
             badges = "  ".join(b for b in [usd_str, ordered_badge, line_badge] if b)
 
             with st.expander(f"**{cname}**　　{badges}"):
@@ -152,9 +152,9 @@ with tab_list:
 
                 with col_info:
                     st.markdown("**基本資料**")
-                    st.markdown(f"統一開戶: {'✅' if row.get('unified_account') else '❌'}")
-                    st.markdown(f"PI 見簽: {'✅' if pi else '❌'}")
-                    st.markdown(f"已下單: {'✅' if ordered_val else '❌'}")
+                    st.markdown(f"統一開戶: {'' if row.get('unified_account') else ''}")
+                    st.markdown(f"PI 見簽: {'' if pi else ''}")
+                    st.markdown(f"已下單: {'' if ordered_val else ''}")
                     if usd:
                         st.markdown(f"USD 額度: **${usd:,.0f}**")
                     ctbc = row.get("ctbc_position")
@@ -183,7 +183,7 @@ with tab_list:
 
                         col_save, col_del = st.columns(2)
                         with col_save:
-                            if st.form_submit_button("💾 儲存", type="primary", use_container_width=True):
+                            if st.form_submit_button("儲存", type="primary", use_container_width=True):
                                 update_customer(cid, {
                                     "name": new_name,
                                     "usd_amount": new_usd or None,
@@ -193,10 +193,10 @@ with tab_list:
                                     "ordered": new_ordered,
                                     "notes": new_notes or None,
                                 })
-                                st.success("✅ 更新成功")
+                                st.success("更新成功")
                                 st.rerun()
                         with col_del:
-                            if st.form_submit_button("🗑️ 刪除", use_container_width=True):
+                            if st.form_submit_button("刪除", use_container_width=True):
                                 st.session_state[f"confirm_del_{cid}"] = True
 
                 # Confirm delete
@@ -238,17 +238,17 @@ with tab_list:
 # Tab 2: 匯出資料
 # ══════════════════════════════════════════════════════════════
 with tab_export:
-    st.subheader("📤 匯出客戶資料")
+    st.subheader("匯出客戶資料")
 
     if customers_df.empty:
         st.info("尚無客戶資料可匯出")
         st.stop()
 
     today_str = date.today().strftime("%Y%m%d")
-    mode = st.radio("匯出方式", ["📅 依月份分頁", "👥 依客戶彙總"], horizontal=True)
+    mode = st.radio("匯出方式", ["依月份分頁", "依客戶彙總"], horizontal=True)
     st.markdown("---")
 
-    if mode == "📅 依月份分頁":
+    if mode == "依月份分頁":
         sns_df_all = get_all_sns()
         if sns_df_all.empty or "month_label" not in sns_df_all.columns:
             st.warning("尚無月份資料")
@@ -259,7 +259,7 @@ with tab_export:
             )
             selected_months = st.multiselect("選擇月份", options=months, default=months)
 
-            if st.button("📊 產生 Excel（依月份）", type="primary", use_container_width=True):
+            if st.button("產生 Excel（依月份）", type="primary", use_container_width=True):
                 if not selected_months:
                     st.warning("請至少選擇一個月份")
                 else:
@@ -300,7 +300,7 @@ with tab_export:
                                 pd.DataFrame(rows).to_excel(writer, sheet_name=m[:31], index=False)
                         buf.seek(0)
                     st.download_button(
-                        "⬇️ 下載 Excel（依月份）", buf.getvalue(),
+                        "下載 Excel（依月份）", buf.getvalue(),
                         f"投資明細_依月份_{today_str}.xlsx",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
@@ -309,7 +309,7 @@ with tab_export:
     else:
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("📊 下載 Excel（依客戶）", type="primary", use_container_width=True):
+            if st.button("下載 Excel（依客戶）", type="primary", use_container_width=True):
                 with st.spinner("產生中..."):
                     export_cols = [c for c in ["name","unified_account","pi_signed","ordered","usd_amount","ctbc_position","fund_amount","notes","line_user_id"] if c in customers_df.columns]
                     cust_export = customers_df[export_cols].rename(columns={
@@ -335,12 +335,12 @@ with tab_export:
                         if inv_rows:
                             pd.DataFrame(inv_rows).to_excel(writer, sheet_name="投資明細", index=False)
                     buf.seek(0)
-                st.download_button("⬇️ 下載", buf.getvalue(), f"客戶資料_{today_str}.xlsx",
+                st.download_button("下載", buf.getvalue(), f"客戶資料_{today_str}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
         with col_b:
             cust_csv = customers_df[["name","usd_amount","ordered","pi_signed","notes"]].rename(
                 columns={"name":"客戶姓名","usd_amount":"USD額度","ordered":"已下單","pi_signed":"PI見簽","notes":"備註"})
             st.download_button(
-                "⬇️ 下載 CSV", cust_csv.to_csv(index=False, encoding="utf-8-sig"),
+                "下載 CSV", cust_csv.to_csv(index=False, encoding="utf-8-sig"),
                 f"客戶資料_{today_str}.csv", "text/csv", use_container_width=True)

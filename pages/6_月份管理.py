@@ -11,7 +11,7 @@ from utils.database import (
 )
 from utils.stock_prices import get_prices, analyze_sn_status
 
-st.set_page_config(page_title="月份管理", page_icon="📅", layout="wide")
+st.set_page_config(page_title="月份管理", page_icon=None, layout="wide")
 
 from utils.ui_helpers import dog_header, require_auth
 dog_header("月份管理")
@@ -83,7 +83,7 @@ st.markdown("---")
 # 如果沒選月份
 # ─────────────────────────────────────────────────────────────
 if not st.session_state.selected_month:
-    st.info("👆 請點選上方月份按鈕來查看或新增資料")
+    st.info("請點選上方月份按鈕來查看或新增資料")
 
     if existing_months:
         st.markdown("**目前已有資料的月份:**")
@@ -119,26 +119,26 @@ with col_title:
     if not month_sns.empty:
         st.caption(f"共 {len(month_sns)} 筆商品")
 with col_btn:
-    if st.button("➕ 新增 SN 商品", type="primary", use_container_width=True):
+    if st.button("新增 SN 商品", type="primary", use_container_width=True):
         st.session_state.show_add_sn = not st.session_state.show_add_sn
 with col_del_all:
     if not month_sns.empty:
-        if st.button("🗑️ 刪除整月", type="secondary", use_container_width=True):
+        if st.button("刪除整月", type="secondary", use_container_width=True):
             st.session_state[f"confirm_del_month_{selected}"] = True
 
 if st.session_state.get(f"confirm_del_month_{selected}"):
-    st.warning(f"⚠️ 確定刪除 **{selected}** 全部 {len(month_sns)} 筆 SN 商品？此動作不可復原！")
+    st.warning(f"確定刪除 **{selected}** 全部 {len(month_sns)} 筆 SN 商品？此動作不可復原！")
     dc1, dc2 = st.columns(2)
     with dc1:
-        if st.button("✅ 確認刪除整月", type="primary", use_container_width=True):
+        if st.button("確認刪除整月", type="primary", use_container_width=True):
             for sn_id in month_sns["id"].tolist():
                 delete_sn(sn_id)
             st.session_state.pop(f"confirm_del_month_{selected}", None)
             st.session_state.selected_month = None
-            st.success(f"✅ 已刪除 {selected} 全部資料")
+            st.success(f"已刪除 {selected} 全部資料")
             st.rerun()
     with dc2:
-        if st.button("❌ 取消", use_container_width=True):
+        if st.button("取消", use_container_width=True):
             st.session_state.pop(f"confirm_del_month_{selected}", None)
             st.rerun()
 
@@ -147,7 +147,7 @@ if st.session_state.get(f"confirm_del_month_{selected}"):
 # ─────────────────────────────────────────────────────────────
 if st.session_state.show_add_sn:
     with st.container(border=True):
-        st.markdown(f"### ➕ 新增 {selected} SN 商品")
+        st.markdown(f"### 新增 {selected} SN 商品")
 
         with st.form("add_sn_inline", clear_on_submit=True):
             # 基本資料
@@ -187,7 +187,7 @@ if st.session_state.show_add_sn:
                     init_prices.append(p if p > 0 else None)
 
             # 自動抓期初價格
-            auto_fetch = st.checkbox("🔄 自動從 Yahoo Finance 抓取期初價格",
+            auto_fetch = st.checkbox("自動從 Yahoo Finance 抓取期初價格",
                                       help="勾選後送出時自動抓取，若有填入則以填入為準")
 
             # 客戶投資 (直接在同一個表單填)
@@ -216,7 +216,7 @@ if st.session_state.show_add_sn:
                     if cname:
                         inv_data.append({"name": cname, "amount": camount})
 
-            submitted = st.form_submit_button("✅ 新增此 SN 商品", type="primary",
+            submitted = st.form_submit_button("新增此 SN 商品", type="primary",
                                                use_container_width=True)
 
             if submitted:
@@ -263,7 +263,7 @@ if st.session_state.show_add_sn:
                             if not cid_row.empty:
                                 create_investment(cid_row.iloc[0]["id"], sn_id, inv["amount"])
                                 inv_ok += 1
-                        st.success(f"✅ {product_code} 新增成功！投資記錄: {inv_ok} 筆")
+                        st.success(f"{product_code} 新增成功！投資記錄: {inv_ok} 筆")
                         st.session_state.show_add_sn = False
                         st.rerun()
                     else:
@@ -273,7 +273,7 @@ if st.session_state.show_add_sn:
 # 該月 SN 清單
 # ─────────────────────────────────────────────────────────────
 if month_sns.empty:
-    st.info(f"📭 {selected} 目前沒有 SN 商品，點選上方「新增 SN 商品」按鈕開始新增")
+    st.info(f"{selected} 目前沒有 SN 商品，點選上方「新增 SN 商品」按鈕開始新增")
 else:
     # 取得所有標的現價
     all_tickers = set()
@@ -304,7 +304,7 @@ else:
 
         # 分析狀態
         analysis = analyze_sn_status(sn, prices)
-        status_emoji = analysis.get("status_emoji", "❓")
+        status_emoji = analysis.get("status_emoji", "")
         status_label = analysis.get("status_label", "")
 
         # 標的清單
@@ -362,12 +362,12 @@ else:
 
             with col_action:
                 # 快速新增客戶投資
-                if st.button("👤＋", key=f"add_inv_{sn_id}",
+                if st.button("＋", key=f"add_inv_{sn_id}",
                               help="快速新增客戶投資", use_container_width=True):
                     st.session_state[f"expand_inv_{sn_id}"] = not st.session_state.get(f"expand_inv_{sn_id}", False)
 
                 # 刪除
-                if st.button("🗑️", key=f"del_{sn_id}",
+                if st.button("", key=f"del_{sn_id}",
                               help="刪除此商品", use_container_width=True):
                     st.session_state[f"confirm_del_{sn_id}"] = True
 
@@ -388,7 +388,7 @@ else:
                         with qcol2:
                             q_amt = st.number_input("金額 (USD)", min_value=1000,
                                                      step=10000, value=100000, key=f"qamt_{sn_id}")
-                        if st.form_submit_button("✅ 新增", type="primary"):
+                        if st.form_submit_button("新增", type="primary"):
                             cid = available[available["name"] == q_name]["id"].iloc[0]
                             create_investment(cid, sn_id, q_amt)
                             st.session_state[f"expand_inv_{sn_id}"] = False
@@ -396,15 +396,15 @@ else:
 
             # 確認刪除
             if st.session_state.get(f"confirm_del_{sn_id}"):
-                st.warning(f"⚠️ 確定刪除 {code}？此動作不可復原")
+                st.warning(f"確定刪除 {code}？此動作不可復原")
                 dc1, dc2 = st.columns(2)
                 with dc1:
-                    if st.button("✅ 確認刪除", key=f"yes_del_{sn_id}", type="primary"):
+                    if st.button("確認刪除", key=f"yes_del_{sn_id}", type="primary"):
                         delete_sn(sn_id)
                         st.session_state.pop(f"confirm_del_{sn_id}", None)
                         st.rerun()
                 with dc2:
-                    if st.button("❌ 取消", key=f"no_del_{sn_id}"):
+                    if st.button("取消", key=f"no_del_{sn_id}"):
                         st.session_state.pop(f"confirm_del_{sn_id}", None)
                         st.rerun()
 

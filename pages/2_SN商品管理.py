@@ -10,13 +10,13 @@ from utils.database import (
 )
 from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings, get_price_on, clean_ticker
 
-st.set_page_config(page_title="SN商品管理", page_icon="📊", layout="wide")
+st.set_page_config(page_title="SN商品管理", page_icon=None, layout="wide")
 
 from utils.ui_helpers import dog_header, require_auth
 dog_header("SN商品管理")
 require_auth()
 
-tab1, tab2, tab3 = st.tabs(["📋 商品列表", "➕ 新增商品", "🔍 商品詳情"])
+tab1, tab2, tab3 = st.tabs(["商品列表", "新增商品", "商品詳情"])
 
 # ──────────────────────────────────────────────────────────────
 # Tab 1: 商品列表 + 即時狀態
@@ -127,7 +127,7 @@ with tab1:
 
         # 股票現價摘要
         st.markdown("---")
-        st.subheader("💹 標的現價摘要")
+        st.subheader("標的現價摘要")
         if prices:
             price_cols = st.columns(min(len(prices), 6))
             for i, (ticker, price) in enumerate(sorted(prices.items())):
@@ -135,7 +135,7 @@ with tab1:
                     if price:
                         st.metric(ticker, f"${price:,.2f}")
                     else:
-                        st.metric(ticker, "無法取得", delta="❓")
+                        st.metric(ticker, "無法取得", delta="")
 
 # ──────────────────────────────────────────────────────────────
 # Tab 2: 新增 SN 商品
@@ -159,7 +159,7 @@ with tab2:
     st.markdown("#### 新增結構型商品")
     st.caption("欄位順序與 Excel 相同；標的可從清單選擇 (全美股+ETF) 或自訂，填好交易日可一鍵帶入期初價")
 
-    NEW_TICKER = "➕ 自訂…"
+    NEW_TICKER = "自訂…"
 
     @st.cache_data(ttl=600)
     def _known_tickers():
@@ -225,7 +225,7 @@ with tab2:
             else:
                 st.markdown('<div class="sn-tk-empty">—</div>', unsafe_allow_html=True)
             st.number_input("期初價", min_value=0.0, step=0.01, format="%.2f", key=f"p{i}")
-    st.button("📥 依交易日自動帶入期初價", on_click=_autofill_prices, use_container_width=True)
+    st.button("依交易日自動帶入期初價", on_click=_autofill_prices, use_container_width=True)
 
     # ── 商品條件 (執行價 / 配息 / KO / KI) ───────────────────────
     st.markdown('<div class="sn-sec">商品條件</div>', unsafe_allow_html=True)
@@ -258,7 +258,7 @@ with tab2:
         total_order = st.number_input("下單金 (USD)", min_value=0, step=10000, value=0, key="f_order")
 
     st.markdown("")
-    if st.button("➕ 新增商品", type="primary", use_container_width=True):
+    if st.button("新增商品", type="primary", use_container_width=True):
         underlyings = [_picked(i) for i in range(1, 6)]
         initial_prices = [st.session_state.get(f"p{i}") or None for i in range(1, 6)]
         if not product_code.strip():
@@ -300,7 +300,7 @@ with tab2:
                         st.session_state.pop(f"cust{i}", None)
                         st.session_state.pop(f"p{i}", None)
                     st.session_state.pop("f_code", None)
-                    st.success(f"✅ 商品 **{product_code}** 新增成功！客戶持倉可到「商品詳情」分頁逐筆加入。")
+                    st.success(f"商品 **{product_code}** 新增成功！客戶持倉可到「商品詳情」分頁逐筆加入。")
                     st.rerun()
                 else:
                     st.error("新增失敗")
@@ -363,7 +363,7 @@ with tab3:
 
         # 各標的現價
         st.markdown("---")
-        st.subheader("📈 各標的現況")
+        st.subheader("各標的現況")
         for d in analysis.get("details", []):
             col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
@@ -380,14 +380,14 @@ with tab3:
             with col4:
                 chg = d.get("change_pct")
                 if chg is not None:
-                    color = "🟢" if chg >= 0 else "🔴"
+                    color = "" if chg >= 0 else ""
                     st.markdown(f"{color} {chg:+.2f}%")
             with col5:
                 st.markdown(f"{d.get('ko_status','—')} {d.get('ki_status','—')}")
 
         # 客戶投資列表
         st.markdown("---")
-        st.subheader("👥 客戶投資列表")
+        st.subheader("客戶投資列表")
         investments = get_investments_by_sn(sn_id)
         if not investments:
             st.info("此商品尚無客戶投資記錄")
@@ -405,7 +405,7 @@ with tab3:
 
         # 新增客戶投資
         st.markdown("---")
-        st.subheader("➕ 新增客戶投資")
+        st.subheader("新增客戶投資")
         customers_df = get_all_customers()
         if not customers_df.empty:
             with st.form(f"add_inv_{sn_id}"):
@@ -422,14 +422,14 @@ with tab3:
                         cid = available[available["name"] == inv_customer]["id"].iloc[0]
                         result = create_investment(cid, sn_id, inv_amount)
                         if result:
-                            st.success(f"✅ 已新增 {inv_customer} 投資 USD {inv_amount:,.0f}")
+                            st.success(f"已新增 {inv_customer} 投資 USD {inv_amount:,.0f}")
                             st.rerun()
                         else:
                             st.error("新增失敗")
 
         # 更新商品狀態
         st.markdown("---")
-        with st.expander("⚙️ 更新商品狀態"):
+        with st.expander("更新商品狀態"):
             new_status = st.selectbox("狀態", [
                 "active", "ko_triggered", "ki_triggered", "expired", "matured"
             ], index=["active","ko_triggered","ki_triggered","expired","matured"].index(
@@ -441,5 +441,5 @@ with tab3:
             }
             if st.button(f"更新為: {status_labels[new_status]}"):
                 update_sn(sn_id, {"status": new_status})
-                st.success("✅ 狀態已更新")
+                st.success("狀態已更新")
                 st.rerun()

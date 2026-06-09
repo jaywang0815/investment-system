@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 st.set_page_config(
     page_title="DOUU WORK",
-    page_icon="💼",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -238,7 +238,7 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── ⚙️ gear icon + hide settings from sidebar ────────────────
+# ── gear icon + hide settings from sidebar ────────────────
 st.markdown("""
 <style>
 .gear-fab {
@@ -258,7 +258,7 @@ st.markdown("""
 }
 .gear-fab:hover { background:#1E3A8A; color:white !important; border-color:#1E3A8A; }
 </style>
-<a href="/系統設定" target="_self" class="gear-fab" title="系統設定">⚙️</a>
+<a href="/系統設定" target="_self" class="gear-fab" title="系統設定"></a>
 <script>
 (function() {
     function hide() {
@@ -283,11 +283,11 @@ except Exception:
     _setup_complete = False
 
 if not _setup_complete:
-    st.markdown("## 🏦 DOUU WORK")
+    st.markdown("## DOUU WORK")
     st.markdown("---")
-    st.warning("⚙️ **系統尚未完成設定**")
+    st.warning("**系統尚未完成設定**")
     st.markdown("請先前往「**系統設定**」頁面完成初始設定（約 5-10 分鐘）")
-    st.page_link("pages/0_⚙️_系統設定.py", label="→ 前往系統設定", icon="⚙️")
+    st.page_link("pages/0_系統設定.py", label="→ 前往系統設定")
     st.markdown("""
     **需要準備的帳號:**
     1. [Supabase](https://supabase.com) 帳號 (免費)
@@ -379,7 +379,7 @@ if not st.session_state.authenticated and not _google_logged_in:
     entered = st.session_state.pin_input
 
     _logo = _img_b64("logo.png")
-    logo_html = f'<img src="data:image/png;base64,{_logo}" style="width:88px;height:88px;">' if _logo else "🐾"
+    logo_html = f'<img src="data:image/png;base64,{_logo}" style="width:88px;height:88px;">' if _logo else ""
 
     st.markdown(f"""
     <style>
@@ -395,11 +395,11 @@ if not st.session_state.authenticated and not _google_logged_in:
     </style>
     <div class="pin-logo">{logo_html}</div>
     <div class="pin-title">DOUU WORK</div>
-    <div class="pin-subtitle">輸入 PIN 碼解鎖 🔐</div>
+    <div class="pin-subtitle">輸入 PIN 碼解鎖 </div>
     """, unsafe_allow_html=True)
 
     if st.session_state.pin_error:
-        st.markdown('<div class="pin-error">❌ PIN 不正確，請重試</div>', unsafe_allow_html=True)
+        st.markdown('<div class="pin-error">PIN 不正確，請重試</div>', unsafe_allow_html=True)
 
     typed = st.text_input("PIN", value="", max_chars=pin_len,
                           type="password", placeholder="輸入 PIN 後按 Enter",
@@ -422,7 +422,7 @@ if _use_google_auth and _google_logged_in:
     try:
         allowed = st.secrets.get("allowed_emails", [])
         if allowed and st.user.email not in allowed:
-            st.error(f"❌ 帳號 **{st.user.email}** 無存取權限")
+            st.error(f"帳號 **{st.user.email}** 無存取權限")
             if st.button("登出"):
                 st.logout()
             st.stop()
@@ -446,7 +446,7 @@ if not _is_admin:
 with st.sidebar:
     _sb_logo = _img_b64("logo.png")
     _sb_dog  = _img_b64("dog_bw.png")
-    logo_img = f'<img src="data:image/png;base64,{_sb_logo}" style="width:64px;height:64px;">' if _sb_logo else "🐾"
+    logo_img = f'<img src="data:image/png;base64,{_sb_logo}" style="width:64px;height:64px;">' if _sb_logo else ""
     dog_img  = f'<img src="data:image/png;base64,{_sb_dog}" style="width:100%;max-width:140px;opacity:0.75;margin-top:4px;">' if _sb_dog else ""
     st.markdown(f"""
     <div style='text-align:center; padding: 10px 0 6px 0;'>
@@ -460,14 +460,14 @@ with st.sidebar:
 
     if _use_google_auth and _google_logged_in:
         try:
-            st.markdown(f"👤 &nbsp;**{st.user.name}**")
+            st.markdown(f"&nbsp;**{st.user.name}**")
             st.caption(st.user.email)
         except Exception:
-            st.markdown("👤 &nbsp;**已登入**")
+            st.markdown("&nbsp;**已登入**")
         if st.button("登出", use_container_width=True):
             st.logout()
     else:
-        st.markdown(f"👤 &nbsp;**{st.session_state.get('admin_name', 'Douu小幫手')}**")
+        st.markdown(f"&nbsp;**{st.session_state.get('admin_name', 'Douu小幫手')}**")
         if st.button("登出", use_container_width=True):
             st.session_state.authenticated = False
             _del_cookie()
@@ -491,7 +491,7 @@ try:
     stats = get_dashboard_stats()
     db_ok = True
 except Exception as e:
-    st.error(f"❌ 資料庫連線失敗: {e}")
+    st.error(f"資料庫連線失敗: {e}")
     st.info("請確認 .streamlit/secrets.toml 中的 Supabase 設定正確")
     db_ok = False
 
@@ -641,7 +641,7 @@ _time_str = _now.strftime("%H:%M")
 st.markdown(f"""
 <div class="hero-banner">
   <div>
-    <div class="hero-greeting">Hello, {_admin_name} 👋</div>
+    <div class="hero-greeting">Hello, {_admin_name} </div>
     <div class="hero-sub">DOUU WORK &nbsp;·&nbsp; 結構型商品管理平台</div>
   </div>
   <div class="hero-right">
@@ -658,25 +658,25 @@ total_str = f"${total_usd/1_000_000:.2f}M" if total_usd >= 1_000_000 else f"${to
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #2BD47E;">
-      <div class="scard-icon" style="background:#F2FAF5;color:#2BD47E;">👥</div>
+      <div class="scard-icon" style="background:#F2FAF5;color:#2BD47E;"></div>
       <div class="scard-val" style="color:#15A35A;">{stats['total_customers']}</div>
       <div class="scard-label">客戶總數</div>
     </div>""", unsafe_allow_html=True)
 with c2:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #10B981;">
-      <div class="scard-icon" style="background:#ECFDF5;color:#10B981;">📊</div>
+      <div class="scard-icon" style="background:#ECFDF5;color:#10B981;"></div>
       <div class="scard-val" style="color:#059669;">{stats['active_sns']}</div>
       <div class="scard-label">有效商品</div>
     </div>""", unsafe_allow_html=True)
 with c3:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #F59E0B;">
-      <div class="scard-icon" style="background:#FFFBEB;color:#F59E0B;">💰</div>
+      <div class="scard-icon" style="background:#FFFBEB;color:#F59E0B;"></div>
       <div class="scard-val" style="color:#D97706;font-size:1.55rem;">{total_str}</div>
       <div class="scard-label">總投資金額 (USD)</div>
     </div>""", unsafe_allow_html=True)
 with c4:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #8B5CF6;">
-      <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;">📅</div>
+      <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;"></div>
       <div class="scard-val" style="color:#7C3AED;font-size:1.45rem;">{date.today().strftime("%m/%d")}</div>
       <div class="scard-label">今日日期</div>
     </div>""", unsafe_allow_html=True)
@@ -688,7 +688,7 @@ prices = {}
 
 with col_left:
     st.markdown("""<div class="sec-head">
-      <div class="sec-head-icon" style="background:#FFF1F3;color:#F43F5E;">⚠️</div>
+      <div class="sec-head-icon" style="background:#FFF1F3;color:#F43F5E;"></div>
       <span class="sec-head-title">KO / KI 警示總覽</span>
     </div>""", unsafe_allow_html=True)
 
@@ -710,7 +710,7 @@ with col_left:
                 alerts_found.append((sn, analysis))
 
         if not alerts_found:
-            st.success("✅ 目前所有商品狀態正常，無警示")
+            st.success("目前所有商品狀態正常，無警示")
         else:
             for sn, analysis in alerts_found:
                 code = sn.get("product_code", "—")
@@ -728,7 +728,7 @@ with col_left:
 
 with col_right:
     st.markdown("""<div class="sec-head">
-      <div class="sec-head-icon" style="background:#F2FAF5;color:#2BD47E;">📅</div>
+      <div class="sec-head-icon" style="background:#F2FAF5;color:#2BD47E;"></div>
       <span class="sec-head-title">近期比價日</span>
     </div>""", unsafe_allow_html=True)
 
@@ -751,11 +751,11 @@ with col_right:
                 obs_date = pd.to_datetime(obs).date()
                 days_left = (obs_date - today).days
                 if days_left <= 3:
-                    badge, chip_css = "🔴", "background:#FFF1F3;color:#F43F5E;"
+                    badge, chip_css = "", "background:#FFF1F3;color:#F43F5E;"
                 elif days_left <= 7:
-                    badge, chip_css = "🟡", "background:#FFFBEB;color:#D97706;"
+                    badge, chip_css = "", "background:#FFFBEB;color:#D97706;"
                 else:
-                    badge, chip_css = "🟢", "background:#ECFDF5;color:#059669;"
+                    badge, chip_css = "", "background:#ECFDF5;color:#059669;"
                 st.markdown(f"""<div class="obs-row">
                   <span>{badge}</span>
                   <span class="obs-code">{code}<br><span style="font-weight:400;color:#94a3b8;font-size:0.76rem">{tstr}</span></span>
@@ -767,7 +767,7 @@ with col_right:
 
 # ── 主要標的現價 ──────────────────────────────────────────────
 st.markdown("""<div class="sec-head">
-  <div class="sec-head-icon" style="background:#ECFDF5;color:#10B981;">💹</div>
+  <div class="sec-head-icon" style="background:#ECFDF5;color:#10B981;"></div>
   <span class="sec-head-title">主要標的現價</span>
 </div>""", unsafe_allow_html=True)
 
@@ -796,7 +796,7 @@ else:
 
 # ── 近期 SN 商品 ──────────────────────────────────────────────
 st.markdown("""<div class="sec-head">
-  <div class="sec-head-icon" style="background:#F5F3FF;color:#8B5CF6;">📋</div>
+  <div class="sec-head-icon" style="background:#F5F3FF;color:#8B5CF6;"></div>
   <span class="sec-head-title">近期 SN 商品</span>
 </div>""", unsafe_allow_html=True)
 
@@ -815,8 +815,8 @@ if not sns_df.empty:
         if col in df_show.columns:
             df_show[col] = df_show[col].apply(lambda x: f"{x*100:.2f}%" if pd.notna(x) else "—")
     df_show["狀態"] = df_show.get("狀態", "").map({
-        "active": "✅ 有效", "ko_triggered": "🟢 KO觸發",
-        "ki_triggered": "🔴 KI觸發", "expired": "⏹ 到期", "matured": "✓ 結算"
+        "active": "有效", "ko_triggered": "KO觸發",
+        "ki_triggered": "KI觸發", "expired": "到期", "matured": "結算"
     }).fillna("—")
     st.dataframe(df_show.head(10), use_container_width=True, hide_index=True)
 else:

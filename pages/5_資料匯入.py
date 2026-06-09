@@ -11,7 +11,7 @@ from utils.excel_parser import parse_excel_file, get_summary, is_sn_sheet, is_cu
 from utils.customer_match import match_customer
 from utils.import_validator import validate_parsed
 
-st.set_page_config(page_title="資料匯入", page_icon="📥", layout="wide")
+st.set_page_config(page_title="資料匯入", page_icon=None, layout="wide")
 
 from utils.ui_helpers import dog_header, require_auth
 dog_header("資料匯入")
@@ -24,7 +24,7 @@ try:
     DB_READY = True
 except Exception:
     DB_READY = False
-    st.warning("⚠️ 資料庫未連線 — 仍可預覽資料，但無法匯入。請先完成「系統設定」。")
+    st.warning("資料庫未連線 — 仍可預覽資料，但無法匯入。請先完成「系統設定」。")
 
 def _snapshot_month(sb, month_label: str) -> dict:
     """บันทึก snapshot ของข้อมูลเดือนก่อน import เพื่อใช้ UNDO"""
@@ -61,7 +61,7 @@ def _restore_snapshot(sb, snapshot: dict):
                 sb.table("investments").insert(inv_data).execute()
 
     status.empty()
-    st.success("✅ 已復原至匯入前的狀態")
+    st.success("已復原至匯入前的狀態")
     st.session_state.pop("undo_snapshot", None)
     st.rerun()
 
@@ -105,7 +105,7 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                     if resp.data:
                         existing_customers[name] = resp.data[0]["id"]
                         total_customers += 1
-                        status.text(f"✅ 新增客戶: {name}")
+                        status.text(f"新增客戶: {name}")
                 except Exception as e:
                     errors.append(f"客戶 {name}: {e}")
 
@@ -138,7 +138,7 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                         # ลบ investments เก่าแล้วใส่ใหม่
                         sb.table("investments").delete().eq("sn_id", sn_id).execute()
                         total_updated += 1
-                        status.text(f"🔄 更新 SN: {code}")
+                        status.text(f"更新 SN: {code}")
                     else:
                         status.text(f"跳過重複商品: {code}")
                         continue
@@ -148,7 +148,7 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                         if resp.data:
                             sn_id = resp.data[0]["id"]
                             total_sns += 1
-                            status.text(f"✅ 新增 SN: {code}")
+                            status.text(f"新增 SN: {code}")
                     except Exception as e:
                         errors.append(f"SN {code}: {e}")
                         continue
@@ -187,7 +187,7 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
     status.empty()
 
     st.markdown("---")
-    st.markdown("### 📊 匯入結果")
+    st.markdown("### 匯入結果")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("新增客戶", f"{total_customers} 人")
@@ -199,13 +199,13 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
         st.metric("錯誤", f"{len(errors)} 個")
 
     if errors:
-        with st.expander(f"⚠️ {len(errors)} 個錯誤"):
+        with st.expander(f"{len(errors)} 個錯誤"):
             for e in errors:
                 st.text(f"• {e}")
     else:
-        st.success("✅ 匯入完成，無錯誤！")
+        st.success("匯入完成，無錯誤！")
         if upsert_mode:
-            st.info("💡 如需復原，請點擊下方「↩️ 復原上次匯入」按鈕")
+            st.info("如需復原，請點擊下方「↩復原上次匯入」按鈕")
         else:
             st.balloons()
 
@@ -218,19 +218,19 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
 # ── ปุ่ม UNDO (แสดงเมื่อมี snapshot) ─────────────────────────
 if st.session_state.get("undo_snapshot") and DB_READY:
     month = st.session_state["undo_snapshot"]["month_label"]
-    st.warning(f"⚠️ มี snapshot ของ **{month}** ก่อน import ล่าสุด")
+    st.warning(f"มี snapshot ของ **{month}** ก่อน import ล่าสุด")
     col_u1, col_u2 = st.columns([1, 4])
     with col_u1:
-        if st.button("↩️ 復原上次匯入", type="primary", use_container_width=True):
+        if st.button("↩復原上次匯入", type="primary", use_container_width=True):
             from utils.database import get_supabase as _gsb
             _restore_snapshot(_gsb(), st.session_state["undo_snapshot"])
     with col_u2:
-        if st.button("🗑️ 放棄復原 (確認保留新資料)", use_container_width=True):
+        if st.button("放棄復原 (確認保留新資料)", use_container_width=True):
             st.session_state.pop("undo_snapshot", None)
             st.rerun()
     st.markdown("---")
 
-tab1, tab2 = st.tabs(["📁 上傳並匯入", "📋 月份管理"])
+tab1, tab2 = st.tabs(["上傳並匯入", "月份管理"])
 
 # ═══════════════════════════════════════════════════════════════
 # Tab 1: 上傳並匯入
@@ -238,7 +238,7 @@ tab1, tab2 = st.tabs(["📁 上傳並匯入", "📋 月份管理"])
 with tab1:
 
     # ── 說明區塊 ──────────────────────────────────────────────
-    with st.expander("📖 使用說明 (點擊展開)", expanded=False):
+    with st.expander("使用說明 (點擊展開)", expanded=False):
         st.markdown("""
         **支援的 Excel 格式:**
         - 單一檔案含多個月份 Sheet (例如: 開戶明細 + ＳＮ5月 + ＳＮ6月)
@@ -257,17 +257,17 @@ with tab1:
 
     # ── 檔案上傳區 ────────────────────────────────────────────
     uploaded_files = st.file_uploader(
-        "📂 拖曳 Excel 檔案到這裡，或點擊選擇",
+        "拖曳 Excel 檔案到這裡，或點擊選擇",
         type=["xlsx", "xls"],
         accept_multiple_files=True,
         help="可同時選擇多個檔案"
     )
 
     if not uploaded_files:
-        st.info("👆 請上傳 Excel 檔案開始匯入")
+        st.info("請上傳 Excel 檔案開始匯入")
         st.markdown("---")
         st.markdown("**快速上傳最近的檔案:**")
-        if st.button("📂 使用現有的 開戶明細 金額.xlsx"):
+        if st.button("使用現有的 開戶明細 金額.xlsx"):
             st.session_state["use_existing"] = True
 
         if st.session_state.get("use_existing"):
@@ -285,7 +285,7 @@ with tab1:
     # 處理上傳的檔案
     if uploaded_files:
         all_parsed = []
-        with st.spinner("📂 讀取檔案中，請稍候..."):
+        with st.spinner("讀取檔案中，請稍候..."):
             for file in uploaded_files:
                 try:
                     file_bytes = BytesIO(file.read())
@@ -293,7 +293,7 @@ with tab1:
                     parsed["_filename"] = file.name
                     all_parsed.append(parsed)
                 except Exception as e:
-                    st.error(f"❌ 無法讀取 {file.name}: {e}")
+                    st.error(f"無法讀取 {file.name}: {e}")
 
         st.session_state["parsed_data_list"] = all_parsed
 
@@ -313,7 +313,7 @@ with tab1:
             filename = parsed.get("_filename", "未知檔案")
             summary = get_summary(parsed)
 
-            st.markdown(f"### 📄 {filename}")
+            st.markdown(f"### {filename}")
 
             # Sheet 偵測結果
             sheets = parsed.get("sheets_found", {})
@@ -340,14 +340,14 @@ with tab1:
                 st.markdown(f"**偵測到的月份:** {'、'.join(sorted(summary['months']))}")
 
             # ── 資料預覽 ──────────────────────────────────────
-            with st.expander("👀 預覽客戶資料"):
+            with st.expander("預覽客戶資料"):
                 customers = parsed.get("customers", [])
                 if customers:
                     df = pd.DataFrame(customers)
                     bool_cols = ["unified_account", "pi_signed", "ordered"]
                     for col in bool_cols:
                         if col in df.columns:
-                            df[col] = df[col].map({True: "✅", False: "❌"})
+                            df[col] = df[col].map({True: "", False: ""})
                     df = df.rename(columns={
                         "name": "姓名", "unified_account": "統一開戶",
                         "pi_signed": "PI見簽", "ordered": "已下單",
@@ -358,7 +358,7 @@ with tab1:
                     st.info("無客戶資料")
 
             for month, sns in sorted(parsed.get("sn_by_month", {}).items()):
-                with st.expander(f"👀 預覽 {month} SN 商品 ({len(sns)} 筆)"):
+                with st.expander(f"預覽 {month} SN 商品 ({len(sns)} 筆)"):
                     preview_rows = []
                     for sn in sns:
                         tickers = " / ".join([sn.get(f"underlying_{i}") for i in range(1, 4)
@@ -376,7 +376,7 @@ with tab1:
             st.markdown("---")
 
         # ── 資料健檢 ────────────────────────────────────────────
-        st.markdown("### 🔍 資料健檢 (匯入前檢查)")
+        st.markdown("### 資料健檢 (匯入前檢查)")
 
         # 候選客戶全名 = DB 既有 + 本次檔案 開戶 sheet 的全名
         candidate_names = []
@@ -404,19 +404,19 @@ with tab1:
             errs = [i for i in issues if i["level"] == "error"]
             warns = [i for i in issues if i["level"] == "warn"]
             if not issues:
-                st.success("✅ 健檢通過，未發現問題")
+                st.success("健檢通過，未發現問題")
             else:
                 if errs:
-                    st.error(f"🔴 {len(errs)} 個錯誤 (建議修正 Excel 後重新上傳)")
+                    st.error(f"{len(errs)} 個錯誤 (建議修正 Excel 後重新上傳)")
                     for i in errs:
                         st.markdown(f"- **{i['code']}** [{i['field']}] {i['msg']}")
                 if warns:
-                    st.warning(f"🟡 {len(warns)} 個提醒 (可確認後仍繼續匯入)")
+                    st.warning(f"{len(warns)} 個提醒 (可確認後仍繼續匯入)")
                     for i in warns:
                         st.markdown(f"- **{i['code']}** [{i['field']}] {i['msg']}")
 
         # ── 匯入按鈕 ────────────────────────────────────────────
-        st.markdown("### ▶️ 開始匯入")
+        st.markdown("### ▶開始匯入")
 
         import_opts = st.columns(3)
         with import_opts[0]:
@@ -428,7 +428,7 @@ with tab1:
                                           help="相同代號或姓名的資料不會重複匯入")
 
         # ── 指定月份 ─────────────────────────────────────────────
-        st.markdown("**📅 指定匯入月份 (選填)**")
+        st.markdown("**指定匯入月份 (選填)**")
         month_options = ["自動偵測 (依 Sheet 名稱)"] + [f"{i}月" for i in range(1, 13)]
         override_month = st.selectbox(
             "若 Excel 沒有月份名稱，或想強制指定月份，請在此選擇",
@@ -438,9 +438,9 @@ with tab1:
         force_month = None if override_month == "自動偵測 (依 Sheet 名稱)" else override_month
 
         if not DB_READY:
-            st.error("❌ 請先完成資料庫設定才能匯入")
+            st.error("請先完成資料庫設定才能匯入")
         else:
-            if st.button("🚀 確認匯入", type="primary", use_container_width=True):
+            if st.button("確認匯入", type="primary", use_container_width=True):
                 _do_import(parsed_list, import_customers, import_sns, skip_duplicates, force_month)
 
 
@@ -448,7 +448,7 @@ with tab1:
 # Tab 2: 月份管理
 # ═══════════════════════════════════════════════════════════════
 with tab2:
-    st.subheader("📅 月份資料管理")
+    st.subheader("月份資料管理")
 
     st.markdown("""
     **如何新增每月資料:**
@@ -489,7 +489,7 @@ with tab2:
     st.markdown("---")
 
     # 下載 Excel 範本
-    st.subheader("📥 下載 Excel 範本")
+    st.subheader("下載 Excel 範本")
     st.markdown("如果要建立新月份的 Excel 檔，可以下載範本參考格式:")
 
     try:
@@ -569,7 +569,7 @@ with tab2:
         buf.seek(0)
 
         st.download_button(
-            label="⬇️ 下載 Excel 範本 (ＳＮ6月格式)",
+            label="下載 Excel 範本 (ＳＮ6月格式)",
             data=buf.getvalue(),
             file_name="SN月份範本.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

@@ -75,8 +75,8 @@ _PAGE_DOGS = {
     "即時圖表":   "animals/frenchie.png",
 }
 
-def dog_header(title: str, dog_img: str = ""):
-    """Page title card with an animal icon + applies the global theme (light/dark)."""
+def dog_header(title: str, dog_img: str = "", eyebrow: str = "DOUU WORK"):
+    """Minimal premium page header + applies the global theme (light/dark)."""
     # 全站主題 + 外觀切換 (每頁的統一入口)
     try:
         from utils.theme import apply_theme, theme_toggle
@@ -85,21 +85,10 @@ def dog_header(title: str, dog_img: str = ""):
     except Exception:
         pass
 
-    img_file = dog_img or _PAGE_DOGS.get(title, "logo.png")
-    b64 = _img_b64(img_file)
-    if b64:
-        icon = (f'<img src="data:image/png;base64,{b64}" '
-                f'style="width:60px;height:60px;object-fit:contain;flex-shrink:0;">')
-    else:
-        icon = '<span style="font-size:36px;">◆</span>'
     st.markdown(f"""
-<div style="display:flex;align-items:center;gap:14px;
-            background:linear-gradient(135deg,var(--surface,#fff) 0%,var(--surface-soft,#f4fbf7) 100%);
-            border:1px solid var(--border,#dcefe4);border-radius:22px;
-            padding:14px 22px;margin-bottom:1.3rem;
-            box-shadow:0 3px 14px var(--shadow,rgba(20,80,55,.10));">
-    {icon}
-    <span style="font-size:1.55rem;font-weight:800;letter-spacing:.3px;
-                 color:var(--text,#173029);">{title}</span>
+<div class="dh-wrap">
+    <div class="dh-eyebrow">{eyebrow}</div>
+    <div class="dh-title">{title}</div>
+    <div class="dh-rule"></div>
 </div>
 """, unsafe_allow_html=True)
