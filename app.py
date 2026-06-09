@@ -370,7 +370,7 @@ try:
     _cc = CookieController()
 
     def _set_cookie():
-        _cc.set("inv_auth", _cookie_token(), max_age=30 * 24 * 3600)
+        _cc.set("inv_auth", _cookie_token(), max_age=365 * 24 * 3600)  # 記住 1 年
 
     def _del_cookie():
         try:
@@ -466,6 +466,8 @@ if not st.session_state.authenticated and not _google_logged_in:
             st.session_state.authenticated = True
             st.session_state.pin_error = False
             _set_cookie()
+            import time as _t
+            _t.sleep(0.6)   # ให้ component เขียน cookie ลง browser ให้เสร็จก่อน rerun (ไม่งั้น cookie ไม่ติด)
             st.rerun()
         elif len(typed) >= pin_len:
             st.session_state.pin_error = True

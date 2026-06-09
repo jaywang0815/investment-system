@@ -47,7 +47,9 @@ def require_auth():
             st.session_state.pop("_auth_cookie_tried", None)
             if _cc is not None:
                 try:
-                    _cc.set("inv_auth", expected, max_age=30 * 24 * 3600)
+                    _cc.set("inv_auth", expected, max_age=365 * 24 * 3600)
+                    import time as _t
+                    _t.sleep(0.6)   # ให้ cookie เขียนเสร็จก่อน rerun (ไม่งั้นไม่ติด)
                 except Exception:
                     pass
             st.rerun()
