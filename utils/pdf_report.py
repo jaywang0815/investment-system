@@ -297,7 +297,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
         if not sn:
             continue
 
-        _add_sn_detail(story, idx, inv, sn, prices, W)
+        _add_sn_detail(story, idx, inv, sn, prices, W, chart_period)
         story.append(Spacer(1, 5*mm))
 
     # ── 頁尾 ────────────────────────────────────────────────
@@ -311,7 +311,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     return buffer.getvalue()
 
 
-def _add_sn_detail(story, idx, inv, sn, prices, W):
+def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
     """產生單一 SN 商品的詳細區塊"""
     from utils.stock_prices import analyze_sn_status, get_sn_underlyings
 
