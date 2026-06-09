@@ -557,9 +557,9 @@ with tab2:
 
         # 標的1-5 (C-G欄) 加下拉驗證，來源 = 選項!A欄
         n_tk = max(len(known_tickers) + 1, 2)
-        dv = DataValidation(type="list", formula1=f"=選項!$A$2:$A${n_tk}", allow_blank=True)
-        dv.error = "請從清單選擇標的，或於選項sheet新增"
-        dv.errorTitle = "標的不在清單"
+        # showErrorMessage=False → 可從清單選，也可手動輸入清單外的代號
+        dv = DataValidation(type="list", formula1=f"=選項!$A$2:$A${n_tk}",
+                            allow_blank=True, showErrorMessage=False)
         ws_sn.add_data_validation(dv)
         for colL in ["C", "D", "E", "F", "G"]:
             dv.add(f"{colL}2:{colL}200")
