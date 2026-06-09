@@ -67,6 +67,13 @@ _PERIOD_DAYS = {
     "4y": 1460, "4y6mo": 1642, "5y": 1825,
 }
 
+# 圖表標題用英文 (matplotlib 無中文字型，避免變成方塊)
+_PERIOD_LABELS = {
+    "3mo": "3-Month", "6mo": "6-Month", "1y": "1-Year", "18mo": "18-Month",
+    "2y": "2-Year", "2y6mo": "2.5-Year", "3y": "3-Year", "3y6mo": "3.5-Year",
+    "4y": "4-Year", "4y6mo": "4.5-Year", "5y": "5-Year",
+}
+
 def _generate_price_chart(ticker: str, initial_price: float,
                           ko_barrier: float, ki_barrier: float,
                           strike_pct: float, width_mm: float = 155,
@@ -77,11 +84,13 @@ def _generate_price_chart(ticker: str, initial_price: float,
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
         import matplotlib.patches as mpatches
+        import matplotlib.ticker as mticker
         import yfinance as yf
         import numpy as np
         from datetime import timedelta
 
         days = _PERIOD_DAYS.get(period, 180)
+        period_label = _PERIOD_LABELS.get(period, "Performance")
         start = datetime.today() - timedelta(days=days)
         hist = yf.Ticker(ticker).history(start=start)
         if hist.empty:
@@ -90,15 +99,17 @@ def _generate_price_chart(ticker: str, initial_price: float,
         closes = hist["Close"]
         dates  = hist.index
 
+        LINE = "#0F766E"   # deep teal — distinct from KO green
         # ── 畫布設定 ──────────────────────────────────────────
-        fig, ax = plt.subplots(figsize=(width_mm / 25.4, 3.0),
-                               facecolor="#F8FAFC")
-        ax.set_facecolor("#F8FAFC")
+        fig, ax = plt.subplots(figsize=(width_mm / 25.4, 3.2),
+                               facecolor="white")
+        ax.set_facecolor("white")
 
         # ── 價格線 + 陰影 ─────────────────────────────────────
-        ax.plot(dates, closes, color="#1E3A8A", linewidth=1.5, zorder=4)
+        ax.plot(dates, closes, color=LINE, linewidth=1.6, zorder=4,
+                solid_capstyle="round")
         ax.fill_between(dates, closes, closes.min() * 0.97,
-                        alpha=0.12, color="#3B82F6", zorder=3)
+                        alpha=0.10, color=LINE, zorder=3)
 
         # ── KO / KI / 執行價 水平線 ────────────────────────────
         barrier_lines = []
@@ -134,28 +145,34 @@ def _generate_price_chart(ticker: str, initial_price: float,
         last_price = float(closes.iloc[-1])
         ax.annotate(f"${last_price:,.2f}",
                     xy=(dates[-1], last_price),
-                    xytext=(-38, 8), textcoords="offset points",
-                    fontsize=7, color="white", zorder=7,
-                    bbox=dict(boxstyle="round,pad=0.3", fc="#1E3A8A", ec="none"),
-                    arrowprops=dict(arrowstyle="-", color="#1E3A8A", lw=0.8))
+                    xytext=(-40, 9), textcoords="offset points",
+                    fontsize=7, color="white", zorder=7, fontweight="bold",
+                    bbox=dict(boxstyle="round,pad=0.3", fc=LINE, ec="none"),
+                    arrowprops=dict(arrowstyle="-", color=LINE, lw=0.8))
 
-        # ── 軸設定 ────────────────────────────────────────────
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
-        ax.xaxis.set_major_locator(mdates.MonthLocator())
-        ax.tick_params(labelsize=6.5, colors="#475569")
-        for spine in ax.spines.values():
-            spine.set_edgecolor("#CBD5E1")
-            spine.set_linewidth(0.5)
-        ax.grid(True, alpha=0.4, linewidth=0.4, color="#CBD5E1")
+        # ── 軸設定 (自動挑選刻度，避免日期重疊) ─────────────────
+        loc = mdates.AutoDateLocator(minticks=4, maxticks=7)
+        ax.xaxis.set_major_locator(loc)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
+        ax.tick_params(labelsize=7, colors="#64748B", length=0)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        for s in ("left", "bottom"):
+            ax.spines[s].set_edgecolor("#E2E8F0")
+            ax.spines[s].set_linewidth(0.6)
+        ax.grid(True, axis="y", alpha=0.6, linewidth=0.4, color="#E2E8F0")
         ax.set_axisbelow(True)
+        ax.margins(x=0.01)
 
         # ── 標題 & 圖例 ───────────────────────────────────────
-        ax.set_title(f"{ticker}  —  6-Month Performance",
-                     fontsize=9, color="#1E3A8A", fontweight="bold", pad=6)
+        ax.set_title(f"{ticker}    {period_label} Performance",
+                     fontsize=9.5, color="#0F172A", fontweight="bold",
+                     pad=8, loc="left")
         if barrier_lines:
-            ax.legend(handles=barrier_lines, fontsize=6,
-                      loc="upper left", framealpha=0.85,
-                      edgecolor="#CBD5E1", labelcolor="#1E293B")
+            ax.legend(handles=barrier_lines, fontsize=6, loc="upper left",
+                      framealpha=0.0, edgecolor="none", labelcolor="#475569",
+                      handlelength=1.4)
 
         fig.tight_layout(pad=0.6)
 
