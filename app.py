@@ -594,22 +594,36 @@ st.markdown("""<style>
 }
 .hero-datestr { color: rgba(255,255,255,0.5); font-size: 0.8rem; margin-top: 5px; }
 
+/* gradient blob backdrop so the frosted glass reads in 3D */
+[data-testid="stAppViewContainer"]::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(38% 32% at 10% 6%, rgba(43,212,126,0.22), transparent 70%),
+      radial-gradient(34% 30% at 90% 10%, rgba(16,185,129,0.18), transparent 70%),
+      radial-gradient(46% 40% at 78% 92%, rgba(20,184,166,0.16), transparent 72%),
+      radial-gradient(40% 38% at 25% 95%, rgba(124,92,246,0.10), transparent 72%);
+}
+[data-testid="stAppViewContainer"] > .main { position: relative; z-index: 1; }
+
 .scard {
-    background: white;
-    border-radius: 20px;
+    background: rgba(255,255,255,0.55);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.65);
+    border-radius: 22px;
     padding: 1.4rem 1.6rem;
-    box-shadow: 0 4px 20px rgba(21,163,90,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    box-shadow: 0 10px 32px rgba(20,80,55,0.12), inset 0 1px 0 rgba(255,255,255,0.75);
     position: relative;
     overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.25s cubic-bezier(.22,1,.36,1), box-shadow 0.25s;
 }
-.scard:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(21,163,90,0.16); }
+.scard:hover { transform: translateY(-5px); box-shadow: 0 20px 44px rgba(21,163,90,0.20), inset 0 1px 0 rgba(255,255,255,0.8); }
 .scard-icon {
-    width: 44px; height: 44px;
-    border-radius: 13px;
+    width: 46px; height: 46px;
+    border-radius: 15px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.25rem;
     margin-bottom: 0.9rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 12px rgba(20,80,55,0.10);
 }
 .scard-val {
     font-size: 2.1rem;
@@ -659,13 +673,17 @@ st.markdown("""<style>
 
 .px-grid { display: flex; flex-wrap: wrap; gap: 0.7rem; }
 .px-card {
-    background: white; border-radius: 16px;
+    background: rgba(255,255,255,0.5);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 18px;
     padding: 0.9rem 1.2rem 0.75rem;
     min-width: 120px; flex: 1;
-    box-shadow: 0 2px 10px rgba(21,163,90,0.07);
-    transition: transform 0.15s;
+    box-shadow: 0 8px 24px rgba(20,80,55,0.10), inset 0 1px 0 rgba(255,255,255,0.7);
+    transition: transform 0.2s cubic-bezier(.22,1,.36,1);
 }
-.px-card:hover { transform: translateY(-2px); }
+.px-card:hover { transform: translateY(-3px); }
 .px-sym { font-size: 0.72rem; font-weight: 700; color: #64748b; letter-spacing: 0.5px; }
 .px-price { font-size: 1.3rem; font-weight: 800; color: #0f7a46; letter-spacing: -0.5px; margin-top: 3px; }
 .px-na { font-size: 0.8rem; color: #94a3b8; font-style: italic; margin-top: 3px; }
@@ -702,28 +720,42 @@ st.markdown(f"""
 total_usd = stats.get('total_investment_usd', 0)
 total_str = f"${total_usd/1_000_000:.2f}M" if total_usd >= 1_000_000 else f"${total_usd:,.0f}"
 
+# finance line-icons (inherit colour from .scard-icon)
+_SVG = lambda body: (f'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" '
+                     f'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" '
+                     f'stroke-linejoin="round">{body}</svg>')
+_IC_CUSTOMERS = _SVG('<circle cx="9" cy="8" r="3.1"/><path d="M3.6 19c0-3 2.4-5 5.4-5s5.4 2 5.4 5"/>'
+                     '<path d="M16.2 7.6a3 3 0 0 1 0 5.4"/><path d="M18.6 19c0-2-.9-3.7-2.4-4.5"/>')
+_IC_PRODUCTS  = _SVG('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/>'
+                     '<path d="M10 17l1.8-2.2 1.6 1.4L16 13"/>')
+_IC_MONEY     = _SVG('<ellipse cx="12" cy="6.4" rx="6.4" ry="2.7"/>'
+                     '<path d="M5.6 6.4v5c0 1.5 2.9 2.7 6.4 2.7s6.4-1.2 6.4-2.7v-5"/>'
+                     '<path d="M5.6 11.4v3c0 1.5 2.9 2.7 6.4 2.7s6.4-1.2 6.4-2.7v-3"/>')
+_IC_CALENDAR  = _SVG('<rect x="3.6" y="5" width="16.8" height="15" rx="2.6"/>'
+                     '<path d="M3.6 9.5h16.8M8 3v3M16 3v3"/>')
+
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #2BD47E;">
-      <div class="scard-icon" style="background:#F2FAF5;color:#2BD47E;"></div>
+      <div class="scard-icon" style="background:#F2FAF5;color:#2BD47E;">{_IC_CUSTOMERS}</div>
       <div class="scard-val" style="color:#15A35A;">{stats['total_customers']}</div>
       <div class="scard-label">客戶總數</div>
     </div>""", unsafe_allow_html=True)
 with c2:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #10B981;">
-      <div class="scard-icon" style="background:#ECFDF5;color:#10B981;"></div>
+      <div class="scard-icon" style="background:#ECFDF5;color:#10B981;">{_IC_PRODUCTS}</div>
       <div class="scard-val" style="color:#059669;">{stats['active_sns']}</div>
       <div class="scard-label">有效商品</div>
     </div>""", unsafe_allow_html=True)
 with c3:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #F59E0B;">
-      <div class="scard-icon" style="background:#FFFBEB;color:#F59E0B;"></div>
+      <div class="scard-icon" style="background:#FFFBEB;color:#F59E0B;">{_IC_MONEY}</div>
       <div class="scard-val" style="color:#D97706;font-size:1.55rem;">{total_str}</div>
       <div class="scard-label">總投資金額 (USD)</div>
     </div>""", unsafe_allow_html=True)
 with c4:
     st.markdown(f"""<div class="scard" style="border-top:4px solid #8B5CF6;">
-      <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;"></div>
+      <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;">{_IC_CALENDAR}</div>
       <div class="scard-val" style="color:#7C3AED;font-size:1.45rem;">{date.today().strftime("%m/%d")}</div>
       <div class="scard-label">今日日期</div>
     </div>""", unsafe_allow_html=True)

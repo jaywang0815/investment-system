@@ -6,20 +6,30 @@ Light / Dark 由 st.session_state['ui_mode'] 控制，dog_header() 在每頁注�
 import streamlit as st
 
 LIGHT = {
-    "bg": "#ffffff", "bg2": "#fafafa",
+    "bg": "#eef6f1", "bg2": "#e8f3ed",
     "surface": "#ffffff", "surface2": "#f6f7f6",
-    "text": "#0b0f0d", "muted": "#6b7280",
+    "text": "#0b0f0d", "muted": "#5f6b66",
     "accent": "#15a34a", "accent_press": "#0f7d3b",
     "border": "#ececec", "on_accent": "#ffffff",
     "sidebar": "#ffffff", "sidebar_text": "#0b0f0d",
+    "glass": "rgba(255,255,255,0.55)", "glass_brd": "rgba(255,255,255,0.65)",
+    "glow": "rgba(20,80,55,0.12)",
+    "blob": ("radial-gradient(38% 32% at 8% 6%, rgba(43,212,126,0.22), transparent 70%),"
+             "radial-gradient(34% 30% at 92% 8%, rgba(16,185,129,0.16), transparent 70%),"
+             "radial-gradient(46% 40% at 80% 94%, rgba(20,184,166,0.15), transparent 72%)"),
 }
 DARK = {
-    "bg": "#0a0c0b", "bg2": "#0d100e",
+    "bg": "#07100d", "bg2": "#0a1714",
     "surface": "#121413", "surface2": "#171a18",
     "text": "#f4f6f5", "muted": "#9aa39e",
     "accent": "#2fd47e", "accent_press": "#27b86c",
     "border": "#1f2220", "on_accent": "#05140d",
     "sidebar": "#0c0e0d", "sidebar_text": "#f4f6f5",
+    "glass": "rgba(22,30,26,0.45)", "glass_brd": "rgba(255,255,255,0.10)",
+    "glow": "rgba(0,0,0,0.45)",
+    "blob": ("radial-gradient(40% 34% at 8% 6%, rgba(47,212,126,0.16), transparent 70%),"
+             "radial-gradient(36% 32% at 92% 8%, rgba(16,185,129,0.13), transparent 70%),"
+             "radial-gradient(48% 42% at 80% 94%, rgba(20,184,166,0.12), transparent 72%)"),
 }
 
 
@@ -53,10 +63,16 @@ def apply_theme():
   --bg:{c['bg']}; --bg2:{c['bg2']}; --surface:{c['surface']}; --surface2:{c['surface2']};
   --text:{c['text']}; --muted:{c['muted']}; --accent:{c['accent']}; --accent-press:{c['accent_press']};
   --border:{c['border']}; --on-accent:{c['on_accent']};
+  --glass:{c['glass']}; --glass-brd:{c['glass_brd']}; --glow:{c['glow']};
 }}
 
 /* ── base / typography ── */
-.stApp {{ background: var(--bg); color: var(--text); }}
+.stApp {{ background: linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%); color: var(--text); }}
+[data-testid="stAppViewContainer"]::before {{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background: {c['blob']};
+}}
+[data-testid="stAppViewContainer"] > .main {{ position:relative; z-index:1; }}
 .block-container {{ padding-top: 2.6rem; padding-bottom: 4rem; max-width: 1180px; }}
 html, body, [class*="css"] {{
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter",
@@ -130,8 +146,12 @@ div[data-baseweb="select"] * {{ color: var(--text) !important; }}
 
 /* ── metrics (clean cards) ── */
 [data-testid="stMetric"] {{
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 18px; padding: 18px 20px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px) saturate(155%);
+  backdrop-filter: blur(16px) saturate(155%);
+  border: 1px solid var(--glass-brd);
+  border-radius: 20px; padding: 18px 20px;
+  box-shadow: 0 10px 30px var(--glow), inset 0 1px 0 rgba(255,255,255,0.55);
 }}
 [data-testid="stMetricValue"] {{ color: var(--text); font-weight: 800; letter-spacing: -.02em; }}
 [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {{
@@ -141,13 +161,21 @@ div[data-baseweb="select"] * {{ color: var(--text) !important; }}
 
 /* ── containers ── */
 [data-testid="stExpander"] {{
-  border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--surface);
+  border: 1px solid var(--glass-brd); border-radius: 18px; overflow: hidden;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: 0 8px 26px var(--glow);
 }}
 [data-testid="stExpander"] summary {{ color: var(--text); font-weight: 600; }}
 [data-testid="stDataFrame"], [data-testid="stTable"] {{
-  border-radius: 16px; overflow: hidden; border: 1px solid var(--border);
+  border-radius: 18px; overflow: hidden; border: 1px solid var(--glass-brd);
+  box-shadow: 0 8px 26px var(--glow);
 }}
-[data-testid="stAlert"] {{ border-radius: 14px; border: 1px solid var(--border); }}
+[data-testid="stAlert"] {{
+  border-radius: 16px; border: 1px solid var(--glass-brd); background: var(--glass);
+  -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%);
+}}
 .stProgress > div > div > div {{ background: var(--accent); }}
 [data-testid="stSlider"] [role="slider"] {{ background: var(--accent); }}
 [data-testid="stDecoration"] {{ display: none; }}
