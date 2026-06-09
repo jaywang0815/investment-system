@@ -10,7 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage, KeepTogether
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
@@ -445,7 +445,8 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
         ]))
         story.append(price_table)
 
-    # ── 價格走勢圖 ──────────────────────────────────────────
+    # ── 價格走勢圖 (每張圖上方加標的數據摘要) ──────────────────
+    detail_by_ticker = {d["ticker"]: d for d in analysis.get("details", [])}
     for u in underlyings:
         chart_bytes = _generate_price_chart(
             ticker=u["ticker"],
@@ -456,8 +457,36 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
             width_mm=W / mm,
             period=chart_period,
         )
-        if chart_bytes:
-            img_buf = io.BytesIO(chart_bytes)
-            rl_img = RLImage(img_buf, width=W, height=W * 0.36)
-            story.append(Spacer(1, 2*mm))
-            story.append(rl_img)
+        if not chart_bytes:
+            continue
+
+        d = detail_by_ticker.get(u["ticker"], {})
+        chg = d.get("change_pct")
+        chg_col = GREEN if (_valid(chg) and chg >= 0) else RED if _valid(chg) else GRAY
+        cap = [[
+            u["ticker"],
+            f"期初 ${d['initial_price']:,.2f}" if _valid(d.get("initial_price")) else "期初 —",
+            f"現價 ${d['current_price']:,.2f}" if _valid(d.get("current_price")) else "現價 —",
+            f"{chg:+.2f}%" if _valid(chg) else "—",
+            _clean(f"{d.get('ko_status','')} {d.get('ki_status','')}").strip() or "—",
+        ]]
+        cap_table = Table(cap, colWidths=[W*0.14, W*0.24, W*0.24, W*0.14, W*0.24])
+        cap_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), FONT),
+            ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("BACKGROUND", (0, 0), (-1, -1), BLUE_LIGHT),
+            ("TEXTCOLOR", (0, 0), (0, 0), BLUE_DARK),
+            ("TEXTCOLOR", (3, 0), (3, 0), chg_col),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (0, 0), (0, 0), "LEFT"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (0, 0), 8),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.4, BLUE_MID),
+        ]))
+
+        img_buf = io.BytesIO(chart_bytes)
+        rl_img = RLImage(img_buf, width=W, height=W * 0.36)
+        story.append(Spacer(1, 3*mm))
+        story.append(KeepTogether([cap_table, rl_img]))
