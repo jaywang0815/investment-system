@@ -203,7 +203,9 @@ def _valid(v):
 # ============================================================
 
 def generate_customer_report(customer: dict, investments: list, prices: dict,
-                             chart_period: str = "6mo") -> bytes:
+                             chart_period: str = "6mo",
+                             columns: list = None, show_info: bool = True,
+                             show_amount: bool = True, show_charts: bool = True) -> bytes:
     """
     產生單一客戶的完整投資報表
 
@@ -315,7 +317,8 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
         if not sn:
             continue
 
-        _add_sn_detail(story, idx, inv, sn, prices, W, chart_period)
+        _add_sn_detail(story, idx, inv, sn, prices, W, chart_period,
+                       columns, show_info, show_amount, show_charts)
         story.append(Spacer(1, 5*mm))
 
     # ── 頁尾 ────────────────────────────────────────────────
@@ -329,7 +332,8 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     return buffer.getvalue()
 
 
-def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
+def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
+                   columns=None, show_info=True, show_amount=True, show_charts=True):
     """產生單一 SN 商品的詳細區塊"""
     from utils.stock_prices import analyze_sn_status, get_sn_underlyings
 
@@ -370,7 +374,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
     header_data = [[
         f"#{idx}  {product_code}",
         f"{status_text} {analysis['status_label']}",
-        f"投資金額: USD {amount_usd:,.0f}"
+        f"投資金額: USD {amount_usd:,.0f}" if show_amount else ""
     ]]
     header_table = Table(header_data, colWidths=[W*0.45, W*0.30, W*0.25])
     header_table.setStyle(TableStyle([
@@ -386,50 +390,54 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
     ]))
     story.append(header_table)
 
-    # 商品基本資訊
-    info_rows = [
-        ["標的股票", ticker_names,
-         "下單日期", str(trade_date)[:10] if trade_date else "—"],
-        ["執行價格", f"{strike_pct*100:.2f}%" if strike_pct else "—",
-         "比價日期", str(obs_date)[:10] if obs_date else "—"],
-        ["配息率(年化)", f"{coupon_pct*100:.2f}%" if coupon_pct else "—",
-         "KO 水位", f"{ko_barrier*100:.0f}%" if ko_barrier else "無"],
-        ["投資金額", f"USD {amount_usd:,.0f}",
-         "KI 水位", f"{ki_barrier*100:.0f}%" if ki_barrier else "無"],
-    ]
-    info_table = Table(info_rows, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
-    info_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), FONT),
-        ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
-        ("FONTNAME", (2, 0), (2, -1), FONT_BOLD),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BACKGROUND", (0, 0), (0, -1), GRAY_LIGHT),
-        ("BACKGROUND", (2, 0), (2, -1), GRAY_LIGHT),
-        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(info_table)
+    # 商品基本資訊 (可關閉)
+    if show_info:
+        info_rows = [
+            ["標的股票", ticker_names,
+             "下單日期", str(trade_date)[:10] if trade_date else "—"],
+            ["執行價格", f"{strike_pct*100:.2f}%" if strike_pct else "—",
+             "比價日期", str(obs_date)[:10] if obs_date else "—"],
+            ["配息率(年化)", f"{coupon_pct*100:.2f}%" if coupon_pct else "—",
+             "KO 水位", f"{ko_barrier*100:.0f}%" if ko_barrier else "無"],
+            ["投資金額", f"USD {amount_usd:,.0f}" if show_amount else "—",
+             "KI 水位", f"{ki_barrier*100:.0f}%" if ki_barrier else "無"],
+        ]
+        info_table = Table(info_rows, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
+        info_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), FONT),
+            ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+            ("FONTNAME", (2, 0), (2, -1), FONT_BOLD),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 0), (0, -1), GRAY_LIGHT),
+            ("BACKGROUND", (2, 0), (2, -1), GRAY_LIGHT),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(info_table)
 
-    # 各標的現價明細
+    # 各標的現價明細 (欄位可勾選；標的名稱固定顯示)
     if analysis["details"]:
-        price_header = ["標的股票", "期初價格", "現價", "漲跌幅", "執行價", "KO 水位", "KI 水位", "狀態"]
+        ALL_COLS = [
+            ("期初價格", lambda d: f"${d['initial_price']:,.2f}" if _valid(d.get("initial_price")) else "—"),
+            ("現價",     lambda d: f"${d['current_price']:,.2f}" if _valid(d.get("current_price")) else "取得中"),
+            ("漲跌幅",   lambda d: f"{d['change_pct']:+.2f}%" if _valid(d.get("change_pct")) else "—"),
+            ("執行價",   lambda d: f"${d['strike_price']:,.2f}" if _valid(d.get("strike_price")) else "—"),
+            ("KO 水位",  lambda d: f"${d['ko_price']:,.2f}" if _valid(d.get("ko_price")) else "無"),
+            ("KI 水位",  lambda d: f"${d['ki_price']:,.2f}" if _valid(d.get("ki_price")) else "無"),
+            ("狀態",     lambda d: _clean(f"{d['ko_status']} {d['ki_status']}")),
+        ]
+        sel = [c for c in ALL_COLS if (columns is None or c[0] in columns)]
+
+        price_header = ["標的股票"] + [c[0] for c in sel]
         price_rows = [price_header]
         for d in analysis["details"]:
-            row = [
-                d["ticker"],
-                f"${d['initial_price']:,.2f}" if _valid(d.get("initial_price")) else "—",
-                f"${d['current_price']:,.2f}" if _valid(d.get("current_price")) else "取得中",
-                f"{d['change_pct']:+.2f}%" if _valid(d.get("change_pct")) else "—",
-                f"${d['strike_price']:,.2f}" if _valid(d.get("strike_price")) else "—",
-                f"${d['ko_price']:,.2f}" if _valid(d.get("ko_price")) else "無",
-                f"${d['ki_price']:,.2f}" if _valid(d.get("ki_price")) else "無",
-                _clean(f"{d['ko_status']} {d['ki_status']}"),
-            ]
-            price_rows.append(row)
+            price_rows.append([d["ticker"]] + [fn(d) for _, fn in sel])
 
-        col_w = [22*mm, 22*mm, 22*mm, 20*mm, 22*mm, 22*mm, 22*mm, 23*mm]
+        tw = 24.0  # ticker column (mm)
+        rest = max((W / mm - tw) / max(len(sel), 1), 16.0)
+        col_w = [tw * mm] + [rest * mm] * len(sel)
         price_table = Table(price_rows, colWidths=col_w)
         price_table.setStyle(TableStyle([
             ("FONTNAME", (0, 0), (-1, -1), FONT),
@@ -446,6 +454,9 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo"):
         story.append(price_table)
 
     # ── 價格走勢圖 (每張圖上方加標的數據摘要) ──────────────────
+    if not show_charts:
+        story.append(Spacer(1, 4 * mm))
+        return
     detail_by_ticker = {d["ticker"]: d for d in analysis.get("details", [])}
     for u in underlyings:
         chart_bytes = _generate_price_chart(

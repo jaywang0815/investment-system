@@ -55,8 +55,13 @@ with tab1:
 
     with col2:
         st.markdown("**報表設定**")
-        include_charts = st.checkbox("包含圖表說明", value=True)
+        include_charts = st.checkbox("包含走勢圖", value=True)
         st.selectbox("走勢圖區間", list(_period_map.keys()), index=1, key="pdf_period_label")
+        show_info = st.checkbox("商品基本資訊", value=True)
+        show_amount = st.checkbox("顯示投資金額", value=True)
+        ALL_DETAIL_COLS = ["期初價格", "現價", "漲跌幅", "執行價", "KO 水位", "KI 水位", "狀態"]
+        sel_cols = st.multiselect("明細表欄位 (標的名稱固定顯示)",
+                                  ALL_DETAIL_COLS, default=ALL_DETAIL_COLS)
 
     chart_period = _period_map.get(st.session_state.get("pdf_period_label", "6個月"), "6mo")
 
@@ -90,6 +95,10 @@ with tab1:
                         investments=investments,
                         prices=prices,
                         chart_period=chart_period,
+                        columns=sel_cols,
+                        show_info=show_info,
+                        show_amount=show_amount,
+                        show_charts=include_charts,
                     )
 
                     filename = f"投資報表_{customer_name}_{today_str}.pdf"
