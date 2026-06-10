@@ -66,3 +66,57 @@ def settle(principal: float, annual_pct: float, trade_date, exit_date,
         "guaranteed": guaranteed,
     })
     return out
+
+
+def detect_exit_date(observation_date, underlyings: list) -> dict:
+    """
+    依「收盤價」推算出場日 (worst-of autocall, sticky KO)
+    規則 (客戶確認): 從比價日起，每隻標的找「收盤價 >= 期初 × KO%」首次發生日；
+    出場日 = 所有標的中最晚的那個 KO 日 (即最後一隻 KO 當天)。
+    任一標的至今未 KO → 未出場 (exit_date=None)。
+
+    underlyings: [{"ticker","initial","ko_barrier"}]
+    回傳: {"exit_date": date|None, "status": str, "stocks": [{ticker,ko_price,ko_date}]}
+    """
+    obs = _to_date(observation_date)
+    if not obs:
+        return {"exit_date": None, "status": "無比價日", "stocks": []}
+
+    import unicodedata
+    import yfinance as yf
+
+    def _clean(t):
+        return unicodedata.normalize("NFKC", str(t)).lstrip("$").strip().upper()
+
+    stocks = []
+    ko_dates = []
+    all_ko = True
+    for u in underlyings:
+        tkr = _clean(u.get("ticker", ""))
+        init = u.get("initial")
+        ko = u.get("ko_barrier")
+        if not tkr or not init or not ko:
+            stocks.append({"ticker": tkr, "ko_price": None, "ko_date": None})
+            all_ko = False
+            continue
+        ko_price = round(float(init) * float(ko), 4)
+        ko_date = None
+        try:
+            hist = yf.Ticker(tkr).history(start=obs.isoformat())
+            if hist is not None and not hist.empty:
+                for ts, row in hist.iterrows():
+                    c = row.get("Close")
+                    if c is not None and float(c) >= ko_price:
+                        ko_date = ts.date()
+                        break
+        except Exception:
+            ko_date = None
+        stocks.append({"ticker": tkr, "ko_price": round(ko_price, 2), "ko_date": ko_date})
+        if ko_date is None:
+            all_ko = False
+        else:
+            ko_dates.append(ko_date)
+
+    if all_ko and ko_dates:
+        return {"exit_date": max(ko_dates), "status": "已出場(推算)", "stocks": stocks}
+    return {"exit_date": None, "status": "未出場", "stocks": stocks}
