@@ -7,6 +7,7 @@ import openpyxl
 from datetime import datetime
 from typing import Union, Optional
 from io import BytesIO
+from utils.money import parse_amount
 
 
 def detect_month_label(sheet_name: str) -> str:
@@ -92,12 +93,14 @@ def parse_customer_sheet(ws) -> list:
         if not name or name in ['戶名', '姓名']:
             continue
 
+        _amt, _ccy = parse_amount(row[4] if len(row) > 4 else None)
         customers.append({
             "name": name,
             "unified_account": normalize_bool(row[1] if len(row) > 1 else None),
             "pi_signed":       normalize_bool(row[2] if len(row) > 2 else None),
             "ordered":         normalize_bool(row[3] if len(row) > 3 else None),
-            "usd_amount":      float(row[4]) if len(row) > 4 and isinstance(row[4], (int, float)) else None,
+            "usd_amount":      _amt,
+            "currency":        _ccy,
             "ctbc_position":   float(row[5]) if len(row) > 5 and isinstance(row[5], (int, float)) else None,
             "fund_amount":     float(row[6]) if len(row) > 6 and isinstance(row[6], (int, float)) else None,
         })
@@ -194,13 +197,13 @@ def parse_sn_sheet(ws, month_label: str) -> list:
             i += 1
             continue
 
-        # --- แถวลูกค้า (คอลัมน์ A ชื่อ, คอลัมน์ B จำนวนเงิน) ---
+        # --- แถวลูกค้า (คอลัมน์ A ชื่อ, คอลัมน์ B จำนวนเงิน — รองรับสกุลเงินอื่น เช่น 20000JPY) ---
+        _inv_amt, _inv_ccy = parse_amount(col_b)
         if (current_sn and
                 col_a and isinstance(col_a, str) and col_a.strip() and
-                isinstance(col_b, (int, float))):
+                _inv_amt is not None):
 
             customer_name = col_a.strip()
-            amount = float(col_b)
 
             # บางครั้งราคาเริ่มต้นอยู่ในแถวลูกค้า (ไม่มีแถว 期初價格 แยก)
             if current_sn["initial_price_1"] is None:
@@ -211,7 +214,8 @@ def parse_sn_sheet(ws, month_label: str) -> list:
 
             current_sn["investments"].append({
                 "customer_name": customer_name,
-                "amount_usd": amount,
+                "amount_usd": _inv_amt,
+                "currency": _inv_ccy,
             })
             i += 1
             continue

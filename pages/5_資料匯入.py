@@ -26,6 +26,18 @@ except Exception:
     DB_READY = False
     st.warning("資料庫未連線 — 仍可預覽資料，但無法匯入。請先完成「系統設定」。")
 
+def _insert_safe(sb, table: str, payload: dict):
+    """Insert; if the table doesn't have a column yet (e.g. currency not migrated),
+    drop that key and retry — so import never breaks on a missing optional column."""
+    try:
+        return sb.table(table).insert(payload).execute()
+    except Exception as e:
+        if "currency" in str(e).lower() and "currency" in payload:
+            p = {k: v for k, v in payload.items() if k != "currency"}
+            return sb.table(table).insert(p).execute()
+        raise
+
+
 def _snapshot_month(sb, month_label: str) -> dict:
     """บันทึก snapshot ของข้อมูลเดือนก่อน import เพื่อใช้ UNDO"""
     sns = sb.table("structured_notes").select("*").eq("month_label", month_label).execute().data or []
@@ -101,7 +113,7 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                     status.text(f"跳過重複客戶: {name}")
                     continue
                 try:
-                    resp = sb.table("customers").insert(cust).execute()
+                    resp = _insert_safe(sb, "customers", cust)
                     if resp.data:
                         existing_customers[name] = resp.data[0]["id"]
                         total_customers += 1
@@ -173,11 +185,12 @@ def _do_import(parsed_list: list, import_customers: bool, import_sns: bool, skip
                                 pass
                         if customer_id:
                             try:
-                                sb.table("investments").insert({
+                                _insert_safe(sb, "investments", {
                                     "customer_id": customer_id,
                                     "sn_id": sn_id,
-                                    "amount_usd": amount
-                                }).execute()
+                                    "amount_usd": amount,
+                                    "currency": inv.get("currency", "USD"),
+                                })
                                 total_investments += 1
                             except Exception as e:
                                 if "duplicate" not in str(e).lower():

@@ -346,7 +346,9 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
     coupon_pct = sn.get("coupon_pct")
     ko_barrier = sn.get("ko_barrier")
     ki_barrier = sn.get("ki_barrier")
+    from utils.money import format_money
     amount_usd = inv.get("amount_usd", 0) or 0
+    ccy = inv.get("currency", "USD") or "USD"
 
     # 取得各標的現價並分析
     ticker_list = [u["ticker"] for u in underlyings]
@@ -374,7 +376,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
     header_data = [[
         f"#{idx}  {product_code}",
         f"{status_text} {analysis['status_label']}",
-        f"投資金額: USD {amount_usd:,.0f}" if show_amount else ""
+        f"投資金額: {format_money(amount_usd, ccy)}" if show_amount else ""
     ]]
     header_table = Table(header_data, colWidths=[W*0.45, W*0.30, W*0.25])
     header_table.setStyle(TableStyle([
@@ -399,7 +401,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
              "比價日期", str(obs_date)[:10] if obs_date else "—"],
             ["配息率(年化)", f"{coupon_pct*100:.2f}%" if coupon_pct else "—",
              "KO 水位", f"{ko_barrier*100:.0f}%" if ko_barrier else "無"],
-            ["投資金額", f"USD {amount_usd:,.0f}" if show_amount else "—",
+            ["投資金額", format_money(amount_usd, ccy) if show_amount else "—",
              "KI 水位", f"{ki_barrier*100:.0f}%" if ki_barrier else "無"],
         ]
         info_table = Table(info_rows, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
