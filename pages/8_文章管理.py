@@ -15,7 +15,11 @@ from utils.database import get_articles, upsert_article, delete_article
 st.caption("在這裡寫投資觀點 (中文)，按「AI 翻譯」自動產生英文，發布後會出現在 justinvestment.co")
 
 # ── 選擇 / 新增 ───────────────────────────────────────────────
-arts = get_articles()
+try:
+    arts = get_articles()
+except Exception:
+    st.error("找不到 articles 資料表 — 請先在 Supabase SQL Editor 執行 scripts/articles_schema.sql")
+    st.stop()
 labels = ["➕ 新增文章"] + [
     f"{a.get('title_zh') or '(無標題)'}  ·  {'已發布' if a.get('published') else '草稿'}"
     for a in arts
