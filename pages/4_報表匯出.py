@@ -19,8 +19,8 @@ from utils.ui_helpers import dog_header, require_auth
 dog_header("報表匯出")
 require_auth()
 
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["投資報表", "Excel匯出", "Google試算表", "歷史報表"])
+tab1, tab2, tab3 = st.tabs(
+    ["投資報表", "Excel匯出", "Google試算表"])
 
 # ──────────────────────────────────────────────────────────────
 # Tab 1: 投資報表 — 個人完整報表 + 全部客戶明細表 (合併)
@@ -231,58 +231,6 @@ with tab3:
                 st.markdown(f"[開啟 Google Sheets](https://docs.google.com/spreadsheets/d/{sheet_id})")
         else:
             st.error("同步失敗，請檢查設定")
-
-# ──────────────────────────────────────────────────────────────
-# Tab 4: 歷史報表 (快速查詢)
-# ──────────────────────────────────────────────────────────────
-with tab4:
-    st.subheader("快速查詢客戶投資狀況")
-
-    customers_df = get_all_customers()
-    if not customers_df.empty:
-        query_name = st.selectbox("選擇客戶", [""] + customers_df["name"].tolist())
-
-        if query_name:
-            customer_row = customers_df[customers_df["name"] == query_name].iloc[0]
-            customer_id = customer_row["id"]
-            investments = get_investments_by_customer(customer_id)
-
-            if not investments:
-                st.info(f"{query_name} 目前無投資記錄")
-            else:
-                # 取得現價
-                all_tickers = []
-                for inv in investments:
-                    sn = inv.get("structured_notes") or {}
-                    all_tickers += [sn.get(f"underlying_{i}") for i in range(1,6) if isinstance(sn.get(f"underlying_{i}"), str)]
-                prices = get_prices(list(set([t for t in all_tickers if t]))) if all_tickers else {}
-
-                total = sum(i.get("amount_usd", 0) or 0 for i in investments)
-                st.markdown(f"### {query_name} 的投資持倉")
-                st.markdown(f"**總投資金額: USD {total:,.0f}**")
-
-                for inv in investments:
-                    sn = inv.get("structured_notes") or {}
-                    if not sn:
-                        continue
-                    code = sn.get("product_code", "—")
-                    underlyings = get_sn_underlyings(sn)
-                    ticker_str = " / ".join([u["ticker"] for u in underlyings])
-                    amount = inv.get("amount_usd", 0) or 0
-                    analysis = analyze_sn_status(sn, prices)
-
-                    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-                    with col1:
-                        st.markdown(f"**{code}**")
-                        st.caption(ticker_str)
-                    with col2:
-                        st.markdown(f"比價: {str(sn.get('observation_date',''))[:10]}")
-                    with col3:
-                        st.markdown(f"USD {amount:,.0f}")
-                    with col4:
-                        st.markdown(f"{analysis['status_emoji']} {analysis['status_label']}")
-                    st.markdown("---")
-
 
 # ──────────────────────────────────────────────────────────────
 # 全部客戶投資明細表 (可編輯)
