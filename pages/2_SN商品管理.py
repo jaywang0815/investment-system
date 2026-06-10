@@ -125,17 +125,34 @@ with tab1:
         )
         st.dataframe(styled, use_container_width=True, hide_index=True)
 
-        # 股票現價摘要
+        # 股票現價摘要 — 可點擊卡片，連到 TradingView 個股頁
         st.markdown("---")
         st.subheader("標的現價摘要")
+        st.caption("點任一卡片可開啟該股票的即時走勢頁 (TradingView)")
         if prices:
-            price_cols = st.columns(min(len(prices), 6))
-            for i, (ticker, price) in enumerate(sorted(prices.items())):
-                with price_cols[i % len(price_cols)]:
-                    if price:
-                        st.metric(ticker, f"${price:,.2f}")
-                    else:
-                        st.metric(ticker, "無法取得", delta="")
+            st.markdown("""
+            <style>
+            .pxc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:12px;margin-top:6px;}
+            .pxc{display:block;text-decoration:none;border:1px solid var(--border,#e5e7eb);border-radius:16px;
+                 padding:14px 16px;background:var(--surface,#fff);
+                 transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
+            .pxc:hover{transform:translateY(-3px);border-color:var(--accent,#15a34a);
+                       box-shadow:0 8px 22px rgba(21,163,90,.16);}
+            .pxc-sym{font-size:.72rem;font-weight:700;letter-spacing:.5px;color:var(--muted,#64748b);}
+            .pxc-val{font-size:1.3rem;font-weight:800;color:var(--accent,#15a34a);margin-top:4px;white-space:nowrap;}
+            .pxc-na{font-size:.9rem;color:var(--muted,#94a3b8);margin-top:6px;font-style:italic;}
+            </style>
+            """, unsafe_allow_html=True)
+            cards = ""
+            for ticker, price in sorted(prices.items()):
+                tv = f"https://www.tradingview.com/symbols/{clean_ticker(ticker)}/"
+                if price:
+                    val = f'<div class="pxc-val">${price:,.2f}</div>'
+                else:
+                    val = '<div class="pxc-na">無法取得</div>'
+                cards += (f'<a class="pxc" href="{tv}" target="_blank" rel="noopener noreferrer">'
+                          f'<div class="pxc-sym">{ticker} ↗</div>{val}</a>')
+            st.markdown(f'<div class="pxc-grid">{cards}</div>', unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
 # Tab 2: 新增 SN 商品

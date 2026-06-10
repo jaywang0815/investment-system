@@ -153,7 +153,9 @@ div[data-baseweb="select"] * {{ color: var(--text) !important; }}
   border-radius: 20px; padding: 18px 20px;
   box-shadow: 0 10px 30px var(--glow), inset 0 1px 0 rgba(255,255,255,0.55);
 }}
-[data-testid="stMetricValue"] {{ color: var(--text); font-weight: 800; letter-spacing: -.02em; }}
+[data-testid="stMetricValue"] {{ color: var(--text); font-weight: 800; letter-spacing: -.02em;
+  overflow: visible !important; font-size: clamp(1.1rem, 1.6vw, 1.7rem); }}
+[data-testid="stMetricValue"] > div {{ overflow: visible !important; text-overflow: clip !important; white-space: nowrap; }}
 [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {{
   color: var(--muted) !important; text-transform: uppercase;
   font-size: .72rem !important; letter-spacing: .08em;

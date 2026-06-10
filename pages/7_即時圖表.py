@@ -386,16 +386,20 @@ with col_right:
             if ko and init_p:
                 ko_price = init_p * ko
                 if curr:
-                    gap = (ko_price / curr - 1) * 100
-                    st.metric("KO水位", f"${ko_price:,.2f}", f"距離 {gap:+.1f}%")
+                    # 正 = 現價已在 KO 之上(達標)；負 = 還差多少才到 KO
+                    gap = (curr / ko_price - 1) * 100
+                    st.metric("KO水位", f"${ko_price:,.2f}",
+                              f"{gap:+.1f}%　{'✓ 已達KO' if gap >= 0 else '未達KO'}")
                 else:
                     st.metric("KO水位", f"${ko_price:,.2f}", f"{ko*100:.0f}%")
         with cols_info[3]:
             if ki and init_p:
                 ki_price = init_p * ki
                 if curr:
+                    # 正 = 現價高於 KI(安全)；負 = 已跌破 KI
                     gap = (curr / ki_price - 1) * 100
-                    st.metric("KI水位", f"${ki_price:,.2f}", f"距離 {gap:+.1f}%")
+                    st.metric("KI水位", f"${ki_price:,.2f}",
+                              f"{gap:+.1f}%　{'⚠ 已觸KI' if gap <= 0 else '安全'}")
                 else:
                     st.metric("KI水位", f"${ki_price:,.2f}", f"{ki*100:.0f}%")
         st.divider()
