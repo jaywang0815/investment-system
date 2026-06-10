@@ -634,13 +634,15 @@ def generate_portfolio_detail(items: list, report_date: str = "") -> bytes:
         row_bg = []
         for r in rows:
             td = _detail_to_date(r.get("trade_date"))
-            exited = bool(r.get("exit_date"))
-            is_new = bool(td and td.year == today.year and td.month == today.month)
+            # 編輯後的顯示值優先 (date_str/combo/note/exited/is_new)，否則自動計算
+            exited = bool(r["exited"]) if r.get("exited") is not None else bool(r.get("exit_date"))
+            is_new = (bool(r["is_new"]) if r.get("is_new") is not None
+                      else bool(td and td.year == today.year and td.month == today.month))
             note = r.get("note") or ("出場" if exited else "")
             data.append([
-                _roc(td),
+                r.get("date_str") or _roc(td),
                 r.get("product_code") or "—",
-                _combo(r),
+                r.get("combo") or _combo(r),
                 format_money(r.get("amount"), r.get("currency") or "USD"),
                 note,
             ])

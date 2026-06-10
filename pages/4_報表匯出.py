@@ -289,11 +289,13 @@ with tab4:
 # ──────────────────────────────────────────────────────────────
 with tab5:
     st.subheader("全部客戶 · 投資績效明細表")
-    st.caption("依客戶分組｜欄位: 日期(民國) / 代號 / 期間·配息 / 金額(原幣) / 備註｜各客戶小計 + 總計｜本月新增(綠)・已出場(金)｜統一證券 報告人 秦聖鈞")
+    st.caption("可直接編輯下表（備註自由填寫、可新增/刪除列），確認後再產生 PDF｜日期=民國紀年・金額=原幣｜統一證券 報告人 秦聖鈞")
 
-    if st.button("產生明細表 PDF", type="primary"):
+    from datetime import date as _d
+
+    def _load_detail_df(selected=None):
         from utils.database import get_supabase
-        from datetime import date as _d
+        from utils.pdf_report import _roc, _detail_to_date, _tenor
         sb = get_supabase()
         sn_fields = "product_code,trade_date,observation_date,coupon_pct,exit_date"
         try:
@@ -304,31 +306,85 @@ with tab5:
             rows = sb.table("investments").select(
                 f"amount_usd, customers(name), structured_notes({sn_fields})"
             ).execute().data or []
-
-        items = []
+        today = _d.today()
+        recs = []
         for r in rows:
             sn = r.get("structured_notes") or {}
-            cust = r.get("customers") or {}
-            items.append({
-                "customer": cust.get("name", "—"),
-                "trade_date": sn.get("trade_date"),
-                "product_code": sn.get("product_code"),
-                "observation_date": sn.get("observation_date"),
-                "coupon_pct": sn.get("coupon_pct"),
-                "amount": r.get("amount_usd"),
-                "currency": r.get("currency") or "USD",
-                "exit_date": sn.get("exit_date"),
+            cust = (r.get("customers") or {}).get("name", "—")
+            td = _detail_to_date(sn.get("trade_date"))
+            ten = _tenor(sn.get("trade_date"), sn.get("observation_date"))
+            cp = sn.get("coupon_pct")
+            cps = f"{cp*100:g}%" if cp else ""
+            combo = (f"{ten} / {cps}" if ten != "—" and cps else (cps or (ten if ten != "—" else "")))
+            exited = bool(sn.get("exit_date"))
+            recs.append({
+                "客戶": cust,
+                "日期": _roc(td),
+                "代號": sn.get("product_code") or "",
+                "期間/配息": combo,
+                "金額": float(r.get("amount_usd") or 0),
+                "幣別": (r.get("currency") or "USD"),
+                "備註": "出場" if exited else "",
+                "出場": exited,
+                "本月": bool(td and td.year == today.year and td.month == today.month),
             })
+        if selected:
+            sset = set(selected)
+            recs = [r for r in recs if r["客戶"] in sset]
+        recs.sort(key=lambda x: x["客戶"] or "zz")
+        return pd.DataFrame(recs, columns=["客戶", "日期", "代號", "期間/配息",
+                                           "金額", "幣別", "備註", "出場", "本月"])
 
+    _cust_df = get_all_customers()
+    _all_names = _cust_df["name"].dropna().tolist() if not _cust_df.empty else []
+    sel_custs = st.multiselect("選擇客戶（空白 = 全部客戶）", _all_names, default=[],
+                               placeholder="可挑單一或多位客戶...")
+
+    c1, c2 = st.columns([1, 3])
+    if c1.button("載入所選客戶 / 重設", type="secondary") or "detail_df" not in st.session_state:
+        st.session_state["detail_df"] = _load_detail_df(sel_custs)
+    rep_date = c2.text_input("報表日期", value=_d.today().strftime("%Y-%m-%d"))
+
+    st.markdown("**編輯明細**（雙擊儲存格修改；最下方空白列可新增；勾選列首刪除）")
+    edited = st.data_editor(
+        st.session_state["detail_df"],
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "金額": st.column_config.NumberColumn("金額", format="%d", step=1000),
+            "幣別": st.column_config.SelectboxColumn(
+                "幣別", options=["USD", "JPY", "EUR", "HKD", "CNY", "AUD", "GBP", "TWD", "SGD"]),
+            "出場": st.column_config.CheckboxColumn("出場", help="標金色＋備註顯示出場"),
+            "本月": st.column_config.CheckboxColumn("本月", help="標綠色（本月新增）"),
+        },
+        key="detail_editor",
+    )
+    st.session_state["detail_df"] = edited
+
+    if st.button("產生明細表 PDF", type="primary"):
+        items = []
+        for _, row in edited.iterrows():
+            if not (str(row.get("客戶", "") or "").strip() or str(row.get("代號", "") or "").strip()):
+                continue
+            items.append({
+                "customer": (str(row.get("客戶") or "—").strip() or "—"),
+                "date_str": str(row.get("日期") or "—"),
+                "product_code": str(row.get("代號") or "—"),
+                "combo": str(row.get("期間/配息") or "—"),
+                "amount": float(row.get("金額") or 0),
+                "currency": str(row.get("幣別") or "USD"),
+                "note": str(row.get("備註") or ""),
+                "exited": bool(row.get("出場")),
+                "is_new": bool(row.get("本月")),
+            })
         if not items:
-            st.warning("尚無投資資料")
+            st.warning("尚無資料")
         else:
-            # 依客戶姓名排序，未知排最後
-            items.sort(key=lambda x: x["customer"] or "zz")
             with st.spinner("產生中..."):
-                pdf = generate_portfolio_detail(items, report_date=_d.today().strftime("%Y-%m-%d"))
+                pdf = generate_portfolio_detail(items, report_date=rep_date)
             n_cust = len({i["customer"] for i in items})
             st.download_button("⬇ 下載 投資績效明細表 (PDF)", data=pdf,
-                               file_name=f"投資績效明細表_{_d.today():%Y%m%d}.pdf",
+                               file_name=f"投資績效明細表_{rep_date}.pdf",
                                mime="application/pdf")
-            st.success(f"已產生：{len(items)} 筆投資 · {n_cust} 位客戶")
+            st.success(f"已產生：{len(items)} 筆 · {n_cust} 位客戶")
