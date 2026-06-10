@@ -566,118 +566,122 @@ def _roc(d):
     return f"{d.year - 1911}/{d.month:02d}/{d.day:02d}"
 
 
-def generate_portfolio_detail(items: list, report_date: str = "") -> bytes:
+def generate_portfolio_detail(items: list, report_date: str = "",
+                              section_title: str = "CTBC") -> bytes:
     """
-    items: list of dict {customer, trade_date, product_code, observation_date,
-                         coupon_pct, amount, currency, exit_date}
-    產生「投資績效明細表」: 依客戶分組，每組明細 + 小計(原幣)，最後總計。
+    投資績效明細表 — 仿客戶實際表格。單一全寬表格，欄位:
+    日期 | 公司名稱 | 代號 | 期間 | 配息 | 金額(原幣) | 備註
+    每位客戶一列名稱標籤列，其下列出持倉；出場列標綠；最後總計。
+    items dict 可含: customer, date_str/trade_date, product_code, tenor,
+        coupon/coupon_pct, observation_date, amount, currency, note, exited/exit_date
     """
     from utils.money import format_money
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=14 * mm,
-                            bottomMargin=14 * mm, leftMargin=16 * mm, rightMargin=16 * mm)
-    W = A4[0] - 32 * mm
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=12 * mm,
+                            bottomMargin=12 * mm, leftMargin=12 * mm, rightMargin=12 * mm)
+    W = A4[0] - 24 * mm
     story = []
 
     story.append(_brand_header(W, "投資績效明細表",
                  sub=(f"報表日期 {report_date}" if report_date else "")))
     story.append(Spacer(1, 2 * mm))
-    story.append(HRFlowable(width="100%", thickness=2, color=BLUE_DARK, spaceAfter=8, spaceBefore=2))
 
-    # group by customer (preserve order of first appearance)
+    # 段標題 (銀行/通路)，黃底如客戶表
+    if section_title:
+        sec = Table([[section_title]], colWidths=[42 * mm])
+        sec.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD), ("FONTSIZE", (0, 0), (-1, -1), 13),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF2CC")),
+            ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#1A1A1A")),
+            ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#D6B656")),
+            ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ]))
+        story.append(sec)
+        story.append(Spacer(1, 1.5 * mm))
+
+    # group by customer (preserve first-appearance order)
     groups = {}
     for it in items:
         groups.setdefault(it.get("customer") or "—", []).append(it)
 
-    def _ccy_totals(rows):
-        agg = {}
-        for r in rows:
-            amt = r.get("amount") or 0
-            agg[r.get("currency") or "USD"] = agg.get(r.get("currency") or "USD", 0) + amt
-        return agg
-
     def _fmt_totals(agg):
         return "　".join(format_money(v, c) for c, v in sorted(agg.items())) or "—"
 
-    def _combo(r):
-        ten = _tenor(r.get("trade_date"), r.get("observation_date"))
-        cp = r.get("coupon_pct")
-        cps = f"{cp*100:g}%" if cp else ""
-        if ten != "—" and cps:
-            return f"{ten} / {cps}"
-        return cps or (ten if ten != "—" else "—")
+    def _auto_tenor(r):
+        t = r.get("tenor")
+        if t:
+            return t
+        td, od = _detail_to_date(r.get("trade_date")), _detail_to_date(r.get("observation_date"))
+        if td and od and od > td:
+            m = max(round((od - td).days / 30), 1)
+            return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
+        return ""
 
-    today = date.today()
-    col_w = [24 * mm, 34 * mm, 28 * mm, 40 * mm, W - 126 * mm]   # 日期 代號 期間/配息 金額 備註
-    EXIT_BG = colors.HexColor(B.hx(B.C_EXIT_BG))
-    NEW_BG  = colors.HexColor(B.hx(B.C_NEW_BG))
+    HEAD_GREEN = colors.HexColor("#A9D08E")
+    EXIT_GREEN = colors.HexColor("#C6E0B4")
+    BORDER     = colors.HexColor("#D9D9D9")
+    DARK       = colors.HexColor("#1A1A1A")
+    RED_CODE   = colors.HexColor(B.hx(B.C_PRIMARY))
+
+    # 日期 公司名稱 代號 期間 配息 金額 備註
+    col_w = [22 * mm, 26 * mm, 26 * mm, 14 * mm, 22 * mm, 30 * mm, W - 140 * mm]
+
+    data = [["日期", "公司名稱", "代號", "期間", "配息", "金額", "備註"]]
+    styles = [
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (-1, 0), HEAD_GREEN),
+        ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("ALIGN", (3, 0), (4, -1), "CENTER"),
+        ("ALIGN", (5, 0), (5, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.4, BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]
+
     grand = {}
-
     for cust, rows in groups.items():
-        sub = _ccy_totals(rows)
-        for c, v in sub.items():
-            grand[c] = grand.get(c, 0) + v
-        # 客戶群組標頭帶: 姓名 | 小計
-        head = Table([[cust, f"小計　{_fmt_totals(sub)}"]], colWidths=[W * 0.42, W * 0.58])
-        head.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD),
-            ("FONTSIZE", (0, 0), (0, 0), 12), ("FONTSIZE", (1, 0), (1, 0), 10),
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(B.hx(B.C_HEADER))),
-            ("TEXTCOLOR", (0, 0), (-1, -1), WHITE),
-            ("ALIGN", (1, 0), (1, 0), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ]))
-
-        data = [["日期", "代號", "期間 / 配息", "金額", "備註"]]
-        row_bg = []
+        # 公司名稱 標籤列
+        data.append(["", cust, "", "", "", "", ""])
+        ri = len(data) - 1
+        styles += [("FONTNAME", (1, ri), (1, ri), FONT_BOLD),
+                   ("FONTSIZE", (1, ri), (1, ri), 10.5),
+                   ("TEXTCOLOR", (1, ri), (1, ri), DARK)]
         for r in rows:
             td = _detail_to_date(r.get("trade_date"))
-            # 編輯後的顯示值優先 (date_str/combo/note/exited/is_new)，否則自動計算
             exited = bool(r["exited"]) if r.get("exited") is not None else bool(r.get("exit_date"))
-            is_new = (bool(r["is_new"]) if r.get("is_new") is not None
-                      else bool(td and td.year == today.year and td.month == today.month))
+            cp = r.get("coupon_pct")
+            coupon = r.get("coupon") or (f"{cp*100:g}%" if cp else "")
+            amt = r.get("amount") or 0
+            cur = r.get("currency") or "USD"
+            grand[cur] = grand.get(cur, 0) + amt
             note = r.get("note") or ("出場" if exited else "")
             data.append([
                 r.get("date_str") or _roc(td),
-                r.get("product_code") or "—",
-                r.get("combo") or _combo(r),
-                format_money(r.get("amount"), r.get("currency") or "USD"),
+                "",
+                r.get("product_code") or "",
+                _auto_tenor(r),
+                coupon,
+                format_money(amt, cur),
                 note,
             ])
             ri = len(data) - 1
+            styles += [("FONTNAME", (2, ri), (2, ri), FONT_BOLD),
+                       ("TEXTCOLOR", (2, ri), (2, ri), RED_CODE)]
             if exited:
-                row_bg.append((ri, EXIT_BG))
-            elif is_new:
-                row_bg.append((ri, NEW_BG))
+                styles.append(("BACKGROUND", (0, ri), (-1, ri), EXIT_GREEN))
 
-        ts = [
-            ("FONTNAME", (0, 0), (-1, -1), FONT),
-            ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
-            ("FONTNAME", (1, 1), (1, -1), FONT_BOLD),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("BACKGROUND", (0, 0), (-1, 0), BLUE_LIGHT),
-            ("TEXTCOLOR", (0, 0), (-1, 0), BLUE_DARK),
-            ("TEXTCOLOR", (1, 1), (1, -1), colors.HexColor(B.hx(B.C_PRIMARY))),
-            ("ALIGN", (0, 0), (0, -1), "CENTER"),
-            ("ALIGN", (2, 0), (2, -1), "CENTER"),
-            ("ALIGN", (3, 0), (3, -1), "RIGHT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, GRAY_LIGHT]),
-            ("LINEBELOW", (0, 0), (-1, 0), 0.8, BLUE_MID),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.3, colors.HexColor(B.hx(B.C_BORDER))),
-            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 7), ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-        ]
-        for ri, col in row_bg:
-            ts.append(("BACKGROUND", (0, ri), (-1, ri), col))
-        t = Table(data, colWidths=col_w, repeatRows=1)
-        t.setStyle(TableStyle(ts))
-        story.append(KeepTogether([head, t]))
-        story.append(Spacer(1, 6 * mm))
+    t = Table(data, colWidths=col_w, repeatRows=1)
+    t.setStyle(TableStyle(styles))
+    story.append(t)
 
     # ── 總計帶 ───────────────────────────────────────────────
+    story.append(Spacer(1, 4 * mm))
     grand_band = Table([["總計　TOTAL", _fmt_totals(grand)]], colWidths=[W * 0.4, W * 0.6])
     grand_band.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD), ("FONTSIZE", (0, 0), (-1, -1), 12),
@@ -688,15 +692,13 @@ def generate_portfolio_detail(items: list, report_date: str = "") -> bytes:
     ]))
     story.append(grand_band)
 
-    # 圖例
     story.append(Spacer(1, 3 * mm))
     story.append(Paragraph(
-        f'<font color="#{B.C_GREEN}">■</font> 本月新增　'
-        f'<font color="#D9A300">■</font> 已出場　'
+        f'<font color="#7FA84F">■</font> 出場　'
         f'<font color="#{B.C_MUTED}">金額以原幣顯示・日期為民國紀年</font>',
         _style("Legend", fontSize=8, textColor=GRAY)))
 
-    for f in _brand_footer(report_date or today.strftime("%Y-%m-%d")):
+    for f in _brand_footer(report_date or date.today().strftime("%Y-%m-%d")):
         story.append(f)
 
     doc.build(story)
