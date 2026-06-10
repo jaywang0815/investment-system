@@ -240,8 +240,8 @@ def _summary_table(investments, W):
     """客戶報表用的「投資明細」摘要表 (6 欄, 綠表頭, 出場標綠)，回傳 flowables。"""
     from utils.money import format_money
     out = _sec("投資明細")
-    HEAD_GREEN = colors.HexColor("#A9D08E")
-    EXIT_GREEN = colors.HexColor("#C6E0B4")
+    HEAD_GREEN = colors.HexColor("#CD9A3F")
+    EXIT_GREEN = colors.HexColor("#F3E6CC")
     BORDER     = colors.HexColor("#D9D9D9")
     DARK       = colors.HexColor("#1F1B1B")
     RED_CODE   = colors.HexColor(B.hx(B.C_PRIMARY))
@@ -738,8 +738,8 @@ def generate_portfolio_detail(items: list, report_date: str = "",
             return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
         return ""
 
-    HEAD_GREEN = colors.HexColor("#A9D08E")
-    EXIT_GREEN = colors.HexColor("#C6E0B4")
+    HEAD_GREEN = colors.HexColor("#CD9A3F")
+    EXIT_GREEN = colors.HexColor("#F3E6CC")
     BORDER     = colors.HexColor("#D9D9D9")
     DARK       = colors.HexColor("#1A1A1A")
     RED_CODE   = colors.HexColor(B.hx(B.C_PRIMARY))
@@ -814,7 +814,7 @@ def generate_portfolio_detail(items: list, report_date: str = "",
 
     story.append(Spacer(1, 3 * mm))
     story.append(Paragraph(
-        f'<font color="#7FA84F">■</font> 出場　'
+        f'<font color="#{B.C_GOLD}">■</font> 出場　'
         f'<font color="#{B.C_MUTED}">金額以原幣顯示・日期為民國紀年</font>',
         _style("Legend", fontSize=8, textColor=GRAY)))
 
