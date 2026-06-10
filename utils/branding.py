@@ -26,6 +26,9 @@ C_GREEN   = "1B9E5A"   # KO / 正向
 C_RED     = "C0392B"   # KI / 負向
 C_EXIT_BG = "EAF3E0"   # 出場列底 (淺綠，仿客戶表)
 C_NEW_BG  = "EAF7EE"   # 本月新增列底 (綠)
+C_GOLD    = "B9822F"   # 金 — 裝飾線 / 重點 (名片金)
+C_GOLD_SOFT = "F3E6CC" # 淺金底
+C_INK     = "1F1B1B"   # 近黑
 C_WHITE   = "FFFFFF"
 
 

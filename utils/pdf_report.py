@@ -239,8 +239,7 @@ def _brand_footer(report_date: str):
 def _summary_table(investments, W):
     """客戶報表用的「投資明細」摘要表 (6 欄, 綠表頭, 出場標綠)，回傳 flowables。"""
     from utils.money import format_money
-    out = [Paragraph("【投資明細】",
-           _style("H2s", fontSize=13, fontName=FONT_BOLD, textColor=BLUE_DARK, spaceAfter=4))]
+    out = _sec("投資明細")
     HEAD_GREEN = colors.HexColor("#A9D08E")
     EXIT_GREEN = colors.HexColor("#C6E0B4")
     BORDER     = colors.HexColor("#D9D9D9")
@@ -300,6 +299,47 @@ def _summary_table(investments, W):
     out.append(Spacer(1, 7 * mm))
     return out
 
+
+def _sec(title: str):
+    """區塊標題 + 金色短線 (回傳 flowables)。"""
+    return [
+        Paragraph(title, _style("Sec", fontSize=13, fontName=FONT_BOLD,
+                  textColor=BLUE_DARK, spaceAfter=3)),
+        HRFlowable(width=46, thickness=2.6, color=colors.HexColor(B.hx(B.C_GOLD)),
+                   spaceAfter=8, hAlign="LEFT"),
+    ]
+
+
+def _decorate(canvas, doc):
+    """每頁裝飾：頂部紅條+金線、右上點陣、底部署名+頁碼藥丸。"""
+    from reportlab.lib.pagesizes import A4 as _A4
+    W, H = _A4
+    red = colors.HexColor(B.hx(B.C_PRIMARY))
+    gold = colors.HexColor(B.hx(B.C_GOLD))
+    canvas.saveState()
+    # 頂部紅條 + 金色細線
+    canvas.setFillColor(red)
+    canvas.rect(0, H - 4.2 * mm, W, 4.2 * mm, stroke=0, fill=1)
+    canvas.setFillColor(gold)
+    canvas.rect(0, H - 5.4 * mm, W, 1.0 * mm, stroke=0, fill=1)
+    # 右上金色點陣 (gimmick)
+    for i in range(5):
+        canvas.circle(W - 30 * mm + i * 4 * mm, H - 11 * mm, 0.7 * mm, stroke=0, fill=1)
+    # 底部分隔線 + 署名 + 頁碼
+    canvas.setStrokeColor(colors.HexColor(B.hx(B.C_BORDER)))
+    canvas.setLineWidth(0.6)
+    canvas.line(14 * mm, 12.5 * mm, W - 14 * mm, 12.5 * mm)
+    canvas.setFont(FONT, 7.5)
+    canvas.setFillColor(colors.HexColor("#" + B.C_MUTED))
+    canvas.drawString(14 * mm, 8 * mm, B.SIGNATURE)
+    pg = str(canvas.getPageNumber())
+    canvas.setFillColor(red)
+    canvas.roundRect(W - 27 * mm, 6.6 * mm, 13 * mm, 5.6 * mm, 2.6 * mm, stroke=0, fill=1)
+    canvas.setFillColor(colors.white)
+    canvas.setFont(FONT_BOLD, 8)
+    canvas.drawCentredString(W - 20.5 * mm, 8.1 * mm, pg)
+    canvas.restoreState()
+
 # ============================================================
 # 主函數: 產生客戶投資報表 PDF
 # ============================================================
@@ -323,8 +363,8 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        topMargin=15*mm,
-        bottomMargin=15*mm,
+        topMargin=18*mm,
+        bottomMargin=17*mm,
         leftMargin=18*mm,
         rightMargin=18*mm,
     )
@@ -379,32 +419,37 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     active_count = len([inv for inv in investments
                         if inv.get("structured_notes", {}).get("status") == "active"])
 
-    story.append(Paragraph("【投資概覽】",
-        _style("H2", fontSize=13, fontName=FONT_BOLD, textColor=BLUE_DARK, spaceAfter=4)))
+    for f in _sec("投資概覽"):
+        story.append(f)
 
-    overview_data = [
-        ["持倉商品數", "總投資金額", "有效持倉"],
-        [str(len(investments)), f"USD {total_invested:,.0f}", f"{active_count} 筆有效"],
-    ]
-    ov_table = Table(overview_data, colWidths=[W/3, W/3, W/3])
-    ov_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), FONT),
-        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
-        ("FONTSIZE", (0, 0), (-1, 0), 10),
-        ("FONTSIZE", (0, 1), (-1, -1), 14),
-        ("BACKGROUND", (0, 0), (-1, 0), BLUE_DARK),
-        ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
-        ("BACKGROUND", (0, 1), (-1, -1), BLUE_LIGHT),
-        ("TEXTCOLOR", (0, 1), (-1, -1), BLUE_DARK),
+    def _stat_card(num, label, cw):
+        ct = Table([[num], [label]], colWidths=[cw])
+        ct.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (0, 0), FONT_BOLD), ("FONTSIZE", (0, 0), (0, 0), 17),
+            ("TEXTCOLOR", (0, 0), (0, 0), colors.HexColor(B.hx(B.C_PRIMARY))),
+            ("FONTNAME", (0, 1), (0, 1), FONT), ("FONTSIZE", (0, 1), (0, 1), 8.5),
+            ("TEXTCOLOR", (0, 1), (0, 1), colors.HexColor("#" + B.C_MUTED)),
+            ("ALIGN", (0, 0), (0, -1), "CENTER"), ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
+            ("BACKGROUND", (0, 0), (0, -1), WHITE),
+            ("BOX", (0, 0), (0, -1), 0.6, colors.HexColor(B.hx(B.C_BORDER))),
+            ("LINEABOVE", (0, 0), (0, 0), 2.8, colors.HexColor(B.hx(B.C_GOLD))),
+            ("TOPPADDING", (0, 0), (0, 0), 11), ("BOTTOMPADDING", (0, 0), (0, 0), 2),
+            ("TOPPADDING", (0, 1), (0, 1), 0), ("BOTTOMPADDING", (0, 1), (0, 1), 11),
+        ]))
+        return ct
+
+    cw = W / 3 - 4 * mm
+    cards_row = Table([[
+        _stat_card(str(len(investments)), "持倉商品數", cw),
+        _stat_card(f"USD {total_invested:,.0f}", "總投資金額", cw),
+        _stat_card(f"{active_count}", "有效持倉", cw),
+    ]], colWidths=[W / 3, W / 3, W / 3])
+    cards_row.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 2 * mm), ("RIGHTPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ROWHEIGHT", (0, 1), (-1, -1), 14*mm),
-        ("TOPPADDING", (0, 1), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
-        ("GRID", (0, 0), (-1, -1), 0.5, WHITE),
-        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
     ]))
-    story.append(ov_table)
+    story.append(cards_row)
     story.append(Spacer(1, 8*mm))
 
     # ── 投資明細 摘要表 (與明細表整合) ──────────────────────
@@ -412,8 +457,8 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
         story.append(f)
 
     # ── 各持倉明細 ──────────────────────────────────────────
-    story.append(Paragraph("【持倉明細】",
-        _style("H2", fontSize=13, fontName=FONT_BOLD, textColor=BLUE_DARK, spaceAfter=6)))
+    for f in _sec("持倉明細"):
+        story.append(f)
 
     for idx, inv in enumerate(investments, 1):
         sn = inv.get("structured_notes") or {}
@@ -424,11 +469,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
                        columns, show_info, show_amount, show_charts)
         story.append(Spacer(1, 5*mm))
 
-    # ── 頁尾 (報告人署名) ───────────────────────────────────
-    for f in _brand_footer(report_date):
-        story.append(f)
-
-    doc.build(story)
+    doc.build(story, onFirstPage=_decorate, onLaterPages=_decorate)
     return buffer.getvalue()
 
 
@@ -656,8 +697,8 @@ def generate_portfolio_detail(items: list, report_date: str = "",
     from utils.money import format_money
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=12 * mm,
-                            bottomMargin=12 * mm, leftMargin=12 * mm, rightMargin=12 * mm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=18 * mm,
+                            bottomMargin=16 * mm, leftMargin=12 * mm, rightMargin=12 * mm)
     W = A4[0] - 24 * mm
     story = []
 
@@ -777,8 +818,5 @@ def generate_portfolio_detail(items: list, report_date: str = "",
         f'<font color="#{B.C_MUTED}">金額以原幣顯示・日期為民國紀年</font>',
         _style("Legend", fontSize=8, textColor=GRAY)))
 
-    for f in _brand_footer(report_date or date.today().strftime("%Y-%m-%d")):
-        story.append(f)
-
-    doc.build(story)
+    doc.build(story, onFirstPage=_decorate, onLaterPages=_decorate)
     return buffer.getvalue()
