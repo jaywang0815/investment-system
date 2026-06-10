@@ -5,32 +5,31 @@ Light / Dark 由 st.session_state['ui_mode'] 控制，dog_header() 在每頁注�
 """
 import streamlit as st
 
-# 統一證券 品牌紅 — 精緻、節制；底色近白，紅作為重點色 (accent)。
 LIGHT = {
-    "bg": "#f8f4f4", "bg2": "#f2ebec",
-    "surface": "#ffffff", "surface2": "#faf6f6",
-    "text": "#1f1b1b", "muted": "#6f6466",
-    "accent": "#b02a37", "accent_press": "#8e222d",
-    "border": "#ece4e4", "on_accent": "#ffffff",
-    "sidebar": "#ffffff", "sidebar_text": "#1f1b1b",
+    "bg": "#eef6f1", "bg2": "#e8f3ed",
+    "surface": "#ffffff", "surface2": "#f6f7f6",
+    "text": "#0b0f0d", "muted": "#5f6b66",
+    "accent": "#15a34a", "accent_press": "#0f7d3b",
+    "border": "#ececec", "on_accent": "#ffffff",
+    "sidebar": "#ffffff", "sidebar_text": "#0b0f0d",
     "glass": "rgba(255,255,255,0.55)", "glass_brd": "rgba(255,255,255,0.65)",
-    "glow": "rgba(120,30,40,0.10)",
-    "blob": ("radial-gradient(38% 32% at 8% 6%, rgba(214,80,90,0.15), transparent 70%),"
-             "radial-gradient(34% 30% at 92% 8%, rgba(176,42,55,0.11), transparent 70%),"
-             "radial-gradient(46% 40% at 80% 94%, rgba(220,120,110,0.11), transparent 72%)"),
+    "glow": "rgba(20,80,55,0.12)",
+    "blob": ("radial-gradient(38% 32% at 8% 6%, rgba(43,212,126,0.22), transparent 70%),"
+             "radial-gradient(34% 30% at 92% 8%, rgba(16,185,129,0.16), transparent 70%),"
+             "radial-gradient(46% 40% at 80% 94%, rgba(20,184,166,0.15), transparent 72%)"),
 }
 DARK = {
-    "bg": "#120c0d", "bg2": "#1a1012",
-    "surface": "#1a1314", "surface2": "#201719",
-    "text": "#f5f0f0", "muted": "#a89a9c",
-    "accent": "#e05a68", "accent_press": "#c8485a",
-    "border": "#2a2022", "on_accent": "#1a0c0e",
-    "sidebar": "#140d0e", "sidebar_text": "#f5f0f0",
-    "glass": "rgba(34,24,26,0.45)", "glass_brd": "rgba(255,255,255,0.10)",
+    "bg": "#07100d", "bg2": "#0a1714",
+    "surface": "#121413", "surface2": "#171a18",
+    "text": "#f4f6f5", "muted": "#9aa39e",
+    "accent": "#2fd47e", "accent_press": "#27b86c",
+    "border": "#1f2220", "on_accent": "#05140d",
+    "sidebar": "#0c0e0d", "sidebar_text": "#f4f6f5",
+    "glass": "rgba(22,30,26,0.45)", "glass_brd": "rgba(255,255,255,0.10)",
     "glow": "rgba(0,0,0,0.45)",
-    "blob": ("radial-gradient(40% 34% at 8% 6%, rgba(224,90,104,0.13), transparent 70%),"
-             "radial-gradient(36% 32% at 92% 8%, rgba(200,72,90,0.10), transparent 70%),"
-             "radial-gradient(48% 42% at 80% 94%, rgba(180,60,70,0.10), transparent 72%)"),
+    "blob": ("radial-gradient(40% 34% at 8% 6%, rgba(47,212,126,0.16), transparent 70%),"
+             "radial-gradient(36% 32% at 92% 8%, rgba(16,185,129,0.13), transparent 70%),"
+             "radial-gradient(48% 42% at 80% 94%, rgba(20,184,166,0.12), transparent 72%)"),
 }
 
 

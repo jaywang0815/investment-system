@@ -114,7 +114,7 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     padding: 0.5rem 1.2rem !important;
 }
 .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #B02A37 0%, #D14D59 100%) !important;
+    background: linear-gradient(135deg, #15A35A 0%, #2BD47E 100%) !important;
     color: white !important;
     box-shadow: 0 4px 14px rgba(21,163,90,0.35) !important;
 }
@@ -125,11 +125,11 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
 .stButton > button[kind="secondary"] {
     background: white !important;
     border: 1.5px solid #e8f7ef !important;
-    color: #B02A37 !important;
+    color: #15A35A !important;
 }
 .stButton > button[kind="secondary"]:hover {
     background: #F2FAF5 !important;
-    border-color: #D14D59 !important;
+    border-color: #2BD47E !important;
 }
 
 /* ── Tabs ─────────────────────────────────────────── */
@@ -144,7 +144,7 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     border-radius: 10px !important;
     padding: 7px 20px !important;
     font-weight: 500 !important;
-    color: #D14D59 !important;
+    color: #2BD47E !important;
     background: transparent !important;
     font-size: 0.88rem !important;
 }
@@ -176,7 +176,7 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
 }
 [data-testid="stTextInput"] input:focus,
 .stTextArea textarea:focus {
-    border-color: #D14D59 !important;
+    border-color: #2BD47E !important;
     box-shadow: 0 0 0 3px rgba(21,163,90,0.15) !important;
 }
 
@@ -228,7 +228,7 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
 }
 
 /* ── Spinner ──────────────────────────────────────── */
-[data-testid="stSpinner"] { color: #D14D59 !important; }
+[data-testid="stSpinner"] { color: #2BD47E !important; }
 
 /* ── Success / Info / Warning / Error ────────────── */
 .stSuccess { border-radius: 14px !important; }
@@ -259,7 +259,7 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
     box-shadow: 0 14px 34px rgba(21,163,90,0.16) !important;
 }
 [data-testid="stMetricValue"] {
-    background: linear-gradient(90deg,#b02a37,#d14d59,#b02a37);
+    background: linear-gradient(90deg,#15a34a,#2bd47e,#15a34a);
     background-size: 200% auto;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -439,13 +439,13 @@ if not st.session_state.authenticated and not _google_logged_in:
         width:72px; height:72px; margin:0 auto 1rem; border-radius:22px;
         display:flex; align-items:center; justify-content:center;
         font-size:1.6rem; font-weight:800; color:#fff; letter-spacing:.02em;
-        background:linear-gradient(135deg,#b02a37 0%,#d14d59 100%);
+        background:linear-gradient(135deg,#15a34a 0%,#2bd47e 100%);
         box-shadow:0 10px 30px rgba(21,163,90,.35);
         animation: pinpop .6s cubic-bezier(.22,1,.36,1) both;
     }}
     @keyframes pinpop {{ from {{opacity:0; transform:translateY(10px) scale(.92);}} to {{opacity:1; transform:none;}} }}
     .pin-title    {{ font-size:1.7rem; font-weight:800; color:#0b0f0d; text-align:center; display:block; margin-bottom:0.15rem; letter-spacing:0.04em; }}
-    .pin-title span {{ color:#b02a37; }}
+    .pin-title span {{ color:#15a34a; }}
     .pin-subtitle {{ font-size:0.88rem; color:#94a3b8; text-align:center; display:block; margin-bottom:1.6rem; }}
     .pin-error    {{ color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }}
     </style>
@@ -505,7 +505,7 @@ with st.sidebar:
     st.markdown("""
     <div style='padding: 8px 6px 4px;'>
         <div style='font-size:1.25rem; font-weight:800; letter-spacing:0.04em; color:white;'>
-            DOUU&nbsp;WORK<span style='color:#d14d59;'>.</span>
+            DOUU&nbsp;WORK<span style='color:#2bd47e;'>.</span>
         </div>
         <div style='font-size:0.66rem; letter-spacing:0.2em; text-transform:uppercase;
                     color:rgba(255,255,255,0.55); margin-top:3px;'>Structured Notes</div>
@@ -556,7 +556,7 @@ if not db_ok:
 # ── Dashboard CSS ──────────────────────────────────────────────
 st.markdown("""<style>
 .hero-banner {
-    background: linear-gradient(115deg, #8e222d 0%, #b02a37 38%, #c0392b 68%, #d14d59 100%);
+    background: linear-gradient(115deg, #0c7a45 0%, #15a34a 38%, #1fae8a 68%, #2bd47e 100%);
     background-size: 220% 220%;
     animation: heroFlow 14s ease infinite, flairRise .7s cubic-bezier(.22,1,.36,1) both;
     border-radius: 24px;
@@ -750,9 +750,9 @@ _IC_CALENDAR  = _SVG('<rect x="3.6" y="5" width="16.8" height="15" rx="2.6"/>'
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f"""<div class="scard" style="border-top:4px solid #D14D59;">
-      <div class="scard-icon" style="background:#FBEEEF;color:#D14D59;">{_IC_CUSTOMERS}</div>
-      <div class="scard-val" style="color:#B02A37;">{stats['total_customers']}</div>
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #2BD47E;">
+      <div class="scard-icon" style="background:#F2FAF5;color:#2BD47E;">{_IC_CUSTOMERS}</div>
+      <div class="scard-val" style="color:#15A35A;">{stats['total_customers']}</div>
       <div class="scard-label">客戶總數</div>
     </div>""", unsafe_allow_html=True)
 with c2:
@@ -821,7 +821,7 @@ with col_left:
 
 with col_right:
     st.markdown("""<div class="sec-head">
-      <div class="sec-head-icon" style="background:#F2FAF5;color:#D14D59;"></div>
+      <div class="sec-head-icon" style="background:#F2FAF5;color:#2BD47E;"></div>
       <span class="sec-head-title">近期比價日</span>
     </div>""", unsafe_allow_html=True)
 
