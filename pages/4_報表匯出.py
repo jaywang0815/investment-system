@@ -10,7 +10,7 @@ from utils.database import (
     get_investments_by_customer, get_investments_by_sn, get_customer
 )
 from utils.stock_prices import get_prices, analyze_sn_status, get_sn_underlyings
-from utils.pdf_report import generate_customer_report
+from utils.pdf_report import generate_customer_report, generate_portfolio_detail
 from utils.excel_export import export_to_excel, sync_to_google_sheets, build_excel_bytes
 
 st.set_page_config(page_title="報表匯出", page_icon=None, layout="wide")
@@ -19,7 +19,8 @@ from utils.ui_helpers import dog_header, require_auth
 dog_header("報表匯出")
 require_auth()
 
-tab1, tab2, tab3, tab4 = st.tabs(["客戶PDF報表", "Excel匯出", "Google試算表", "歷史報表"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["客戶PDF報表", "Excel匯出", "Google試算表", "歷史報表", "投資明細表"])
 
 # ──────────────────────────────────────────────────────────────
 # Tab 1: 客戶 PDF 報表
@@ -281,3 +282,53 @@ with tab4:
                     with col4:
                         st.markdown(f"{analysis['status_emoji']} {analysis['status_label']}")
                     st.markdown("---")
+
+
+# ──────────────────────────────────────────────────────────────
+# Tab 5: 投資明細表 (全部客戶)
+# ──────────────────────────────────────────────────────────────
+with tab5:
+    st.subheader("全部客戶 · 投資績效明細表")
+    st.caption("依客戶分組，欄位: 日期 / 代號 / 期間 / 配息 / 金額(原幣) / 備註，含各客戶小計與總計")
+
+    if st.button("產生明細表 PDF", type="primary"):
+        from utils.database import get_supabase
+        from datetime import date as _d
+        sb = get_supabase()
+        sn_fields = "product_code,trade_date,observation_date,coupon_pct,exit_date"
+        try:
+            rows = sb.table("investments").select(
+                f"amount_usd, currency, customers(name), structured_notes({sn_fields})"
+            ).execute().data or []
+        except Exception:
+            rows = sb.table("investments").select(
+                f"amount_usd, customers(name), structured_notes({sn_fields})"
+            ).execute().data or []
+
+        items = []
+        for r in rows:
+            sn = r.get("structured_notes") or {}
+            cust = r.get("customers") or {}
+            items.append({
+                "customer": cust.get("name", "—"),
+                "trade_date": sn.get("trade_date"),
+                "product_code": sn.get("product_code"),
+                "observation_date": sn.get("observation_date"),
+                "coupon_pct": sn.get("coupon_pct"),
+                "amount": r.get("amount_usd"),
+                "currency": r.get("currency") or "USD",
+                "exit_date": sn.get("exit_date"),
+            })
+
+        if not items:
+            st.warning("尚無投資資料")
+        else:
+            # 依客戶姓名排序，未知排最後
+            items.sort(key=lambda x: x["customer"] or "zz")
+            with st.spinner("產生中..."):
+                pdf = generate_portfolio_detail(items, report_date=_d.today().strftime("%Y-%m-%d"))
+            n_cust = len({i["customer"] for i in items})
+            st.download_button("⬇ 下載 投資績效明細表 (PDF)", data=pdf,
+                               file_name=f"投資績效明細表_{_d.today():%Y%m%d}.pdf",
+                               mime="application/pdf")
+            st.success(f"已產生：{len(items)} 筆投資 · {n_cust} 位客戶")
