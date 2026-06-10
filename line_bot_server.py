@@ -313,6 +313,8 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             "  日報 → 今日投資摘要\n"
             "  警示 → KO/KI 警示列表\n"
             "  客戶 → 所有客戶列表\n"
+            "  結算 → 結算總覽 (原幣)\n"
+            "  結算 客戶名 → 個別結算明細\n"
             "  myid → 查詢自己的 LINE ID\n"
             "  幫助 → 顯示此說明"
         ), ""
@@ -455,6 +457,64 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             usd_str = f"USD {usd:,.0f}" if usd else ""
             lines.append(f"• {c['name']} {usd_str}")
         return "\n".join(lines), ""
+
+    # 結算 (settlement) — 「結算」總覽 / 「結算 客戶名」明細
+    if text == "結算" or text.startswith("結算"):
+        try:
+            from utils.settlement import settle
+            from utils.money import format_money
+            from datetime import date as _date
+            from collections import defaultdict
+            name_q = text[2:].strip() if len(text) > 2 else ""
+            rows = sb_get("investments", {
+                "select": "amount_usd,currency,settle_coupon,customers(name),"
+                          "structured_notes(product_code,trade_date,exit_date,coupon_pct)"
+            })
+            if not rows:
+                return "尚無投資資料", ""
+            today = str(_date.today())
+            if name_q:
+                rows = [r for r in rows if name_q in ((r.get("customers") or {}).get("name") or "")]
+                if not rows:
+                    return f"找不到客戶「{name_q}」的結算資料", ""
+
+            def _calc(r):
+                sn = r.get("structured_notes") or {}
+                ccy = r.get("currency") or "USD"
+                s = settle(r.get("amount_usd"), sn.get("coupon_pct"),
+                           sn.get("trade_date"), sn.get("exit_date") or today, ccy)
+                ov = r.get("settle_coupon")
+                coupon = float(ov) if ov is not None else (0 if s["error"] else s["coupon"])
+                total = (r.get("amount_usd") or 0) + coupon
+                return sn, ccy, coupon, total, s
+
+            if name_q:  # 單一客戶明細
+                out = [f"🧾 結算：{name_q}", "─────────────"]
+                sub = defaultdict(lambda: [0.0, 0.0])
+                for r in rows:
+                    sn, ccy, coupon, total, s = _calc(r)
+                    ex = (sn.get("exit_date") or "")[:10] or f"估{today[5:]}"
+                    out.append(f"• {sn.get('product_code','—')}  出場{ex}")
+                    out.append(f"   配息 {format_money(coupon, ccy)}｜合計 {format_money(total, ccy)}")
+                    sub[ccy][0] += coupon; sub[ccy][1] += total
+                out.append("─────────────")
+                for c, v in sub.items():
+                    out.append(f"小計 {c}：配息 {format_money(v[0], c)}｜合計 {format_money(v[1], c)}")
+                return "\n".join(out), ""
+
+            # 全部客戶總覽
+            ccy_tot = defaultdict(lambda: [0.0, 0.0])
+            for r in rows:
+                _, ccy, coupon, total, _s = _calc(r)
+                ccy_tot[ccy][0] += coupon; ccy_tot[ccy][1] += total
+            out = ["🧾 結算總覽（全部客戶）", "─────────────"]
+            for c, v in sorted(ccy_tot.items()):
+                out.append(f"{c}：配息 {format_money(v[0], c)}\n     合計 {format_money(v[1], c)}")
+            out += ["─────────────", f"共 {len(rows)} 筆投資",
+                    "💡 輸入「結算 客戶名」看個別明細", "（未設出場日者以今日估算）"]
+            return "\n".join(out), ""
+        except Exception as e:
+            return f"結算計算失敗：{e}", ""
 
     # 匯出 Excel
     if text in ["匯出", "excel", "Excel", "匯出Excel", "匯出excel", "導出"]:
