@@ -173,6 +173,8 @@ if st.button("💾 儲存調整", type="primary"):
     st.success(f"已儲存 {saved} 筆調整")
     st.rerun()
 
-csv = editor_df.drop(columns=["系統配息"]).to_csv(index=False).encode("utf-8-sig")
+from utils.branding import SIGNATURE
+_csv_body = editor_df.drop(columns=["系統配息"]).to_csv(index=False)
+csv = (f"{SIGNATURE}\n結算日期,{settle_date}\n\n{_csv_body}").encode("utf-8-sig")
 st.download_button("⬇ 下載結算表 (CSV)", data=csv,
                    file_name=f"結算表_{settle_date}.csv", mime="text/csv")

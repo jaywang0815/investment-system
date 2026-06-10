@@ -35,10 +35,12 @@ def build_excel_bytes(customers: list = None, sns_all: list = None, sn_inv_map: 
     from openpyxl.utils import get_column_letter
     from datetime import datetime as _dt
 
+    from utils import branding as B
     SRC_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "source_data.xlsx")
-    NAVY = "1E3A8A"; NAVY2 = "2D4E9E"; WHITE = "FFFFFF"
-    GREEN = "059669"; GRAY1 = "F8FAFC"; DARK = "0F172A"; AMBER = "D97706"
-    today_str = date.today().strftime("%Y年%m月%d日")
+    NAVY = B.C_PRIMARY; NAVY2 = B.C_HEADER; WHITE = "FFFFFF"
+    GREEN = "1B9E5A"; GRAY1 = B.C_ZEBRA; DARK = "1A1A1A"; AMBER = "B45309"
+    DATEBG = "7E2A1F"   # 日期副標底 (深紅)
+    today_str = date.today().strftime("%Y年%m月%d日") + "　　" + B.SIGNATURE
 
     def bdr(c="CBD5E1"):
         s = Side(style="thin", color=c)
@@ -98,13 +100,23 @@ def build_excel_bytes(customers: list = None, sns_all: list = None, sn_inv_map: 
         t.fill      = PatternFill("solid", fgColor=NAVY)
         t.alignment = Alignment(horizontal="left", vertical="center", indent=2)
 
-        # ── Row 2: date subtitle ──────────────────────────────────────
+        # logo (top-right corner, floats over title bar)
+        try:
+            if B.has_logo():
+                from openpyxl.drawing.image import Image as XLImage
+                logo = XLImage(B.LOGO_PATH)
+                logo.width = 46; logo.height = 46
+                ws.add_image(logo, f"{get_column_letter(max_c)}1")
+        except Exception:
+            pass
+
+        # ── Row 2: date subtitle + 報告人署名 ─────────────────────────
         ws.row_dimensions[2].height = 20
         ws.merge_cells(f"A2:{get_column_letter(max_c)}2")
         s = ws.cell(2, 1, value=today_str)
-        s.font      = Font(name="微軟正黑體", color="94A3B8", size=9)
-        s.fill      = PatternFill("solid", fgColor="0F2460")
-        s.alignment = Alignment(horizontal="left", vertical="center")
+        s.font      = Font(name="微軟正黑體", color="F4D9D3", size=9)
+        s.fill      = PatternFill("solid", fgColor=DATEBG)
+        s.alignment = Alignment(horizontal="left", vertical="center", indent=1)
 
         # ── Row 3: source row 1 = column headers ─────────────────────
         ws.row_dimensions[3].height = 28

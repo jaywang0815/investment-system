@@ -24,13 +24,15 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
 
-# ── colours ──────────────────────────────────────────────────────
-_NAVY    = RGBColor(0x0F, 0x25, 0x57)
-_BLUE    = RGBColor(0x1E, 0x3A, 0x8A)
+# ── colours (統一證券 品牌紅) ──────────────────────────────────────
+_NAVY    = RGBColor(0x7E, 0x2A, 0x1F)   # 深紅 — 背景帶
+_BLUE    = RGBColor(0xB2, 0x3A, 0x2B)   # 品牌深紅 — 標頭
+_BRAND   = RGBColor(0xE5, 0x48, 0x3A)   # 品牌紅 — accent
+_LITE    = RGBColor(0xF5, 0xCF, 0xC8)   # 淺紅 — 副標文字
 _WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
-_GRAY    = RGBColor(0x64, 0x74, 0x8B)
-_GREEN   = RGBColor(0x16, 0xA3, 0x4A)
-_RED     = RGBColor(0xDC, 0x26, 0x26)
+_GRAY    = RGBColor(0x7A, 0x71, 0x6E)
+_GREEN   = RGBColor(0x1B, 0x9E, 0x5A)
+_RED     = RGBColor(0xD6, 0x45, 0x41)
 # reference line colours — maximally distinct
 _C_INIT  = RGBColor(0xFF, 0xD7, 0x00)   # gold/yellow  — 期初
 _C_KO    = RGBColor(0x00, 0xE6, 0x76)   # bright green — KO
@@ -171,7 +173,7 @@ def _chart_mplfinance(ohlcv, ticker, hlines: dict | None = None) -> bytes | None
             title=title_str,
         )
 
-        axes[0].title.set_color("#1E3A8A")
+        axes[0].title.set_color("#B23A2B")
         axes[0].title.set_fontsize(13)
         axes[0].title.set_fontweight("bold")
 
@@ -316,7 +318,7 @@ def _chart_simple(ohlcv, ticker, hlines: dict | None = None) -> bytes | None:
                         alpha=0.1, color=color)
         ax.set_title(
             f"{ticker}   ${last:,.2f}   {sign}{chg_p:.2f}%",
-            fontsize=13, color="#1E3A8A", fontweight="bold",
+            fontsize=13, color="#B23A2B", fontweight="bold",
         )
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
@@ -447,30 +449,43 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
     s.background.fill.fore_color.rgb = _NAVY
 
     # thin top accent line
-    _rect(s, 0, 0, W, Inches(0.06), RGBColor(0x1E, 0x3A, 0x8A))
+    _rect(s, 0, 0, W, Inches(0.06), _BRAND)
+
+    # company logo (centred, above title)
+    try:
+        from utils import branding as _B
+        if _B.has_logo():
+            s.shapes.add_picture(_B.LOGO_PATH, Inches(6.06), Inches(1.25),
+                                 Inches(1.2), Inches(1.2))
+    except Exception:
+        pass
 
     # main title — centred vertically
-    _textbox(s, Inches(0), Inches(2.4), W, Inches(1.5),
+    _textbox(s, Inches(0), Inches(2.65), W, Inches(1.5),
              "投資組合持倉分析報告",
              46, bold=True, color=_WHITE, align=PP_ALIGN.CENTER)
 
     # english subtitle
-    _textbox(s, Inches(0), Inches(3.95), W, Inches(0.6),
+    _textbox(s, Inches(0), Inches(4.2), W, Inches(0.6),
              "Investment Portfolio Holdings Analysis Report",
-             14, color=RGBColor(0x7B, 0xA7, 0xD9), align=PP_ALIGN.CENTER)
+             14, color=_LITE, align=PP_ALIGN.CENTER)
 
     # thin horizontal rule
-    _rect(s, Inches(2.5), Inches(4.7), Inches(8.33), Inches(0.025),
-          RGBColor(0x2D, 0x4E, 0x88))
+    _rect(s, Inches(2.5), Inches(4.95), Inches(8.33), Inches(0.025), _BLUE)
+
+    # 報告人署名
+    _textbox(s, Inches(0), Inches(5.15), W, Inches(0.5),
+             "統一證券　報告人　秦聖鈞",
+             15, bold=True, color=_WHITE, align=PP_ALIGN.CENTER)
 
     # bottom info strip
-    _rect(s, 0, Inches(6.5), W, Inches(1.0), RGBColor(0x0A, 0x1A, 0x3D))
+    _rect(s, 0, Inches(6.5), W, Inches(1.0), RGBColor(0x5E, 0x1F, 0x16))
     _textbox(s, Inches(0.5), Inches(6.62), Inches(6), Inches(0.45),
              date.today().strftime("%Y  /  %m  /  %d"),
-             16, color=RGBColor(0x94, 0xA3, 0xB8))
+             16, color=_LITE)
     _textbox(s, Inches(7), Inches(6.62), Inches(6), Inches(0.45),
              f"共  {len(tickers)}  個標的",
-             16, color=RGBColor(0x94, 0xA3, 0xB8), align=PP_ALIGN.RIGHT)
+             16, color=_LITE, align=PP_ALIGN.RIGHT)
 
     # ── fetch current price (reliable: use history not fast_info) ──
     def _fetch_price(tk_str: str):
@@ -511,7 +526,7 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
                  ticker, 36, bold=True, color=_WHITE)
         _textbox(s, Inches(7.5), Inches(0.17), Inches(5.5), Inches(0.5),
                  date.today().strftime("%Y/%m/%d"),
-                 13, color=RGBColor(0xBF, 0xDB, 0xFF), align=PP_ALIGN.RIGHT)
+                 13, color=_LITE, align=PP_ALIGN.RIGHT)
 
         # ── info row (navy bg) ────────────────────────────────────
         _rect(s, 0, Inches(0.85), W, Inches(1.05), _NAVY)
@@ -533,7 +548,7 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
 
         # separator line
         _rect(s, Inches(4.0), Inches(0.95), Inches(0.02), Inches(0.8),
-              RGBColor(0x33, 0x4A, 0x70))
+              RGBColor(0x8B, 0x3A, 0x2E))
 
         # 期初 / KO / KI (right block, 3 columns)
         col_x = [4.3, 7.0, 9.8]
@@ -579,12 +594,12 @@ def build_ppt(tickers: list[str], sn_info: dict | None = None,
             row2_items.append(("商品", str(code)))
 
         if row2_items:
-            _rect(s, 0, Inches(1.82), W, Inches(0.42), RGBColor(0x1A, 0x33, 0x5C))
+            _rect(s, 0, Inches(1.82), W, Inches(0.42), RGBColor(0x6E, 0x26, 0x1C))
             x_step = 13.33 / max(len(row2_items), 1)
             for idx, (lbl, val) in enumerate(row2_items):
                 x = idx * x_step + 0.2
                 _textbox(s, Inches(x), Inches(1.84), Inches(x_step - 0.1), Inches(0.18),
-                         lbl, 8, color=RGBColor(0x94, 0xA3, 0xB8))
+                         lbl, 8, color=_LITE)
                 _textbox(s, Inches(x), Inches(1.99), Inches(x_step - 0.1), Inches(0.22),
                          val, 10, bold=True, color=_WHITE)
 
