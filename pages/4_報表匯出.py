@@ -19,19 +19,19 @@ from utils.ui_helpers import dog_header, require_auth
 dog_header("報表匯出")
 require_auth()
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["客戶PDF報表", "Excel匯出", "Google試算表", "歷史報表", "投資明細表"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["投資報表", "Excel匯出", "Google試算表", "歷史報表"])
 
 # ──────────────────────────────────────────────────────────────
-# Tab 1: 客戶 PDF 報表
+# Tab 1: 投資報表 — 個人完整報表 + 全部客戶明細表 (合併)
 # ──────────────────────────────────────────────────────────────
-with tab1:
-    st.subheader("產生客戶個人 PDF 報表")
+def _personal_report():
+    st.markdown("##### 個人完整報表（含投資明細摘要 + 走勢圖）")
 
     customers_df = get_all_customers()
     if customers_df.empty:
         st.info("尚無客戶資料")
-        st.stop()
+        return
 
     today_str = date.today().strftime("%Y%m%d")
     _period_map = {
@@ -285,10 +285,10 @@ with tab4:
 
 
 # ──────────────────────────────────────────────────────────────
-# Tab 5: 投資明細表 (全部客戶)
+# 全部客戶投資明細表 (可編輯)
 # ──────────────────────────────────────────────────────────────
-with tab5:
-    st.subheader("全部客戶 · 投資績效明細表")
+def _detail_table():
+    st.markdown("##### 全部客戶投資明細表（可編輯，仿客戶 CTBC 表）")
     st.caption("可直接編輯下表（備註自由填寫、可新增/刪除列），確認後再產生 PDF｜日期=民國紀年・金額=原幣｜統一證券 報告人 秦聖鈞")
 
     from datetime import date as _d
@@ -393,3 +393,16 @@ with tab5:
                                file_name=f"投資績效明細表_{rep_date}.pdf",
                                mime="application/pdf")
             st.success(f"已產生：{len(items)} 筆 · {n_cust} 位客戶")
+
+
+# ── Tab 1 渲染：個人完整報表 / 全部客戶明細表 (二合一) ──────────
+with tab1:
+    st.subheader("投資報表")
+    _view = st.radio("報表類型",
+                     ["個人完整報表", "全部客戶投資明細表"],
+                     horizontal=True, key="report_view")
+    st.markdown("---")
+    if _view == "個人完整報表":
+        _personal_report()
+    else:
+        _detail_table()
