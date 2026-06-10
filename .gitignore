@@ -21,3 +21,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Data backups (sensitive customer/money data — never commit)
+backups/
