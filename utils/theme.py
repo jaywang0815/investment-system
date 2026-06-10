@@ -5,31 +5,32 @@ Light / Dark 由 st.session_state['ui_mode'] 控制，dog_header() 在每頁注�
 """
 import streamlit as st
 
+# 統一證券 名片配色 — 紅 / 白 / 金 / 黑 (與公開網站、匯出檔一致)
 LIGHT = {
-    "bg": "#eef6f1", "bg2": "#e8f3ed",
-    "surface": "#ffffff", "surface2": "#f6f7f6",
-    "text": "#0b0f0d", "muted": "#5f6b66",
-    "accent": "#15a34a", "accent_press": "#0f7d3b",
-    "border": "#ececec", "on_accent": "#ffffff",
-    "sidebar": "#ffffff", "sidebar_text": "#0b0f0d",
+    "bg": "#ffffff", "bg2": "#faf6f3",
+    "surface": "#ffffff", "surface2": "#faf6f4",
+    "text": "#1a1413", "muted": "#6f635f",
+    "accent": "#d11a22", "accent_press": "#a8141b",
+    "border": "#ece3e0", "on_accent": "#ffffff",
+    "sidebar": "#ffffff", "sidebar_text": "#1a1413",
     "glass": "rgba(255,255,255,0.55)", "glass_brd": "rgba(255,255,255,0.65)",
-    "glow": "rgba(20,80,55,0.12)",
-    "blob": ("radial-gradient(38% 32% at 8% 6%, rgba(43,212,126,0.22), transparent 70%),"
-             "radial-gradient(34% 30% at 92% 8%, rgba(16,185,129,0.16), transparent 70%),"
-             "radial-gradient(46% 40% at 80% 94%, rgba(20,184,166,0.15), transparent 72%)"),
+    "glow": "rgba(120,30,40,0.10)", "gold": "#b9822f",
+    "blob": ("radial-gradient(38% 32% at 8% 6%, rgba(209,26,34,0.13), transparent 70%),"
+             "radial-gradient(34% 30% at 92% 8%, rgba(185,130,47,0.13), transparent 70%),"
+             "radial-gradient(46% 40% at 80% 94%, rgba(209,26,34,0.10), transparent 72%)"),
 }
 DARK = {
-    "bg": "#07100d", "bg2": "#0a1714",
-    "surface": "#121413", "surface2": "#171a18",
-    "text": "#f4f6f5", "muted": "#9aa39e",
-    "accent": "#2fd47e", "accent_press": "#27b86c",
-    "border": "#1f2220", "on_accent": "#05140d",
-    "sidebar": "#0c0e0d", "sidebar_text": "#f4f6f5",
-    "glass": "rgba(22,30,26,0.45)", "glass_brd": "rgba(255,255,255,0.10)",
-    "glow": "rgba(0,0,0,0.45)",
-    "blob": ("radial-gradient(40% 34% at 8% 6%, rgba(47,212,126,0.16), transparent 70%),"
-             "radial-gradient(36% 32% at 92% 8%, rgba(16,185,129,0.13), transparent 70%),"
-             "radial-gradient(48% 42% at 80% 94%, rgba(20,184,166,0.12), transparent 72%)"),
+    "bg": "#0e0b0b", "bg2": "#151010",
+    "surface": "#1a1414", "surface2": "#201818",
+    "text": "#f4efed", "muted": "#a89a96",
+    "accent": "#f04a4f", "accent_press": "#d23a40",
+    "border": "#2a2120", "on_accent": "#1a0c0c",
+    "sidebar": "#140f0f", "sidebar_text": "#f4efed",
+    "glass": "rgba(34,24,26,0.45)", "glass_brd": "rgba(255,255,255,0.10)",
+    "glow": "rgba(0,0,0,0.45)", "gold": "#e2a85c",
+    "blob": ("radial-gradient(40% 34% at 8% 6%, rgba(240,74,79,0.14), transparent 70%),"
+             "radial-gradient(36% 32% at 92% 8%, rgba(226,168,92,0.13), transparent 70%),"
+             "radial-gradient(48% 42% at 80% 94%, rgba(240,74,79,0.11), transparent 72%)"),
 }
 
 
@@ -63,6 +64,7 @@ def apply_theme():
   --bg:{c['bg']}; --bg2:{c['bg2']}; --surface:{c['surface']}; --surface2:{c['surface2']};
   --text:{c['text']}; --muted:{c['muted']}; --accent:{c['accent']}; --accent-press:{c['accent_press']};
   --border:{c['border']}; --on-accent:{c['on_accent']};
+  --gold:{c['gold']};
   --glass:{c['glass']}; --glass-brd:{c['glass_brd']}; --glow:{c['glow']};
 }}
 
@@ -197,9 +199,9 @@ div[data-baseweb="select"] * {{ color: var(--text) !important; }}
 .dh-wrap {{ margin: 0 0 2.2rem; }}
 .dh-eyebrow {{
   font-size: .72rem; font-weight: 700; letter-spacing: .22em;
-  text-transform: uppercase; color: var(--accent); margin-bottom: .35rem;
+  text-transform: uppercase; color: var(--gold); margin-bottom: .35rem;
 }}
 .dh-title {{ font-size: 2.3rem; font-weight: 800; letter-spacing: -.03em; color: var(--text); line-height: 1.05; }}
-.dh-rule {{ height: 1px; background: var(--border); margin-top: 1.1rem; }}
+.dh-rule {{ height: 3px; width: 48px; border-radius: 999px; background: var(--gold); margin-top: 1.1rem; }}
 </style>
 """, unsafe_allow_html=True)

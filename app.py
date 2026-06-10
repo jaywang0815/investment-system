@@ -20,7 +20,7 @@ st.markdown("""
 
 /* ── Base ─────────────────────────────────────────── */
 html, body, [data-testid="stAppViewContainer"] {
-    background: #F2FAF5 !important;
+    background: #faf6f3 !important;
     font-family: 'Inter', sans-serif !important;
 }
 .main .block-container {
@@ -31,11 +31,11 @@ html, body, [data-testid="stAppViewContainer"] {
 
 /* ── Sidebar ──────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: #0F7A46 !important;
+    background: #1a1414 !important;
     border-right: none !important;
-    box-shadow: 4px 0 24px rgba(16,90,55,0.18) !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.18) !important;
 }
-[data-testid="stSidebar"] * { color: #D6F5E6 !important; }
+[data-testid="stSidebar"] * { color: #e8dcd6 !important; }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
 
 [data-testid="stSidebarNavLink"] {
@@ -45,7 +45,7 @@ html, body, [data-testid="stAppViewContainer"] {
     font-size: 0.9rem !important;
     font-weight: 500 !important;
     transition: all 0.2s !important;
-    color: #BDEBD2 !important;
+    color: #d8c7c0 !important;
 }
 [data-testid="stSidebarNavLink"]:hover {
     background: rgba(255,255,255,0.12) !important;
@@ -53,9 +53,9 @@ html, body, [data-testid="stAppViewContainer"] {
     transform: translateX(3px) !important;
 }
 [data-testid="stSidebarNavLink"][aria-selected="true"] {
-    background: rgba(21,163,90,0.35) !important;
+    background: rgba(209,26,34,0.35) !important;
     color: #fff !important;
-    box-shadow: 0 2px 12px rgba(21,163,90,0.3) !important;
+    box-shadow: 0 2px 12px rgba(209,26,34,0.3) !important;
 }
 [data-testid="stSidebar"] .stButton > button {
     background: rgba(255,255,255,0.1) !important;
@@ -68,14 +68,14 @@ html, body, [data-testid="stAppViewContainer"] {
 h1 {
     font-size: 1.6rem !important;
     font-weight: 700 !important;
-    color: #0f7a46 !important;
+    color: #d11a22 !important;
     padding-bottom: 0 !important;
     border-bottom: none !important;
     margin-bottom: 1.2rem !important;
     letter-spacing: -0.3px !important;
 }
-h2 { font-size: 1.1rem !important; font-weight: 600 !important; color: #15803D !important; }
-h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A !important; }
+h2 { font-size: 1.1rem !important; font-weight: 600 !important; color: #a8141b !important; }
+h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #d11a22 !important; }
 
 /* ── Metric cards ─────────────────────────────────── */
 [data-testid="stMetric"] {
@@ -83,12 +83,12 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     border: none !important;
     border-radius: 20px !important;
     padding: 1.3rem 1.5rem !important;
-    box-shadow: 0 4px 20px rgba(21,163,90,0.08), 0 1px 4px rgba(0,0,0,0.04) !important;
+    box-shadow: 0 4px 20px rgba(209,26,34,0.08), 0 1px 4px rgba(0,0,0,0.04) !important;
     transition: transform 0.2s, box-shadow 0.2s !important;
 }
 [data-testid="stMetric"]:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 8px 28px rgba(21,163,90,0.14) !important;
+    box-shadow: 0 8px 28px rgba(209,26,34,0.14) !important;
 }
 [data-testid="stMetricLabel"] {
     color: #6b7280 !important;
@@ -98,7 +98,7 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     letter-spacing: 0.5px !important;
 }
 [data-testid="stMetricValue"] {
-    color: #0f7a46 !important;
+    color: #d11a22 !important;
     font-weight: 700 !important;
     font-size: 1.8rem !important;
 }
@@ -114,27 +114,27 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     padding: 0.5rem 1.2rem !important;
 }
 .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #15A35A 0%, #2BD47E 100%) !important;
+    background: linear-gradient(135deg, #d11a22 0%, #a8141b 100%) !important;
     color: white !important;
-    box-shadow: 0 4px 14px rgba(21,163,90,0.35) !important;
+    box-shadow: 0 4px 14px rgba(209,26,34,0.35) !important;
 }
 .stButton > button[kind="primary"]:hover {
     transform: translateY(-1px) !important;
-    box-shadow: 0 6px 20px rgba(21,163,90,0.45) !important;
+    box-shadow: 0 6px 20px rgba(209,26,34,0.45) !important;
 }
 .stButton > button[kind="secondary"] {
     background: white !important;
-    border: 1.5px solid #e8f7ef !important;
-    color: #15A35A !important;
+    border: 1.5px solid #f0e3e0 !important;
+    color: #d11a22 !important;
 }
 .stButton > button[kind="secondary"]:hover {
-    background: #F2FAF5 !important;
-    border-color: #2BD47E !important;
+    background: #faf6f3 !important;
+    border-color: #a8141b !important;
 }
 
 /* ── Tabs ─────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
-    background: #E8F7EF;
+    background: #fbeeef;
     padding: 5px;
     border-radius: 14px;
     gap: 4px;
@@ -144,14 +144,14 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     border-radius: 10px !important;
     padding: 7px 20px !important;
     font-weight: 500 !important;
-    color: #2BD47E !important;
+    color: #a8141b !important;
     background: transparent !important;
     font-size: 0.88rem !important;
 }
 .stTabs [aria-selected="true"] {
     background: white !important;
-    color: #15803D !important;
-    box-shadow: 0 2px 8px rgba(21,163,90,0.15) !important;
+    color: #a8141b !important;
+    box-shadow: 0 2px 8px rgba(209,26,34,0.15) !important;
     font-weight: 600 !important;
 }
 
@@ -169,15 +169,15 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
 .stSelectbox > div > div,
 .stTextArea textarea {
     border-radius: 12px !important;
-    border: 1.5px solid #e8f7ef !important;
+    border: 1.5px solid #f0e3e0 !important;
     background: #fff !important;
     font-size: 0.9rem !important;
     transition: border 0.2s, box-shadow 0.2s !important;
 }
 [data-testid="stTextInput"] input:focus,
 .stTextArea textarea:focus {
-    border-color: #2BD47E !important;
-    box-shadow: 0 0 0 3px rgba(21,163,90,0.15) !important;
+    border-color: #a8141b !important;
+    box-shadow: 0 0 0 3px rgba(209,26,34,0.15) !important;
 }
 
 /* ── Expander ─────────────────────────────────────── */
@@ -187,15 +187,15 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
     border-radius: 16px !important;
     overflow: hidden !important;
     margin-bottom: 8px !important;
-    box-shadow: 0 2px 10px rgba(21,163,90,0.07) !important;
+    box-shadow: 0 2px 10px rgba(209,26,34,0.07) !important;
 }
 [data-testid="stExpander"] summary {
     font-weight: 600 !important;
-    color: #15803D !important;
+    color: #a8141b !important;
     padding: 12px 18px !important;
     font-size: 0.92rem !important;
 }
-[data-testid="stExpander"] summary:hover { background: #F5F3FF !important; }
+[data-testid="stExpander"] summary:hover { background: #faf6f3 !important; }
 
 /* ── Alerts ───────────────────────────────────────── */
 [data-testid="stAlert"] {
@@ -210,13 +210,13 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: #16A34A 
 .alert-warn { background:#FFFBEB; border-left:4px solid #F59E0B; padding:12px 16px; border-radius:14px; margin:5px 0; }
 
 /* ── Divider ──────────────────────────────────────── */
-hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
+hr { border-color: #f0e3e0 !important; margin: 1.2rem 0 !important; }
 
 /* ── Scrollbar ────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: #F2FAF5; border-radius: 4px; }
-::-webkit-scrollbar-thumb { background: #D6F5E6; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+::-webkit-scrollbar-track { background: #faf6f3; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #e8dcd6; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #b9822f; }
 
 /* ── Form ─────────────────────────────────────────── */
 [data-testid="stForm"] {
@@ -224,11 +224,11 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
     border-radius: 20px !important;
     padding: 1.5rem !important;
     border: none !important;
-    box-shadow: 0 4px 20px rgba(21,163,90,0.08) !important;
+    box-shadow: 0 4px 20px rgba(209,26,34,0.08) !important;
 }
 
 /* ── Spinner ──────────────────────────────────────── */
-[data-testid="stSpinner"] { color: #2BD47E !important; }
+[data-testid="stSpinner"] { color: #a8141b !important; }
 
 /* ── Success / Info / Warning / Error ────────────── */
 .stSuccess { border-radius: 14px !important; }
@@ -256,10 +256,10 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
 [data-testid="column"]:nth-child(4) [data-testid="stMetric"] { animation-delay: .26s; }
 [data-testid="stMetric"]:hover {
     transform: translateY(-4px) !important;
-    box-shadow: 0 14px 34px rgba(21,163,90,0.16) !important;
+    box-shadow: 0 14px 34px rgba(209,26,34,0.16) !important;
 }
 [data-testid="stMetricValue"] {
-    background: linear-gradient(90deg,#15a34a,#2bd47e,#15a34a);
+    background: linear-gradient(90deg,#d11a22,#c9962f,#d11a22);
     background-size: 200% auto;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -273,7 +273,7 @@ hr { border-color: #e8f7ef !important; margin: 1.2rem 0 !important; }
 }
 /* dataframe lift */
 [data-testid="stDataFrame"] { transition: box-shadow .2s ease, transform .2s ease; }
-[data-testid="stDataFrame"]:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(21,163,90,.12); }
+[data-testid="stDataFrame"]:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(209,26,34,.12); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -439,13 +439,13 @@ if not st.session_state.authenticated and not _google_logged_in:
         width:72px; height:72px; margin:0 auto 1rem; border-radius:22px;
         display:flex; align-items:center; justify-content:center;
         font-size:1.6rem; font-weight:800; color:#fff; letter-spacing:.02em;
-        background:linear-gradient(135deg,#15a34a 0%,#2bd47e 100%);
-        box-shadow:0 10px 30px rgba(21,163,90,.35);
+        background:linear-gradient(135deg,#d11a22 0%,#c9962f 100%);
+        box-shadow:0 10px 30px rgba(209,26,34,.35);
         animation: pinpop .6s cubic-bezier(.22,1,.36,1) both;
     }}
     @keyframes pinpop {{ from {{opacity:0; transform:translateY(10px) scale(.92);}} to {{opacity:1; transform:none;}} }}
     .pin-title    {{ font-size:1.7rem; font-weight:800; color:#0b0f0d; text-align:center; display:block; margin-bottom:0.15rem; letter-spacing:0.04em; }}
-    .pin-title span {{ color:#15a34a; }}
+    .pin-title span {{ color:#d11a22; }}
     .pin-subtitle {{ font-size:0.88rem; color:#94a3b8; text-align:center; display:block; margin-bottom:1.6rem; }}
     .pin-error    {{ color:#ef4444; font-size:0.85rem; text-align:center; display:block; margin-top:0.5rem; }}
     </style>
@@ -505,7 +505,7 @@ with st.sidebar:
     st.markdown("""
     <div style='padding: 8px 6px 4px;'>
         <div style='font-size:1.25rem; font-weight:800; letter-spacing:0.04em; color:white;'>
-            DOUU&nbsp;WORK<span style='color:#2bd47e;'>.</span>
+            DOUU&nbsp;WORK<span style='color:#c9962f;'>.</span>
         </div>
         <div style='font-size:0.66rem; letter-spacing:0.2em; text-transform:uppercase;
                     color:rgba(255,255,255,0.55); margin-top:3px;'>Structured Notes</div>
@@ -556,7 +556,7 @@ if not db_ok:
 # ── Dashboard CSS ──────────────────────────────────────────────
 st.markdown("""<style>
 .hero-banner {
-    background: linear-gradient(115deg, #0c7a45 0%, #15a34a 38%, #1fae8a 68%, #2bd47e 100%);
+    background: linear-gradient(115deg, #a8141b 0%, #d11a22 38%, #cf7f2f 68%, #c9962f 100%);
     background-size: 220% 220%;
     animation: heroFlow 14s ease infinite, flairRise .7s cubic-bezier(.22,1,.36,1) both;
     border-radius: 24px;
@@ -565,7 +565,7 @@ st.markdown("""<style>
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 14px 44px rgba(21,163,90,0.30);
+    box-shadow: 0 14px 44px rgba(209,26,34,0.30);
     position: relative;
     overflow: hidden;
 }
@@ -630,7 +630,7 @@ st.markdown("""<style>
     overflow: hidden;
     transition: transform 0.25s cubic-bezier(.22,1,.36,1), box-shadow 0.25s;
 }
-.scard:hover { transform: translateY(-5px); box-shadow: 0 20px 44px rgba(21,163,90,0.20), inset 0 1px 0 rgba(255,255,255,0.8); }
+.scard:hover { transform: translateY(-5px); box-shadow: 0 20px 44px rgba(209,26,34,0.20), inset 0 1px 0 rgba(255,255,255,0.8); }
 .scard-icon {
     width: 46px; height: 46px;
     border-radius: 15px;
@@ -663,7 +663,7 @@ st.markdown("""<style>
     display: flex; align-items: center; justify-content: center;
     font-size: 0.92rem; flex-shrink: 0;
 }
-.sec-head-title { font-size: 0.95rem; font-weight: 700; color: #0f7a46; margin: 0; }
+.sec-head-title { font-size: 0.95rem; font-weight: 700; color: #d11a22; margin: 0; }
 
 .alert-card-ki   { background:#FFF1F3; border-left:4px solid #F43F5E; padding:11px 14px; border-radius:14px; margin:6px 0; font-size:0.87rem; }
 .alert-card-ko   { background:#ECFDF5; border-left:4px solid #10B981; padding:11px 14px; border-radius:14px; margin:6px 0; font-size:0.87rem; }
@@ -675,8 +675,8 @@ st.markdown("""<style>
     border-radius: 12px; margin: 5px 0;
     font-size: 0.84rem; background: #F8F9FF;
 }
-.obs-row:hover { background: #F2FAF5; }
-.obs-code { font-weight: 700; color: #0f7a46; flex: 1; min-width: 0; }
+.obs-row:hover { background: #faf6f3; }
+.obs-code { font-weight: 700; color: #d11a22; flex: 1; min-width: 0; }
 .obs-meta { color: #64748b; font-size: 0.76rem; text-align: right; flex-shrink: 0; }
 .obs-chip {
     font-size: 0.72rem; font-weight: 700;
@@ -698,7 +698,7 @@ st.markdown("""<style>
 }
 .px-card:hover { transform: translateY(-3px); }
 .px-sym { font-size: 0.72rem; font-weight: 700; color: #64748b; letter-spacing: 0.5px; }
-.px-price { font-size: 1.3rem; font-weight: 800; color: #0f7a46; letter-spacing: -0.5px; margin-top: 3px; }
+.px-price { font-size: 1.3rem; font-weight: 800; color: #d11a22; letter-spacing: -0.5px; margin-top: 3px; }
 .px-na { font-size: 0.8rem; color: #94a3b8; font-style: italic; margin-top: 3px; }
 </style>""", unsafe_allow_html=True)
 
@@ -750,15 +750,15 @@ _IC_CALENDAR  = _SVG('<rect x="3.6" y="5" width="16.8" height="15" rx="2.6"/>'
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f"""<div class="scard" style="border-top:4px solid #2BD47E;">
-      <div class="scard-icon" style="background:#F2FAF5;color:#2BD47E;">{_IC_CUSTOMERS}</div>
-      <div class="scard-val" style="color:#15A35A;">{stats['total_customers']}</div>
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #a8141b;">
+      <div class="scard-icon" style="background:#faf6f3;color:#a8141b;">{_IC_CUSTOMERS}</div>
+      <div class="scard-val" style="color:#d11a22;">{stats['total_customers']}</div>
       <div class="scard-label">客戶總數</div>
     </div>""", unsafe_allow_html=True)
 with c2:
-    st.markdown(f"""<div class="scard" style="border-top:4px solid #10B981;">
-      <div class="scard-icon" style="background:#ECFDF5;color:#10B981;">{_IC_PRODUCTS}</div>
-      <div class="scard-val" style="color:#059669;">{stats['active_sns']}</div>
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #b9822f;">
+      <div class="scard-icon" style="background:#faf3e6;color:#b9822f;">{_IC_PRODUCTS}</div>
+      <div class="scard-val" style="color:#a9781f;">{stats['active_sns']}</div>
       <div class="scard-label">有效商品</div>
     </div>""", unsafe_allow_html=True)
 with c3:
@@ -768,9 +768,9 @@ with c3:
       <div class="scard-label">總投資金額 (USD)</div>
     </div>""", unsafe_allow_html=True)
 with c4:
-    st.markdown(f"""<div class="scard" style="border-top:4px solid #8B5CF6;">
-      <div class="scard-icon" style="background:#F5F3FF;color:#8B5CF6;">{_IC_CALENDAR}</div>
-      <div class="scard-val" style="color:#7C3AED;font-size:1.45rem;">{_now.strftime("%m/%d")}</div>
+    st.markdown(f"""<div class="scard" style="border-top:4px solid #1a1414;">
+      <div class="scard-icon" style="background:#f0e3e0;color:#1a1414;">{_IC_CALENDAR}</div>
+      <div class="scard-val" style="color:#1a1414;font-size:1.45rem;">{_now.strftime("%m/%d")}</div>
       <div class="scard-label">今日日期</div>
     </div>""", unsafe_allow_html=True)
 
@@ -821,7 +821,7 @@ with col_left:
 
 with col_right:
     st.markdown("""<div class="sec-head">
-      <div class="sec-head-icon" style="background:#F2FAF5;color:#2BD47E;"></div>
+      <div class="sec-head-icon" style="background:#faf6f3;color:#a8141b;"></div>
       <span class="sec-head-title">近期比價日</span>
     </div>""", unsafe_allow_html=True)
 
@@ -889,7 +889,7 @@ else:
 
 # ── 近期 SN 商品 ──────────────────────────────────────────────
 st.markdown("""<div class="sec-head">
-  <div class="sec-head-icon" style="background:#F5F3FF;color:#8B5CF6;"></div>
+  <div class="sec-head-icon" style="background:#faf3e6;color:#b9822f;"></div>
   <span class="sec-head-title">近期 SN 商品</span>
 </div>""", unsafe_allow_html=True)
 
