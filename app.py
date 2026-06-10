@@ -405,10 +405,13 @@ if _cookie_available and not st.session_state.authenticated:
         _cv = None
     if _cv == _cookie_token():
         st.session_state.authenticated = True
-        st.session_state.pop("_auth_cookie_tried", None)
-    elif _cv is None and not st.session_state.get("_auth_cookie_tried"):
-        st.session_state["_auth_cookie_tried"] = True
-        st.rerun()
+        st.session_state.pop("_auth_cookie_tries", None)
+    else:
+        _tries = st.session_state.get("_auth_cookie_tries", 0)
+        if _cv is None and _tries < 5:
+            # cookie JS may need several cycles to deliver — retry before showing PIN
+            st.session_state["_auth_cookie_tries"] = _tries + 1
+            st.rerun()
 
 # 已登入 → 繼續
 _google_logged_in = False

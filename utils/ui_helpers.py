@@ -25,14 +25,16 @@ def require_auth():
     except Exception:
         pass
 
-    if cookie_val is None and not st.session_state.get("_auth_cookie_tried"):
-        # First render — JS not ready yet; rerun once so cookie loads
-        st.session_state["_auth_cookie_tried"] = True
+    _tries = st.session_state.get("_auth_cookie_tries", 0)
+    if cookie_val is None and _tries < 5:
+        # JS cookie component often needs a few render cycles to deliver the value —
+        # retry several times before falling back to the password form
+        st.session_state["_auth_cookie_tries"] = _tries + 1
         st.rerun()
 
     if cookie_val == expected:
         st.session_state.authenticated = True
-        st.session_state.pop("_auth_cookie_tried", None)
+        st.session_state.pop("_auth_cookie_tries", None)
         return True
 
     # Show inline login form on this page (no redirect needed)
@@ -44,7 +46,7 @@ def require_auth():
     if submitted:
         if pwd == (_pw or "") or hashlib.sha256(pwd.encode()).hexdigest() == _hash:
             st.session_state.authenticated = True
-            st.session_state.pop("_auth_cookie_tried", None)
+            st.session_state.pop("_auth_cookie_tries", None)
             if _cc is not None:
                 try:
                     _cc.set("inv_auth", expected, max_age=365 * 24 * 3600)
