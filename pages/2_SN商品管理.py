@@ -136,10 +136,10 @@ with tab1:
             .pxc{display:block;text-decoration:none;border:1px solid var(--border,#e5e7eb);border-radius:16px;
                  padding:14px 16px;background:var(--surface,#fff);
                  transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
-            .pxc:hover{transform:translateY(-3px);border-color:var(--accent,#15a34a);
+            .pxc:hover{transform:translateY(-3px);border-color:var(--accent,#b02a37);
                        box-shadow:0 8px 22px rgba(21,163,90,.16);}
             .pxc-sym{font-size:.72rem;font-weight:700;letter-spacing:.5px;color:var(--muted,#64748b);}
-            .pxc-val{font-size:1.3rem;font-weight:800;color:var(--accent,#15a34a);margin-top:4px;white-space:nowrap;}
+            .pxc-val{font-size:1.3rem;font-weight:800;color:var(--accent,#b02a37);margin-top:4px;white-space:nowrap;}
             .pxc-na{font-size:.9rem;color:var(--muted,#94a3b8);margin-top:6px;font-style:italic;}
             </style>
             """, unsafe_allow_html=True)

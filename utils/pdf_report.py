@@ -215,8 +215,8 @@ def _brand_header(W, title: str, sub: str = ""):
         _style("BTitle", fontName=FONT_BOLD, textColor=BLUE_DARK, leading=21))
     rep_p = Paragraph(
         f'<font size="8" color="#{B.C_MUTED}">報告人</font><br/>'
-        f'<font size="11">{B.REPORTER}</font>',
-        _style("BRep", fontName=FONT_BOLD, textColor=BLUE_DARK, alignment=2, leading=14))
+        f'<font size="11" color="#{B.C_TEXT}">{B.REPORTER}</font>',
+        _style("BRep", fontName=FONT_BOLD, alignment=2, leading=14))
     t = Table([[logo, title_p, rep_p]], colWidths=[19 * mm, W - 19 * mm - 34 * mm, 34 * mm])
     t.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -233,6 +233,71 @@ def _brand_footer(report_date: str):
     out.append(Paragraph(
         f"{B.SIGNATURE}　·　報表日期 {report_date}",
         _style("Footer", fontSize=8, textColor=GRAY, alignment=1)))
+    return out
+
+
+def _summary_table(investments, W):
+    """客戶報表用的「投資明細」摘要表 (6 欄, 綠表頭, 出場標綠)，回傳 flowables。"""
+    from utils.money import format_money
+    out = [Paragraph("【投資明細】",
+           _style("H2s", fontSize=13, fontName=FONT_BOLD, textColor=BLUE_DARK, spaceAfter=4))]
+    HEAD_GREEN = colors.HexColor("#A9D08E")
+    EXIT_GREEN = colors.HexColor("#C6E0B4")
+    BORDER     = colors.HexColor("#D9D9D9")
+    DARK       = colors.HexColor("#1F1B1B")
+    RED_CODE   = colors.HexColor(B.hx(B.C_PRIMARY))
+
+    data = [["日期", "代號", "期間", "配息", "金額", "備註"]]
+    styles = [
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (-1, 0), HEAD_GREEN),
+        ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"), ("ALIGN", (2, 0), (3, -1), "CENTER"),
+        ("ALIGN", (4, 0), (4, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.4, BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]
+    grand = {}
+    for inv in investments:
+        sn = inv.get("structured_notes") or {}
+        if not sn:
+            continue
+        td = _detail_to_date(sn.get("trade_date"))
+        exited = bool(sn.get("exit_date"))
+        cp = sn.get("coupon_pct")
+        amt = inv.get("amount_usd") or 0
+        cur = inv.get("currency") or "USD"
+        grand[cur] = grand.get(cur, 0) + amt
+        data.append([
+            _roc(td), sn.get("product_code") or "",
+            _tenor_ym(sn.get("trade_date"), sn.get("observation_date")),
+            f"{cp*100:g}%" if cp else "",
+            format_money(amt, cur),
+            "出場" if exited else "",
+        ])
+        ri = len(data) - 1
+        styles += [("FONTNAME", (1, ri), (1, ri), FONT_BOLD),
+                   ("TEXTCOLOR", (1, ri), (1, ri), RED_CODE)]
+        if exited:
+            styles.append(("BACKGROUND", (0, ri), (-1, ri), EXIT_GREEN))
+
+    tot = "　".join(format_money(v, c) for c, v in sorted(grand.items())) or "—"
+    data.append(["小計", "", "", "", tot, ""])
+    ri = len(data) - 1
+    styles += [("SPAN", (0, ri), (3, ri)), ("FONTNAME", (0, ri), (-1, ri), FONT_BOLD),
+               ("BACKGROUND", (0, ri), (-1, ri), colors.HexColor(B.hx(B.C_TINT))),
+               ("TEXTCOLOR", (0, ri), (-1, ri), BLUE_DARK), ("FONTSIZE", (0, ri), (-1, ri), 10),
+               ("ALIGN", (0, ri), (0, ri), "LEFT"), ("ALIGN", (4, ri), (4, ri), "RIGHT"),
+               ("LINEABOVE", (0, ri), (-1, ri), 1, BLUE_DARK)]
+
+    col_w = [22 * mm, 30 * mm, 16 * mm, 22 * mm, 36 * mm, W - 126 * mm]
+    t = Table(data, colWidths=col_w, repeatRows=1)
+    t.setStyle(TableStyle(styles))
+    out.append(t)
+    out.append(Spacer(1, 7 * mm))
     return out
 
 # ============================================================
@@ -341,6 +406,10 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     ]))
     story.append(ov_table)
     story.append(Spacer(1, 8*mm))
+
+    # ── 投資明細 摘要表 (與明細表整合) ──────────────────────
+    for f in _summary_table(investments, W):
+        story.append(f)
 
     # ── 各持倉明細 ──────────────────────────────────────────
     story.append(Paragraph("【持倉明細】",
@@ -566,6 +635,15 @@ def _roc(d):
     return f"{d.year - 1911}/{d.month:02d}/{d.day:02d}"
 
 
+def _tenor_ym(trade, obs):
+    """交易日→比價日 推算期間: <12月→#M, 否則→#Y"""
+    td, od = _detail_to_date(trade), _detail_to_date(obs)
+    if td and od and od > td:
+        m = max(round((od - td).days / 30), 1)
+        return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
+    return ""
+
+
 def generate_portfolio_detail(items: list, report_date: str = "",
                               section_title: str = "CTBC") -> bytes:
     """
@@ -684,10 +762,11 @@ def generate_portfolio_detail(items: list, report_date: str = "",
     story.append(Spacer(1, 4 * mm))
     grand_band = Table([["總計　TOTAL", _fmt_totals(grand)]], colWidths=[W * 0.4, W * 0.6])
     grand_band.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD), ("FONTSIZE", (0, 0), (-1, -1), 12),
-        ("BACKGROUND", (0, 0), (-1, -1), BLUE_DARK), ("TEXTCOLOR", (0, 0), (-1, -1), WHITE),
+        ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD), ("FONTSIZE", (0, 0), (-1, -1), 12.5),
+        ("BACKGROUND", (0, 0), (-1, -1), BLUE_LIGHT), ("TEXTCOLOR", (0, 0), (-1, -1), BLUE_DARK),
+        ("LINEABOVE", (0, 0), (-1, 0), 1.6, BLUE_DARK),
         ("ALIGN", (1, 0), (1, 0), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (0, 0), (-1, -1), 10),
     ]))
     story.append(grand_band)

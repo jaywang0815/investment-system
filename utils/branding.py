@@ -12,18 +12,19 @@ REPORTER  = "秦聖鈞"
 # 報表署名 (頁首 / 頁尾共用)
 SIGNATURE = "統一證券　報告人　秦聖鈞"
 
-# ── 配色 (品牌紅) — hex 字串不含 # ──────────────────────────
-C_PRIMARY = "B23A2B"   # 深品牌紅 — 標題列 / 表頭
-C_HEADER  = "9E3326"   # 更深紅 — 群組標頭帶
-C_ACCENT  = "E5483A"   # 品牌紅 — 線條 / 重點
-C_TINT    = "FBEAE7"   # 淺紅底 — 標籤格 / 表頭淺底
-C_ZEBRA   = "FAF6F5"   # 斑馬列中性暖灰
-C_BORDER  = "E7D9D6"   # 邊框
-C_TEXT    = "1A1A1A"   # 主文字
-C_MUTED   = "7A716E"   # 次文字
+# ── 配色 (品牌紅，精緻不刺眼) — hex 字串不含 # ────────────────
+# 紅作為「重點色」，大面積用淺底/中性，避免整份過紅。
+C_PRIMARY = "A62A36"   # 精緻深紅 (酒紅調) — 標題 / 代號 / 文字重點
+C_HEADER  = "8E232E"   # 更深 — 群組標頭
+C_ACCENT  = "C0392B"   # 重點紅 — 細線 / 強調 (節制使用)
+C_TINT    = "FBEEEF"   # 極淺玫瑰底 — 標籤格 / 總計帶
+C_ZEBRA   = "FAF7F7"   # 斑馬列中性暖灰
+C_BORDER  = "EAD9DB"   # 邊框
+C_TEXT    = "1F1B1B"   # 主文字 (近黑)
+C_MUTED   = "7A6F70"   # 次文字
 C_GREEN   = "1B9E5A"   # KO / 正向
-C_RED     = "D64541"   # KI / 負向
-C_EXIT_BG = "FFF4DC"   # 出場列底 (金)
+C_RED     = "C0392B"   # KI / 負向
+C_EXIT_BG = "EAF3E0"   # 出場列底 (淺綠，仿客戶表)
 C_NEW_BG  = "EAF7EE"   # 本月新增列底 (綠)
 C_WHITE   = "FFFFFF"
 
