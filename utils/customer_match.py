@@ -17,6 +17,14 @@ import unicodedata
 from typing import Optional
 
 
+# 人工別名表 (暱稱/簡稱 → 官方全名)，匯入時優先套用，避免重複客戶。
+# 例: 游董/游2 已確認為 游家順 同一人。
+ALIASES = {
+    "游2": "游家順",
+    "游董": "游家順",
+}
+
+
 def _norm(name: str) -> str:
     return unicodedata.normalize("NFKC", str(name)).strip()
 
@@ -33,6 +41,11 @@ def match_customer(name: str, candidates: list) -> dict:
     """
     n = _norm(name)
     cands = [_norm(c) for c in candidates]
+
+    # 0) 人工別名表 (暱稱 → 全名)，目標存在於候選才套用
+    alias = ALIASES.get(n)
+    if alias and _norm(alias) in cands:
+        return {"match": _norm(alias), "status": "exact", "options": [_norm(alias)]}
 
     # 1) 完全相同
     if n in cands:
