@@ -4,6 +4,7 @@ LINE Bot Webhook Server - FastAPI
 
 執行: uvicorn line_bot_server:app --port 8080
 """
+from __future__ import annotations
 import os
 import sys
 import io
@@ -88,9 +89,20 @@ def get_sns(status: str = "active") -> list:
 
 def get_customer_investments(customer_id: str) -> list:
     return sb_get("investments", {
-        "select": "amount_usd,structured_notes(*)",
+        "select": "amount_usd,currency,structured_notes(*)",
         "customer_id": f"eq.{customer_id}"
     })
+
+
+def _roc(s) -> str:
+    """ISO date str -> 民國 115/04/24"""
+    s = str(s or "")[:10]
+    try:
+        from datetime import date as _d
+        d = _d.fromisoformat(s)
+        return f"{d.year - 1911}/{d.month:02d}/{d.day:02d}"
+    except Exception:
+        return s or "—"
 
 
 def get_sn_customer_map() -> dict:
@@ -313,6 +325,8 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             "  日報 → 今日投資摘要\n"
             "  警示 → KO/KI 警示列表\n"
             "  客戶 → 所有客戶列表\n"
+            "  明細 → 投資明細總覽 (原幣)\n"
+            "  明細 客戶名 → 個別投資明細逐筆\n"
             "  結算 → 結算總覽 (原幣)\n"
             "  結算 客戶名 → 個別結算明細\n"
             "  myid → 查詢自己的 LINE ID\n"
@@ -458,6 +472,75 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             lines.append(f"• {c['name']} {usd_str}")
         return "\n".join(lines), ""
 
+    # 投資明細 — 「明細」總覽 / 「明細 客戶名」逐筆 (日期/代號/期間/配息/金額原幣/備註)
+    if text == "明細" or text.startswith("明細"):
+        try:
+            from utils.money import format_money
+            from datetime import date as _date
+            from collections import defaultdict, OrderedDict
+            name_q = text[2:].strip() if len(text) > 2 else ""
+            rows = sb_get("investments", {
+                "select": "amount_usd,currency,customers(name),"
+                          "structured_notes(product_code,trade_date,observation_date,"
+                          "coupon_pct,exit_date)"
+            })
+            if not rows:
+                return "尚無投資資料", ""
+
+            def _ten(tr, ob):
+                tr, ob = str(tr or "")[:10], str(ob or "")[:10]
+                try:
+                    a = _date.fromisoformat(tr); b = _date.fromisoformat(ob)
+                    m = max(round((b - a).days / 30), 1)
+                    return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
+                except Exception:
+                    return ""
+
+            if name_q:  # 單一客戶逐筆
+                rows = [r for r in rows if name_q in ((r.get("customers") or {}).get("name") or "")]
+                if not rows:
+                    return f"找不到客戶「{name_q}」的明細", ""
+                out = [f"📋 投資明細：{name_q}", "─────────────"]
+                sub = defaultdict(float)
+                for r in rows:
+                    sn = r.get("structured_notes") or {}
+                    ccy = r.get("currency") or "USD"
+                    amt = r.get("amount_usd") or 0
+                    sub[ccy] += amt
+                    cp = sn.get("coupon_pct")
+                    ten = _ten(sn.get("trade_date"), sn.get("observation_date"))
+                    cps = f"{cp*100:g}%" if cp else ""
+                    meta = "／".join(x for x in [ten, cps] if x)
+                    ex = " 🟢出場" if sn.get("exit_date") else ""
+                    out.append(f"• {_roc(sn.get('trade_date'))}  {sn.get('product_code','—')}{ex}")
+                    out.append(f"   {meta}｜{format_money(amt, ccy)}")
+                out.append("─────────────")
+                out.append("小計　" + "　".join(format_money(v, c) for c, v in sorted(sub.items())))
+                return "\n".join(out), ""
+
+            # 全部客戶總覽：每位客戶 小計(原幣) + 筆數
+            grp = OrderedDict()
+            for r in rows:
+                nm = (r.get("customers") or {}).get("name") or "—"
+                grp.setdefault(nm, []).append(r)
+            grand = defaultdict(float)
+            out = ["📋 投資明細總覽（全部客戶）", "─────────────"]
+            for nm, rs in grp.items():
+                cc = defaultdict(float)
+                for r in rs:
+                    ccy = r.get("currency") or "USD"
+                    cc[ccy] += r.get("amount_usd") or 0
+                    grand[ccy] += r.get("amount_usd") or 0
+                amt_s = "　".join(format_money(v, c) for c, v in sorted(cc.items()))
+                out.append(f"{nm}（{len(rs)}筆）：{amt_s}")
+            out.append("─────────────")
+            out.append("總計　" + "　".join(format_money(v, c) for c, v in sorted(grand.items())))
+            out += [f"共 {len(rows)} 筆 · {len(grp)} 位客戶",
+                    "💡 輸入「明細 客戶名」看逐筆"]
+            return "\n".join(out), ""
+        except Exception as e:
+            return f"明細查詢失敗：{e}", ""
+
     # 結算 (settlement) — 「結算」總覽 / 「結算 客戶名」明細
     if text == "結算" or text.startswith("結算"):
         try:
@@ -591,13 +674,18 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
         if not investments:
             return f"👤 {c['name']}\n目前無投資持倉記錄", ""
 
-        total = sum(i.get("amount_usd", 0) or 0 for i in investments)
+        from utils.money import format_money
+        ccy_total: dict = {}
+        for i in investments:
+            cur = i.get("currency") or "USD"
+            ccy_total[cur] = ccy_total.get(cur, 0) + (i.get("amount_usd", 0) or 0)
+        total_str = "　".join(format_money(v, k) for k, v in sorted(ccy_total.items())) or "—"
         lines = [
             f"👤 {c['name']} 持倉報告",
             f"🗓️ {today}",
             "─────────────",
             f"持倉筆數: {len(investments)} 筆",
-            f"總金額: USD {total:,.0f}",
+            f"總金額: {total_str}",
             ""
         ]
 
@@ -610,6 +698,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             obs       = str(sn.get("observation_date", ""))[:10]
             exit_date = str(sn.get("exit_date") or "")[:10]
             amount    = inv.get("amount_usd", 0) or 0
+            ccy       = inv.get("currency") or "USD"
             coupon    = sn.get("coupon_pct")
             ko        = sn.get("ko_barrier")
             ki        = sn.get("ki_barrier")
@@ -623,7 +712,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             barrier_str = "  ".join(b for b in [ko_str, ki_str] if b)
 
             lines.append(f"📌 {code}")
-            lines.append(f"   金額: USD {amount:,.0f}{coupon_str}")
+            lines.append(f"   金額: {format_money(amount, ccy)}{coupon_str}")
             if order_amt:
                 lines.append(f"   下單金: USD {order_amt:,.0f}")
             if barrier_str:
