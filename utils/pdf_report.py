@@ -405,7 +405,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
         ("BACKGROUND", (2, 0), (2, -1), BLUE_LIGHT),
         ("TEXTCOLOR", (0, 0), (0, -1), BLUE_DARK),
         ("TEXTCOLOR", (2, 0), (2, -1), BLUE_DARK),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E7D9D6")),
         ("ROWBACKGROUNDS", (0, 0), (-1, -1), [WHITE, GRAY_LIGHT]),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
@@ -423,18 +423,16 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
         story.append(f)
 
     def _stat_card(num, label, cw):
-        ct = Table([[num], [label]], colWidths=[cw])
+        p = Paragraph(
+            f'<font name="{FONT_BOLD}" size="17" color="#{B.C_PRIMARY}">{num}</font><br/>'
+            f'<font size="8.5" color="#{B.C_MUTED}">{label}</font>',
+            _style("Stat", alignment=1, leading=20))
+        ct = Table([[p]], colWidths=[cw], rowHeights=[20 * mm])
         ct.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (0, 0), FONT_BOLD), ("FONTSIZE", (0, 0), (0, 0), 17),
-            ("TEXTCOLOR", (0, 0), (0, 0), colors.HexColor(B.hx(B.C_PRIMARY))),
-            ("FONTNAME", (0, 1), (0, 1), FONT), ("FONTSIZE", (0, 1), (0, 1), 8.5),
-            ("TEXTCOLOR", (0, 1), (0, 1), colors.HexColor("#" + B.C_MUTED)),
-            ("ALIGN", (0, 0), (0, -1), "CENTER"), ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
-            ("BACKGROUND", (0, 0), (0, -1), WHITE),
-            ("BOX", (0, 0), (0, -1), 0.6, colors.HexColor(B.hx(B.C_BORDER))),
+            ("VALIGN", (0, 0), (0, 0), "MIDDLE"), ("ALIGN", (0, 0), (0, 0), "CENTER"),
+            ("BACKGROUND", (0, 0), (0, 0), WHITE),
+            ("BOX", (0, 0), (0, 0), 0.6, colors.HexColor(B.hx(B.C_BORDER))),
             ("LINEABOVE", (0, 0), (0, 0), 2.8, colors.HexColor(B.hx(B.C_GOLD))),
-            ("TOPPADDING", (0, 0), (0, 0), 11), ("BOTTOMPADDING", (0, 0), (0, 0), 2),
-            ("TOPPADDING", (0, 1), (0, 1), 0), ("BOTTOMPADDING", (0, 1), (0, 1), 11),
         ]))
         return ct
 
@@ -553,7 +551,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("BACKGROUND", (0, 0), (0, -1), GRAY_LIGHT),
             ("BACKGROUND", (2, 0), (2, -1), GRAY_LIGHT),
-            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#E7D9D6")),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -586,10 +584,10 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
             ("FONTNAME", (0, 0), (-1, -1), FONT),
             ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("BACKGROUND", (0, 0), (-1, 0), BLUE_DARK),
-            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#CD9A3F")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F1B1B")),
             ("ALIGN", (1, 0), (-1, -1), "CENTER"),
-            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor(B.hx(B.C_BORDER))),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, GRAY_LIGHT]),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
