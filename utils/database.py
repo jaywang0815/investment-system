@@ -194,3 +194,39 @@ def upsert_setting(key: str, value: str) -> bool:
         return True
     except Exception:
         return False
+
+# ============================================================
+# 文章 (投資觀點)
+# ============================================================
+
+def get_articles(only_published: bool = False) -> list:
+    sb = get_supabase()
+    q = sb.table("articles").select("*").order("created_at", desc=True)
+    if only_published:
+        q = q.eq("published", True)
+    resp = q.execute()
+    return resp.data or []
+
+def get_article(article_id: str) -> Optional[dict]:
+    sb = get_supabase()
+    resp = sb.table("articles").select("*").eq("id", article_id).execute()
+    return resp.data[0] if resp.data else None
+
+def upsert_article(data: dict) -> Optional[dict]:
+    sb = get_supabase()
+    import datetime as _dt
+    data["updated_at"] = _dt.datetime.utcnow().isoformat()
+    if data.get("id"):
+        resp = sb.table("articles").update(data).eq("id", data["id"]).execute()
+    else:
+        data.pop("id", None)
+        resp = sb.table("articles").insert(data).execute()
+    return resp.data[0] if resp.data else None
+
+def delete_article(article_id: str) -> bool:
+    try:
+        sb = get_supabase()
+        sb.table("articles").delete().eq("id", article_id).execute()
+        return True
+    except Exception:
+        return False
