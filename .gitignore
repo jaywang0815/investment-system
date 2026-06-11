@@ -24,3 +24,6 @@ Thumbs.db
 
 # Data backups (sensitive customer/money data — never commit)
 backups/
+
+# unrelated local folder
+Jay live tools/
