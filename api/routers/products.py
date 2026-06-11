@@ -6,10 +6,25 @@ from ..db import Repo
 router = APIRouter(prefix="/api/products", tags=["products"])
 
 
+# 公司業務分類 (來自名片) + SN
+CATEGORIES = ["SN", "台股", "期貨", "美股", "港股", "國內外基金",
+              "ELN", "PGN", "儲蓄險", "旅平險", "車險", "意外險"]
+
+
+@router.get("/categories")
+def categories():
+    return {"categories": CATEGORIES}
+
+
 @router.get("")
-def list_products(status: str = None, r: Repo = Depends(repo)):
+def list_products(status: str = None, category: str = None, r: Repo = Depends(repo)):
+    eq = {}
     if status:
-        return r.find("structured_notes", order="observation_date", status=status)
+        eq["status"] = status
+    if category:
+        eq["category"] = category
+    if eq:
+        return r.find("structured_notes", order="observation_date", **eq)
     return r.list("structured_notes", order="observation_date")
 
 
