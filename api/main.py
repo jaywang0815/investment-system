@@ -7,7 +7,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import auth, customers
+from .routers import auth, customers, products, investments, dashboard, reports
 
 app = FastAPI(title="Investment Platform API", version="0.1.0")
 
@@ -21,6 +21,10 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(customers.router)
+app.include_router(products.router)
+app.include_router(investments.router)
+app.include_router(dashboard.router)
+app.include_router(reports.router)
 
 
 @app.get("/")

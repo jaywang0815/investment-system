@@ -28,6 +28,21 @@ class Repo:
             q = q.order(order, desc=desc)
         return q.execute().data or []
 
+    def find(self, table: str, select: str = "*", order: str = None, desc: bool = False, **eq):
+        """list + 額外等值條件 (一律含 tenant_id)。"""
+        q = self.sb.table(table).select(select).eq("tenant_id", self.tenant_id)
+        for k, v in eq.items():
+            q = q.eq(k, v)
+        if order:
+            q = q.order(order, desc=desc)
+        return q.execute().data or []
+
+    def count(self, table: str, **eq) -> int:
+        q = self.sb.table(table).select("id", count="exact").eq("tenant_id", self.tenant_id)
+        for k, v in eq.items():
+            q = q.eq(k, v)
+        return q.execute().count or 0
+
     def get(self, table: str, row_id: str):
         rows = (self.sb.table(table).select("*")
                 .eq("tenant_id", self.tenant_id).eq("id", row_id)
