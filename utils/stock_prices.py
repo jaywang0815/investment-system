@@ -136,10 +136,17 @@ def analyze_sn_status(sn: dict, current_prices: dict) -> dict:
     分析 SN 商品目前狀態
     回傳: 各標的詳細狀況 + 整體評估
     """
+    def _f(v):
+        # Supabase NUMERIC 有時回傳字串/Decimal → 一律轉 float，避免 "str * float" TypeError
+        try:
+            return float(v) if v is not None and v != "" else None
+        except (TypeError, ValueError):
+            return None
+
     underlyings = get_sn_underlyings(sn)
-    ko_barrier = sn.get("ko_barrier")   # 例如 1.0 = 100%
-    ki_barrier = sn.get("ki_barrier")   # 例如 0.5 = 50%
-    strike_pct = sn.get("strike_pct")   # 例如 0.80 = 80%
+    ko_barrier = _f(sn.get("ko_barrier"))   # 例如 1.0 = 100%
+    ki_barrier = _f(sn.get("ki_barrier"))   # 例如 0.5 = 50%
+    strike_pct = _f(sn.get("strike_pct"))   # 例如 0.80 = 80%
 
     details = []
     worst_perf = None

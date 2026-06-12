@@ -41,7 +41,11 @@ def risk(r: Repo = Depends(repo)):
 
     items = []
     for sn in sns:
-        a = analyze_sn_status(sn, prices)
+        try:
+            a = analyze_sn_status(sn, prices)
+        except Exception:
+            # สินค้าตัวเดียวข้อมูลเพี้ยน ต้องไม่ทำให้ radar ดับทั้งกระดาน
+            a = {"overall_status": "unknown", "status_label": "無法分析", "details": []}
         dets = a.get("details", [])
         worst = None
         ko_gaps, ki_gaps = [], []
