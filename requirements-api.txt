@@ -9,7 +9,7 @@ reportlab>=4.0
 openpyxl>=3.1
 python-pptx>=0.6
 matplotlib>=3.7
-mplfinance>=0.12
+mplfinance==0.12.10b0
 yfinance>=0.2
 pandas>=2.0
 python-multipart
