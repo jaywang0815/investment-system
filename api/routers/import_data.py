@@ -532,8 +532,7 @@ def _do_commit(body: dict, r: Repo) -> dict:
             continue
         inv_set.add((cid, pid))
         new_invs.append({"customer_id": cid, "sn_id": pid,
-                         "amount_usd": iv.get("amount_usd") or 0,
-                         "currency": iv.get("currency") or "USD"})
+                         "amount_usd": iv.get("amount_usd") or 0})
     _safe_bulk(r, "investments", new_invs)
     res["investments_created"] += len(new_invs)
 
