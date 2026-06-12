@@ -45,11 +45,11 @@ def events(r: Repo = Depends(repo)):
                 "kind": "custom",
                 "id": e["id"],
                 "date": d.isoformat(),
+                "time": (str(e.get("event_time"))[:5] if e.get("event_time") else None),
                 "type": "自訂",
                 "title": e.get("title"),
                 "notes": e.get("notes"),
-                "remind_1day": e.get("remind_1day"),
-                "remind_sameday": e.get("remind_sameday"),
+                "remind_offsets": e.get("remind_offsets") or "",
                 "done": e.get("done"),
                 "days_until": (d - today).days,
             })
@@ -63,6 +63,26 @@ def events(r: Repo = Depends(repo)):
     }
 
 
+def _clean_time(v):
+    """'HH:MM' → 'HH:MM' ; ว่าง/None → None (= all-day)。"""
+    if not v:
+        return None
+    s = str(v).strip()
+    return s[:5] if len(s) >= 4 else None
+
+
+def _clean_offsets(v):
+    """รับ list/str ของนาที → 'a,b' (เรียง, ไม่ซ้ำ)。"""
+    if v is None:
+        return "0"
+    if isinstance(v, list):
+        parts = v
+    else:
+        parts = str(v).split(",")
+    nums = sorted({int(str(p).strip()) for p in parts if str(p).strip().lstrip("-").isdigit()})
+    return ",".join(str(n) for n in nums)
+
+
 @router.post("/events")
 def create_event(body: dict, r: Repo = Depends(repo)):
     title = (body.get("title") or "").strip()
@@ -72,9 +92,9 @@ def create_event(body: dict, r: Repo = Depends(repo)):
     payload = {
         "title": title,
         "event_date": d.isoformat(),
+        "event_time": _clean_time(body.get("event_time")),
         "notes": (body.get("notes") or "").strip() or None,
-        "remind_1day": bool(body.get("remind_1day", True)),
-        "remind_sameday": bool(body.get("remind_sameday", True)),
+        "remind_offsets": _clean_offsets(body.get("remind_offsets")),
     }
     try:
         return r.create("calendar_events", payload)
@@ -84,12 +104,19 @@ def create_event(body: dict, r: Repo = Depends(repo)):
 
 @router.patch("/events/{eid}")
 def update_event(eid: str, body: dict, r: Repo = Depends(repo)):
-    payload = {k: body[k] for k in ("title", "event_date", "notes", "remind_1day", "remind_sameday", "done") if k in body}
-    if "event_date" in payload:
-        d = _d(payload["event_date"])
+    payload = {}
+    for k in ("title", "notes", "done"):
+        if k in body:
+            payload[k] = body[k]
+    if "event_date" in body:
+        d = _d(body["event_date"])
         if not d:
             raise HTTPException(status_code=422, detail="日期格式錯誤")
         payload["event_date"] = d.isoformat()
+    if "event_time" in body:
+        payload["event_time"] = _clean_time(body["event_time"])
+    if "remind_offsets" in body:
+        payload["remind_offsets"] = _clean_offsets(body["remind_offsets"])
     r.update("calendar_events", eid, payload)
     return {"updated": eid}
 
