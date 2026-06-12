@@ -1014,22 +1014,24 @@ def _run_calendar_reminders() -> None:
                 delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
                 if 0 <= delta < _CAL_INTERVAL_MIN * 60:
                     when = event_dt.strftime("%m/%d") + ("" if all_day else f" {tstr}")
-                    # off==0 = ถึงเวลาพอดี → ไม่ต้องมี tag (เดิมขึ้น [現在提醒] ดูงง); off>0 = เตือนล่วงหน้า
+                    # หัวข้อ: เตือนตรงเวลา → ไม่มี tag; เตือนล่วงหน้า → บอกว่าอีกนานเท่าไหร่ (อ่านง่ายกว่า [現在提醒])
                     if off == 0:
-                        lines.append(f"\n• {e.get('title')} ({when})")
+                        lines.append(f"\n\n📌 {e.get('title')}")
                     else:
-                        tag = (f"{off // 1440}天前" if off % 1440 == 0
-                               else f"{off // 60}小時前" if off % 60 == 0 else f"{off}分前")
-                        lines.append(f"\n• {e.get('title')} ({when}) [{tag}提醒]")
+                        soon = (f"{off // 1440} 天後" if off % 1440 == 0
+                                else f"{off // 60} 小時後" if off % 60 == 0 else f"{off} 分鐘後")
+                        lines.append(f"\n\n📌 {e.get('title')}　⏰ {soon}")
+                    lines.append(f"\n　📅 {when}")
                     loc = (e.get("location") or "").strip()
                     if loc:
-                        maps = "https://www.google.com/maps/search/?api=1&query=" + quote(loc)
-                        lines.append(f"\n  📍 {loc}\n  {maps}")
+                        maps = "https://maps.google.com/?q=" + quote(loc)
+                        lines.append(f"\n　📍 {loc}")
+                        lines.append(f"\n　{maps}")
                     url = (e.get("url") or "").strip()
                     if url:
-                        lines.append(f"\n  🔗 {url}")
+                        lines.append(f"\n　🔗 {url}")
                     if e.get("notes"):
-                        lines.append(f"\n  📝 {e.get('notes')}")
+                        lines.append(f"\n　📝 {e.get('notes')}")
                     break  # event เดียวเตือนครั้งเดียวต่อรอบ
         if lines:
             _push_to_admins("🗓️ 行事曆提醒" + "".join(lines))
