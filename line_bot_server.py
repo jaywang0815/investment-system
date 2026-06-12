@@ -994,7 +994,7 @@ def _run_calendar_reminders() -> None:
         rows = sb_get("calendar_events", {
             "select": "title,event_date,event_time,notes,remind_offsets,location,url,done"
         }) or []
-        lines = []
+        blocks = []
         for e in rows:
             if e.get("done"):
                 continue
@@ -1014,27 +1014,28 @@ def _run_calendar_reminders() -> None:
                 delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
                 if 0 <= delta < _CAL_INTERVAL_MIN * 60:
                     when = event_dt.strftime("%m/%d") + ("" if all_day else f" {tstr}")
-                    # หัวข้อ: เตือนตรงเวลา → ไม่มี tag; เตือนล่วงหน้า → บอกว่าอีกนานเท่าไหร่ (อ่านง่ายกว่า [現在提醒])
+                    # พูดเหมือนผู้ช่วย: ประโยคทักทาย + รายละเอียดมี label (ไม่รก, อีโมจิน้อย)
                     if off == 0:
-                        lines.append(f"\n\n📌 {e.get('title')}")
+                        lead = "您的行程時間到了"
                     else:
-                        soon = (f"{off // 1440} 天後" if off % 1440 == 0
-                                else f"{off // 60} 小時後" if off % 60 == 0 else f"{off} 分鐘後")
-                        lines.append(f"\n\n📌 {e.get('title')}　⏰ {soon}")
-                    lines.append(f"\n　📅 {when}")
+                        soon = (f"{off // 1440} 天" if off % 1440 == 0
+                                else f"{off // 60} 小時" if off % 60 == 0 else f"{off} 分鐘")
+                        lead = f"再過 {soon}，您有一個行程"
+                    p = [f"{lead}：", "", str(e.get("title") or "")]
+                    p.append(f"{'日期' if all_day else '時間'}：{when}")
                     loc = (e.get("location") or "").strip()
                     if loc:
-                        maps = "https://maps.google.com/?q=" + quote(loc)
-                        lines.append(f"\n　📍 {loc}")
-                        lines.append(f"\n　{maps}")
+                        p.append(f"地點：{loc}")
+                        p.append("地圖：https://maps.google.com/?q=" + quote(loc))
                     url = (e.get("url") or "").strip()
                     if url:
-                        lines.append(f"\n　🔗 {url}")
+                        p.append(f"連結：{url}")
                     if e.get("notes"):
-                        lines.append(f"\n　📝 {e.get('notes')}")
+                        p.append(f"備註：{e.get('notes')}")
+                    blocks.append("\n".join(p))
                     break  # event เดียวเตือนครั้งเดียวต่อรอบ
-        if lines:
-            _push_to_admins("🗓️ 行事曆提醒" + "".join(lines))
+        if blocks:
+            _push_to_admins("您好 🔔\n\n" + "\n\n".join(blocks))
     except Exception as ex:
         print(f"[calendar reminder] error: {ex}")
 
