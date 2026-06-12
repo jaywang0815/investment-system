@@ -6,15 +6,28 @@ from ..db import Repo
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 
+def _f(v):
+    try:
+        return float(v) if v not in (None, "") else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 @router.get("")
 def list_customers(r: Repo = Depends(repo)):
     custs = r.list("customers", order="name")
+    invested: dict = {}
     try:
-        inv_ids = {i.get("customer_id") for i in r.list("investments", select="customer_id")}
+        for i in r.list("investments", select="customer_id,amount_usd"):
+            cid = i.get("customer_id")
+            if cid:
+                invested[cid] = invested.get(cid, 0.0) + _f(i.get("amount_usd"))
     except Exception:
-        inv_ids = set()
+        pass
     for c in custs:
-        c["has_investments"] = c.get("id") in inv_ids
+        cid = c.get("id")
+        c["has_investments"] = cid in invested
+        c["invested_total"] = invested.get(cid, 0.0)
     return custs
 
 
