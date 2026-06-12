@@ -150,6 +150,29 @@ def _to_bool_mark(v):
     return s in ("V", "✓", "✔", "○", "O", "Y", "YES", "是", "T", "TRUE", "1")
 
 
+def _match_masked(name, candidates):
+    """ชื่อย่อแบบ X*Y (มาสก์กลาง) → จับคู่ชื่อเต็มที่หัว+ท้ายตรง + ความยาวเท่ากัน。
+    คืนค่าเฉพาะเมื่อ match ได้ตัวเดียว (unambiguous) ไม่งั้น None (ไม่เดา)。"""
+    if not name:
+        return None
+    nm = unicodedata.normalize("NFKC", str(name)).replace("＊", "*").strip()
+    if "*" not in nm or len(nm) < 2:
+        return None
+    head, tail, ln = nm[0], nm[-1], len(nm)
+    hits = [c for c in candidates if c and len(c) == ln and c[0] == head and c[-1] == tail and "*" not in c]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _split_code_ticker(code):
+    """รหัสที่ ticker หลุดมาติด เช่น EQDS0702773TSLA → (EQDS0702773, TSLA)。ไม่เข้าเงื่อนไข → (code, None)。"""
+    if not code:
+        return code, None
+    mm = _re.match(r"^([A-Z]+\d+)([A-Z]{2,5})$", code)
+    if mm:
+        return mm.group(1), mm.group(2)
+    return code, None
+
+
 def _clean_ticker(v):
     """全形→半形, 去 $ 前綴, 大寫。"""
     if v is None:
@@ -293,6 +316,11 @@ def _parse_sn_block(rows: list, hr: int, cm: dict):
             }
             for i, c in enumerate(ucols):
                 cur[f"underlying_{i + 1}"] = _clean_ticker(row[c]) if c < len(row) else None
+            # ticker หลุดมาติดรหัส (เช่น EQDS0702773TSLA + 標的1 ว่าง) → แยกออก
+            if not cur.get("underlying_1"):
+                base, tk = _split_code_ticker(cur["product_code"])
+                if tk:
+                    cur["product_code"], cur["underlying_1"] = base, tk
             products.append(cur)
             continue
 
@@ -502,13 +530,19 @@ def _do_commit(body: dict, r: Repo) -> dict:
             code2id[code] = pid
             res["products_created"] += 1
 
-    # 投資：先批次建「暱稱」客戶 → 再批次 insert 投資
+    # 投資：解析投資人 → exact → จับคู่ชื่อย่อ X*Y กับชื่อเต็ม → ที่เหลือค่อยสร้างใหม่
     missing, seen = [], set()
     for iv in invs:
         nm = (iv.get("customer") or "").strip()
         code = (iv.get("product_code") or "").strip()
-        if code in code2id and nm and nm not in name2id and nm not in seen:
-            missing.append(nm); seen.add(nm)
+        if not (code in code2id and nm) or nm in name2id or nm in seen:
+            continue
+        mt = _match_masked(nm, list(name2id.keys()))
+        if mt:
+            name2id[nm] = name2id[mt]   # ชื่อย่อ → id ลูกค้าจริง (ไม่สร้างซ้ำ)
+            res["warnings"].append(f"投資人「{nm}」自動對應到既有客戶「{mt}」")
+            continue
+        missing.append(nm); seen.add(nm)
     if missing:
         for row in _safe_bulk(r, "customers", [{"name": nm} for nm in missing]):
             if row.get("name"):
