@@ -101,7 +101,19 @@ SN_BLOCK_HDR = {
 }
 
 
-def _to_date(v):
+def _year_of(v):
+    """ดึงปีจากค่าวันที่ (datetime/date/ROC-int) เพื่อใช้เป็นปีให้กับ "M月D日" ที่ไม่มีปี。"""
+    if isinstance(v, (datetime, date)):
+        return v.year
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        iv = int(v)
+        if 1000000 <= iv <= 9991231:
+            y = iv // 10000
+            return y + 1911 if y < 1911 else y
+    return None
+
+
+def _to_date(v, year_hint=None):
     if v is None or v == "":
         return None
     if isinstance(v, (datetime, date)):
@@ -117,8 +129,28 @@ def _to_date(v):
                 return date(y, m, d).strftime("%Y-%m-%d")
             except ValueError:
                 return None
-    s = str(v)[:10]
-    return s or None
+    s = unicodedata.normalize("NFKC", str(v)).strip()
+    # 1) ISO อยู่แล้ว (2026-07-15)
+    try:
+        return date.fromisoformat(s[:10]).isoformat()
+    except ValueError:
+        pass
+    # 2) มีปีเต็ม 4 หลัก: 2026年7月15日 / 2026/7/15 / 2026.7.15
+    m2 = _re.search(r"(\d{4})\D{1,2}(\d{1,2})\D{1,2}(\d{1,2})", s)
+    if m2:
+        try:
+            return date(int(m2.group(1)), int(m2.group(2)), int(m2.group(3))).isoformat()
+        except ValueError:
+            return None
+    # 3) ไม่มีปี — ใช้ year_hint หรือปีปัจจุบัน (เฉพาะเมื่อสตริงไม่มีเลข 4 หลัก)
+    if not _re.search(r"\d{4}", s):
+        m = _re.search(r"(\d{1,2})\s*[月/\-.]\s*(\d{1,2})\s*日?", s)  # 7月15日 / 7/15
+        if m:
+            try:
+                return date(year_hint or date.today().year, int(m.group(1)), int(m.group(2))).isoformat()
+            except ValueError:
+                return None
+    return None  # อ่านไม่ออก → None (กันส่งค่าขยะเข้า DB)
 
 
 def _to_pct(v):
@@ -311,14 +343,15 @@ def _parse_sn_block(rows: list, hr: int, cm: dict):
 
         # แถวสินค้าใหม่: มีวันที่ + รหัสที่ดูเป็นรหัส
         if _is_date_cell(d) and _looks_like_code(code_cell):
+            _yr = _year_of(d) or date.today().year
             cur = {
                 "product_code": _clean_code(code_cell),
                 "category": "SN",
-                "trade_date": _to_date(d),
+                "trade_date": _to_date(d, _yr),
                 "strike_pct": _to_pct(g(row, "strike")),
                 "coupon_pct": _to_pct(g(row, "coupon")),
-                "observation_date": _to_date(g(row, "obs")),
-                "exit_date": _to_date(g(row, "exit")),
+                "observation_date": _to_date(g(row, "obs"), _yr),
+                "exit_date": _to_date(g(row, "exit"), _yr),
                 "ko_barrier": _to_pct(g(row, "ko")),
                 "ki_barrier": _to_pct(g(row, "ki")),
                 "coupon_freq": "monthly",
