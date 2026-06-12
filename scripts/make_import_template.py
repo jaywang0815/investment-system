@@ -65,12 +65,33 @@ def style_sheet(ws, title, subtitle, cols):
                 c.number_format = nf
         ws.row_dimensions[r].height = 20
 
-    # dropdowns
-    for i, (_h, _w, _nf, dd) in enumerate(cols, 1):
+    # dropdowns + date validation + numeric hints
+    for i, (h, _w, nf, dd) in enumerate(cols, 1):
+        col = get_column_letter(i)
+        rng = f"{col}{hr+1}:{col}{hr+DATA_ROWS}"
         if dd:
-            col = get_column_letter(i)
             dv = DataValidation(type="list", formula1='"' + ",".join(dd) + '"', allow_blank=True)
-            ws.add_data_validation(dv); dv.add(f"{col}{hr+1}:{col}{hr+DATA_ROWS}")
+            dv.showInputMessage = True
+            dv.promptTitle = h.replace("\n", " ").strip()
+            dv.prompt = "請從下拉選單選擇"
+            ws.add_data_validation(dv); dv.add(rng)
+        elif nf == DATE:
+            dv = DataValidation(type="date", operator="between",
+                                formula1="2000-01-01", formula2="2100-12-31", allow_blank=True)
+            dv.showInputMessage = True
+            dv.promptTitle = h.replace("\n", " ").strip()
+            dv.prompt = "請輸入日期，格式 YYYY-MM-DD（例 2026-06-18）"
+            dv.showErrorMessage = True
+            dv.errorTitle = "日期格式不正確"
+            dv.error = "請用 YYYY-MM-DD（例 2026-06-18）"
+            ws.add_data_validation(dv); dv.add(rng)
+        elif nf == PCT:
+            dv = DataValidation(type="decimal", operator="between",
+                                formula1="0", formula2="100000", allow_blank=True)
+            dv.showInputMessage = True
+            dv.promptTitle = h.replace("\n", " ").strip()
+            dv.prompt = "填數字即可（例 KO=100、票息=8 代表 8%）"
+            ws.add_data_validation(dv); dv.add(rng)
     return hr
 
 
