@@ -15,3 +15,10 @@ def current_user(authorization: str = Header(None)) -> dict:
 
 def repo(user: dict = Depends(current_user)) -> Repo:
     return Repo(get_sb(), user["tenant_id"])
+
+
+def require_superadmin(user: dict = Depends(current_user)) -> dict:
+    """เฉพาะเจ้าของแพลตฟอร์ม (สร้าง/เชิญ tenant)。"""
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="需要平台管理員權限")
+    return user
