@@ -20,6 +20,10 @@
    `git remote set-url origin https://<NEW_TOKEN>@github.com/jaywang0815/investment-system.git`
    (ทำทั้ง investment-system และ justinvestment-backoffice)
 
+## 🟣 เพิ่มล่าสุด
+8. **รัน SQL 07 ซ้ำ** (เพิ่มคอลัมน์ `color` ให้ปฏิทิน) — `scripts/multitenant_07_calendar.sql` (รันซ้ำได้ปลอดภัย)
+9. **ปิดทักทาย LINE** — cron-job.org → ปิด job 早安/午安/晚安 (trigger-greeting) ที่ไม่ต้องการ
+
 ## 🔵 ตอนสะดวก
 6. **เชิญเพื่อน** douu@livemail.tw → หน้า 會員 → 邀請使用者 → copy ลิงก์ส่ง LINE
 7. **LINE myid** → พิมพ์ `myid` กับบอท → ได้ ID → เอาไปใส่ในหน้า **設定 → LINE 管理員** (น้องกำลังสร้างช่องให้)
