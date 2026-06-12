@@ -65,3 +65,27 @@ def create_tenant(body: dict, _=Depends(require_superadmin)):
 
     return {"tenant_id": t["id"], "email": email, "invite_token": token,
             "invite_path": f"/invite/{token}"}
+
+
+@router.post("/tenants/{tid}/invite")
+def invite_user_to_tenant(tid: str, body: dict, _=Depends(require_superadmin)):
+    """เชิญ user เข้า tenant ที่มีอยู่แล้ว (เห็นข้อมูลชุดเดิม ไม่สร้างใหม่)。"""
+    email = (body.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=422, detail="email 格式不正確")
+    sb = get_sb()
+    rows = sb.table("tenants").select("id,name,company_name,reporter").eq("id", tid).execute().data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="找不到此會員")
+    t = rows[0]
+    if sb.table("app_users").select("id").eq("email", email).execute().data:
+        raise HTTPException(status_code=400, detail="此 email 已是使用者")
+    token = secrets.token_urlsafe(24)
+    try:
+        sb.table("invites").insert({
+            "token": token, "email": email, "tenant_id": tid,
+            "company_name": t.get("company_name") or t.get("name"), "reporter": t.get("reporter"),
+        }).execute()
+    except Exception:
+        raise HTTPException(status_code=500, detail="invites 表不存在，請先執行 migration 06")
+    return {"tenant_id": tid, "email": email, "invite_token": token, "invite_path": f"/invite/{token}"}
