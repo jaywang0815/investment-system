@@ -982,17 +982,19 @@ def trigger_report(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "report queued"}
 
 
-_CAL_INTERVAL_MIN = 15  # ให้ตรงกับความถี่ cron (cron-job.org ตั้งทุก 15 นาที)
+# cron ยิงทุก 1 นาที → ยิงเตือนภายใน ~1 นาทีหลังถึงเวลา; กันยิงซ้ำด้วย notified_offsets (เก็บใน DB)。
+# GRACE = ยอมยิงย้อนหลังได้ถ้าบอทเพิ่งฟื้นจาก downtime สั้นๆ (ไม่พลาด) แต่ไม่ยิง event เก่าค้างนาน。
+_CAL_GRACE_MIN = 60
 
 
 def _run_calendar_reminders() -> None:
     """เตือน event ปฏิทินตาม event_time + remind_offsets (นาทีก่อนเวลา)。
-    cron ยิงทุก ~15 นาที → เตือนเมื่อ now เพิ่งผ่านเวลาที่ต้องเตือน (ภายใน 1 ช่วง interval)。
-    all-day (ไม่มีเวลา) → อ้างอิง 09:00 ของวันนั้น。"""
+    cron ยิงทุก 1 นาที → ยิงเมื่อ now ผ่านเวลาที่ต้องเตือนแล้ว และยังไม่เคยยิง offset นี้。
+    กันยิงซ้ำ: พอยิงแล้วบันทึก offset ลง notified_offsets。all-day → อ้างอิง 09:00。"""
     try:
         now = datetime.now(TW)
         rows = sb_get("calendar_events", {
-            "select": "title,event_date,event_time,notes,remind_offsets,location,url,done"
+            "select": "id,title,event_date,event_time,notes,remind_offsets,location,url,notified_offsets,done"
         }) or []
         blocks = []
         for e in rows:
@@ -1010,9 +1012,12 @@ def _run_calendar_reminders() -> None:
                 hh, mm = 9, 0
             event_dt = datetime(ed.year, ed.month, ed.day, hh, mm, tzinfo=TW)
             offsets = [int(x) for x in str(e.get("remind_offsets") or "").split(",") if x.strip().lstrip("-").isdigit()]
+            notified = {x for x in str(e.get("notified_offsets") or "").split(",") if x.strip()}
             for off in offsets:
+                if str(off) in notified:
+                    continue  # ยิง offset นี้ไปแล้ว
                 delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
-                if 0 <= delta < _CAL_INTERVAL_MIN * 60:
+                if 0 <= delta < _CAL_GRACE_MIN * 60:
                     when = event_dt.strftime("%m/%d") + ("" if all_day else f" {tstr}")
                     # พูดเหมือนผู้ช่วย: ประโยคทักทาย + รายละเอียดมี label (ไม่รก, อีโมจิน้อย)
                     if off == 0:
@@ -1033,6 +1038,12 @@ def _run_calendar_reminders() -> None:
                     if e.get("notes"):
                         p.append(f"備註：{e.get('notes')}")
                     blocks.append("\n".join(p))
+                    # บันทึกว่ายิง offset นี้แล้ว (กันรอบถัดไปยิงซ้ำ)
+                    notified.add(str(off))
+                    try:
+                        sb_patch("calendar_events", {"id": e["id"]}, {"notified_offsets": ",".join(sorted(notified, key=lambda x: int(x)))})
+                    except Exception as pe:
+                        print(f"[calendar reminder] mark-notified failed: {pe}")
                     break  # event เดียวเตือนครั้งเดียวต่อรอบ
         if blocks:
             import random
@@ -1056,69 +1067,6 @@ def trigger_calendar_reminder(background_tasks: BackgroundTasks, secret: str = "
         raise HTTPException(status_code=403, detail="Forbidden")
     background_tasks.add_task(_run_calendar_reminders)
     return {"status": "ok", "message": "calendar reminder queued"}
-
-
-@app.get("/debug-calendar-reminder")
-def debug_calendar_reminder(secret: str = "", push: int = 0):
-    """ชั่วคราว: ดูว่า server เจอ event ไหน/สร้างข้อความอะไร/push ได้ไหม (ไม่ push ถ้า push=0)。"""
-    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
-    if REPORT_SECRET and secret != REPORT_SECRET:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    now = datetime.now(TW)
-    rows = sb_get("calendar_events", {
-        "select": "title,event_date,event_time,notes,remind_offsets,location,url,done"
-    }) or []
-    diag = []
-    blocks = []
-    for e in rows:
-        ev = {"title": e.get("title"), "time": str(e.get("event_time") or ""), "offsets": e.get("remind_offsets"), "done": e.get("done")}
-        try:
-            ed = date.fromisoformat(str(e.get("event_date"))[:10])
-        except Exception:
-            ev["skip"] = "bad date"; diag.append(ev); continue
-        tstr = str(e.get("event_time") or "")[:5]
-        all_day = not tstr
-        try:
-            hh, mm = (9, 0) if all_day else (int(tstr[:2]), int(tstr[3:5]))
-        except Exception:
-            hh, mm = 9, 0
-        event_dt = datetime(ed.year, ed.month, ed.day, hh, mm, tzinfo=TW)
-        offsets = [int(x) for x in str(e.get("remind_offsets") or "").split(",") if x.strip().lstrip("-").isdigit()]
-        ev["fires"] = []
-        for off in offsets:
-            delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
-            fires = (0 <= delta < _CAL_INTERVAL_MIN * 60) and not e.get("done")
-            ev["fires"].append({"off": off, "delta_sec": int(delta), "fires": fires})
-            if fires:
-                blocks.append(f"{e.get('title')} ({event_dt.strftime('%m/%d')}{'' if all_day else ' '+tstr})")
-        diag.append(ev)
-    admins = sb_get("admins", {"select": "name,line_user_id"})
-    admin_info = [{"name": a.get("name"), "uid_len": len(a.get("line_user_id") or "")} for a in admins]
-    out = {
-        "now_tw": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "interval_min": _CAL_INTERVAL_MIN,
-        "events": diag,
-        "would_fire_count": len(blocks),
-        "admins": admin_info,
-        "token_set": bool(LINE_CHANNEL_ACCESS_TOKEN),
-    }
-    # ลอง push จริงเฉพาะเมื่อ push=1 → คืน response จาก LINE API ต่อ admin
-    if push and blocks:
-        results = []
-        text = "您好 🔔（debug 測試）\n\n" + "\n".join(blocks)
-        for a in admins:
-            uid = a.get("line_user_id") or ""
-            if not uid:
-                continue
-            r = requests.post(
-                "https://api.line.me/v2/bot/message/push",
-                headers={"Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}", "Content-Type": "application/json"},
-                json={"to": uid, "messages": [{"type": "text", "text": text[:4000]}]},
-                timeout=10,
-            )
-            results.append({"name": a.get("name"), "status": r.status_code, "body": r.text[:200]})
-        out["push_results"] = results
-    return out
 
 
 @app.get("/trigger-obs-alert")
