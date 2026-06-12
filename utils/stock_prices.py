@@ -1,7 +1,18 @@
 """
 股票即時價格模組 - 使用 Yahoo Finance
 """
-import streamlit as st
+try:
+    import streamlit as st  # Streamlit app context → 真的快取
+except Exception:           # API (Render) 沒裝 streamlit → no-op 裝飾器
+    class _NoCacheST:
+        @staticmethod
+        def cache_data(*dargs, **dkwargs):
+            if dargs and callable(dargs[0]) and not dkwargs:
+                return dargs[0]
+            def deco(fn):
+                return fn
+            return deco
+    st = _NoCacheST()
 import yfinance as yf
 import unicodedata
 from typing import Optional
