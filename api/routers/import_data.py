@@ -44,9 +44,12 @@ def _norm(s) -> str:
 # field -> header aliases (normalized compare)
 CUST = {
     "name": ["姓名", "戶名", "客戶姓名", "name", "客戶"],
-    "usd_amount": ["美元額度", "金額", "usd", "amount", "美金"],
-    "currency": ["幣別", "currency", "幣"],
-    "unified_account": ["統一帳號", "帳號", "account", "統一開戶"],
+    "usd_amount": ["美元額度", "usd", "美金", "美元"],
+    "unified_account": ["統一開戶", "統一帳號"],   # BOOLEAN (Ｖ → true)
+    "pi_signed": ["pi見簽", "見簽", "pi"],          # BOOLEAN
+    "ordered": ["已下單"],                          # BOOLEAN
+    "ctbc_position": ["中信部位", "中信"],
+    "fund_amount": ["fund", "基金部位"],
     "notes": ["備註", "備注", "notes", "note"],
 }
 PROD = {
@@ -135,6 +138,16 @@ def _to_num(v):
         return float(v)
     except (TypeError, ValueError):
         return None
+
+
+def _to_bool_mark(v):
+    """ช่องเครื่องหมาย (Ｖ/V/✓/是/Y) → True, ว่าง → None, อื่น → False。สำหรับคอลัมน์ BOOLEAN。"""
+    if v is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(v)).strip().upper()
+    if s == "":
+        return None
+    return s in ("V", "✓", "✔", "○", "O", "Y", "YES", "是", "T", "TRUE", "1")
 
 
 def _clean_ticker(v):
@@ -356,8 +369,11 @@ def parse_workbook(data: bytes) -> dict:
                 customers.append({
                     "name": unicodedata.normalize("NFKC", str(nm)).strip(),
                     "usd_amount": _to_num(rec.get("usd_amount")),
-                    "currency": (str(rec.get("currency")).strip() if rec.get("currency") else "USD"),
-                    "unified_account": (str(rec.get("unified_account")).strip() if rec.get("unified_account") else None),
+                    "unified_account": _to_bool_mark(rec.get("unified_account")),
+                    "pi_signed": _to_bool_mark(rec.get("pi_signed")),
+                    "ordered": _to_bool_mark(rec.get("ordered")),
+                    "ctbc_position": _to_num(rec.get("ctbc_position")),
+                    "fund_amount": _to_num(rec.get("fund_amount")),
                     "notes": (str(rec.get("notes")).strip() if rec.get("notes") else None),
                 })
 
@@ -459,7 +475,8 @@ def _do_commit(body: dict, r: Repo) -> dict:
         nm = (cu.get("name") or "").strip()
         if not nm:
             continue
-        payload = {k: cu.get(k) for k in ("name", "usd_amount", "currency", "unified_account", "notes") if cu.get(k) is not None}
+        payload = {k: cu.get(k) for k in ("name", "usd_amount", "unified_account", "pi_signed",
+                                          "ordered", "ctbc_position", "fund_amount", "notes") if cu.get(k) is not None}
         payload["name"] = nm
         if nm in name2id:
             _safe_write(lambda b, _id=name2id[nm]: r.update("customers", _id, b), payload)
