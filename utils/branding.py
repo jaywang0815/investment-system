@@ -14,6 +14,18 @@ REPORTER  = "秦聖鈞"
 # 報表署名 (頁首 / 頁尾共用)
 SIGNATURE = "統一證券　報告人　秦聖鈞"
 
+# 預設值 (apply_identity 還原用) — per-tenant branding
+DEFAULT_COMPANY  = COMPANY
+DEFAULT_REPORTER = REPORTER
+
+
+def apply_identity(company: str = None, reporter: str = None) -> None:
+    """套用 tenant 品牌 (公司名稱 / 報告人)；空值→預設。會重建 SIGNATURE。"""
+    global COMPANY, REPORTER, SIGNATURE
+    COMPANY  = (company or "").strip() or DEFAULT_COMPANY
+    REPORTER = (reporter or "").strip() or DEFAULT_REPORTER
+    SIGNATURE = f"{COMPANY}　報告人　{REPORTER}"
+
 # ── 配色 (品牌紅，精緻不刺眼) — hex 字串不含 # ────────────────
 # 紅作為「重點色」，大面積用淺底/中性，避免整份過紅。
 C_PRIMARY = "A62A36"   # 精緻深紅 (酒紅調) — 標題 / 代號 / 文字重點

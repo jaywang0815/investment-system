@@ -14,16 +14,29 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 _PDF_LOCK = threading.Lock()
 
 
-def _generate_with_theme(theme: Optional[str], fn, *args, **kwargs) -> bytes:
-    """套用主題色 → 產生 PDF → 還原預設色 (緒安全)。"""
+def _tenant_branding(r: Repo):
+    """อ่านชื่อบริษัท/報告人 ของ tenant ที่ login (ไว้ใส่ใน PDF)。"""
+    try:
+        rows = r.sb.table("tenants").select("company_name,reporter").eq("id", r.tenant_id).execute().data
+        t = rows[0] if rows else {}
+        return t.get("company_name"), t.get("reporter")
+    except Exception:
+        return None, None
+
+
+def _generate_with_theme(theme: Optional[str], branding, fn, *args, **kwargs) -> bytes:
+    """套用主題色 + tenant 品牌 → 產生 PDF → 還原預設 (緒安全)。branding=(company, reporter)。"""
     from utils.pdf_report import _refresh_palette
+    company, reporter = branding or (None, None)
     with _PDF_LOCK:
         B.apply_theme(theme)
+        B.apply_identity(company, reporter)
         _refresh_palette()
         try:
             return fn(*args, **kwargs)
         finally:
             B.apply_theme(B.DEFAULT_THEME)
+            B.apply_identity()
             _refresh_palette()
 
 
@@ -80,7 +93,8 @@ def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
     cols = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
     from utils.pdf_report import generate_customer_report
     prices = _prices_for(invs) if charts else {}
-    pdf = _generate_with_theme(theme, generate_customer_report, cust, invs, prices,
+    pdf = _generate_with_theme(theme, _tenant_branding(r), generate_customer_report,
+                               cust, invs, prices,
                                chart_period=period, columns=cols, show_info=show_info,
                                show_amount=show_amount, show_charts=charts)
     return _pdf_response(pdf, f"report_{cust.get('name','customer')}_{date.today():%Y%m%d}.pdf")
@@ -108,6 +122,6 @@ def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None, r: Repo = 
         raise HTTPException(status_code=404, detail="無投資資料")
     items.sort(key=lambda i: i["customer"] or "zz")
     from utils.pdf_report import generate_portfolio_detail
-    pdf = _generate_with_theme(theme, generate_portfolio_detail, items,
+    pdf = _generate_with_theme(theme, _tenant_branding(r), generate_portfolio_detail, items,
                                report_date=str(date.today()), section_title=section)
     return _pdf_response(pdf, f"portfolio_{date.today():%Y%m%d}.pdf")
