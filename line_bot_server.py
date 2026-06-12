@@ -981,15 +981,19 @@ def trigger_report(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "report queued"}
 
 
+_CAL_INTERVAL_MIN = 15  # ให้ตรงกับความถี่ cron (cron-job.org ตั้งทุก 15 นาที)
+
+
 def _run_calendar_reminders() -> None:
-    """เตือน event ในปฏิทิน (前一天 / 當天) ไปที่ LINE admins。ให้ cron ยิงวันละครั้งเช้าๆ。"""
+    """เตือน event ปฏิทินตาม event_time + remind_offsets (นาทีก่อนเวลา)。
+    cron ยิงทุก ~15 นาที → เตือนเมื่อ now เพิ่งผ่านเวลาที่ต้องเตือน (ภายใน 1 ช่วง interval)。
+    all-day (ไม่มีเวลา) → อ้างอิง 09:00 ของวันนั้น。"""
     try:
-        today = datetime.now(TW).date()
-        tomorrow = today + timedelta(days=1)
+        now = datetime.now(TW)
         rows = sb_get("calendar_events", {
-            "select": "title,event_date,notes,remind_1day,remind_sameday,done"
+            "select": "title,event_date,event_time,notes,remind_offsets,done"
         }) or []
-        items = []
+        lines = []
         for e in rows:
             if e.get("done"):
                 continue
@@ -997,19 +1001,26 @@ def _run_calendar_reminders() -> None:
                 ed = date.fromisoformat(str(e.get("event_date"))[:10])
             except Exception:
                 continue
-            if ed == tomorrow and e.get("remind_1day"):
-                items.append(("明天", e))
-            elif ed == today and e.get("remind_sameday"):
-                items.append(("今天", e))
-        if not items:
-            return
-        items.sort(key=lambda x: 0 if x[0] == "今天" else 1)
-        lines = ["🗓️ 行事曆提醒"]
-        for when, e in items:
-            lines.append(f"\n• [{when}] {e.get('title')}")
-            if e.get("notes"):
-                lines.append(f"  📝 {e.get('notes')}")
-        _push_to_admins("\n".join(lines))
+            tstr = str(e.get("event_time") or "")[:5]
+            all_day = not tstr
+            try:
+                hh, mm = (9, 0) if all_day else (int(tstr[:2]), int(tstr[3:5]))
+            except Exception:
+                hh, mm = 9, 0
+            event_dt = datetime(ed.year, ed.month, ed.day, hh, mm, tzinfo=TW)
+            offsets = [int(x) for x in str(e.get("remind_offsets") or "").split(",") if x.strip().lstrip("-").isdigit()]
+            for off in offsets:
+                delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
+                if 0 <= delta < _CAL_INTERVAL_MIN * 60:
+                    when = event_dt.strftime("%m/%d") + ("" if all_day else f" {tstr}")
+                    tag = ("現在" if off == 0 else f"{off // 1440}天前" if off % 1440 == 0
+                           else f"{off // 60}小時前" if off % 60 == 0 else f"{off}分前")
+                    lines.append(f"\n• {e.get('title')} ({when}) [{tag}提醒]")
+                    if e.get("notes"):
+                        lines.append(f"  📝 {e.get('notes')}")
+                    break  # event เดียวเตือนครั้งเดียวต่อรอบ
+        if lines:
+            _push_to_admins("🗓️ 行事曆提醒" + "".join(lines))
     except Exception as ex:
         print(f"[calendar reminder] error: {ex}")
 
