@@ -12,9 +12,9 @@ OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 os.makedirs(OUT_DIR, exist_ok=True)
 OUT = os.path.join(OUT_DIR, "import_template.xlsx")
 
-# ── 品牌色 ──
-RED = "A62A36"; RED_DK = "8E232E"; GOLD = "B9822F"
-TINT = "FBEEEF"; ZEBRA = "FAF7F7"; INK = "1F1B1B"; MUTED = "8A7E7C"; BORDER_C = "EADDDB"
+# ── 配色：深綠 (吉利) + 金 ──
+RED = "1F4D3A"; RED_DK = "153A2B"; GOLD = "B9822F"
+TINT = "E9F2EC"; ZEBRA = "F4F9F6"; INK = "1F2A24"; MUTED = "6E827A"; BORDER_C = "D4E5DA"
 WHITE = "FFFFFF"
 FONT = "Microsoft JhengHei"  # 乾淨中文字型 (Excel 預設可用)
 
@@ -178,6 +178,36 @@ hr3 = style_sheet(ws3, "投資 (持倉)", "把投資人連到商品 · 三欄皆
     ("投資金額 *", 14, NUM, None), ("幣別", 9, None, CURRENCIES),
 ])
 put_sample(ws3, hr3, ["蔣太太", "EQDS0702653", 370000, "USD"])
+
+# ── 連動下拉：投資分頁從「客戶/商品」分頁選 (不必重打)；標的給常用清單 ──
+from openpyxl.workbook.defined_name import DefinedName
+dnI = DefinedName(name="InvestorList", attr_text="'客戶'!$A$4:$A$63")
+dnP = DefinedName(name="ProductList", attr_text="'商品'!$A$4:$A$63")
+try:
+    wb.defined_names["InvestorList"] = dnI
+    wb.defined_names["ProductList"] = dnP
+except TypeError:
+    wb.defined_names.add(dnI); wb.defined_names.add(dnP)
+
+TICKERS = ["NVDA", "TSLA", "TSM", "ANET", "AMD", "INTC", "AVGO", "MSFT", "ORCL", "MU",
+           "GOOG", "GOOGL", "CRCL", "LITE", "COHR", "QQQ", "SPY", "SMH", "SOXX", "IBB",
+           "AAPL", "AMZN", "META", "NFLX"]
+
+
+def add_dv(ws, col, formula1, strict, prompt):
+    dv = DataValidation(type="list", formula1=formula1, allow_blank=True)
+    dv.showErrorMessage = strict
+    dv.showInputMessage = True
+    dv.prompt = prompt
+    ws.add_data_validation(dv)
+    dv.add(f"{col}{hr2 + 1 if ws is ws2 else hr3 + 1}:{col}{(hr2 if ws is ws2 else hr3) + DATA_ROWS}")
+
+
+tk = '"' + ",".join(TICKERS) + '"'
+for col in ("C", "E", "G"):  # 標的1/2/3 — เลือกหุ้นที่ใช้บ่อย หรือพิมพ์เอง
+    add_dv(ws2, col, tk, False, "可選常用標的，或自行輸入其他代號")
+add_dv(ws3, "A", "InvestorList", True, "從「客戶」分頁選擇，不必重打")
+add_dv(ws3, "B", "ProductList", True, "從「商品」分頁選擇，不必重打")
 
 wb.save(OUT)
 print("wrote", OUT)
