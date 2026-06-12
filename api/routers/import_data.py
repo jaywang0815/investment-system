@@ -467,11 +467,58 @@ def parse_workbook(data: bytes) -> dict:
     return {"customers": customers, "products": products, "investments": investments, "warnings": warnings}
 
 
+_DIFF_PFIELDS = ["underlying_1", "underlying_2", "underlying_3", "underlying_4", "underlying_5",
+                 "initial_price_1", "initial_price_2", "initial_price_3", "initial_price_4", "initial_price_5",
+                 "strike_pct", "coupon_pct", "ko_barrier", "ki_barrier",
+                 "trade_date", "observation_date", "exit_date", "status"]
+_DIFF_CFIELDS = ["usd_amount", "ctbc_position", "fund_amount", "unified_account", "pi_signed", "ordered"]
+
+
+def _changed(old, new):
+    """ค่าใหม่ "จะทับ" ค่าเก่าจริงไหม。new None → ไม่ทับ (commit ข้าม None) → ไม่ใช่ change。"""
+    if new is None or new == "":
+        return False
+    on, nn = _to_num(old), _to_num(new)
+    if nn is not None and on is not None:
+        return abs(on - nn) > 1e-6
+    so = "" if old is None else str(old).strip()
+    return so != str(new).strip()
+
+
+def _diff_existing(r: Repo, parsed: dict) -> dict:
+    """เทียบกับข้อมูลเดิมในระบบ → คืนช่องที่ "จะเปลี่ยน" (เก่า→ใหม่) ให้ผู้ใช้ตรวจก่อนยืนยัน。"""
+    out = {"products": [], "customers": []}
+    try:
+        ex_p = {p.get("product_code"): p for p in r.list("structured_notes")}
+        for p in parsed.get("products", []):
+            ex = ex_p.get(p.get("product_code"))
+            if not ex:
+                continue
+            diffs = [{"field": f, "old": ex.get(f), "new": p.get(f)}
+                     for f in _DIFF_PFIELDS if _changed(ex.get(f), p.get(f))]
+            if diffs:
+                out["products"].append({"key": p.get("product_code"), "diffs": diffs})
+        ex_c = {c.get("name"): c for c in r.list("customers")}
+        for c in parsed.get("customers", []):
+            ex = ex_c.get(c.get("name"))
+            if not ex:
+                continue
+            diffs = [{"field": f, "old": ex.get(f), "new": c.get(f)}
+                     for f in _DIFF_CFIELDS if _changed(ex.get(f), c.get(f))]
+            if diffs:
+                out["customers"].append({"key": c.get("name"), "diffs": diffs})
+    except Exception:
+        pass  # diff ล้มเหลวไม่ควรบล็อก preview
+    return out
+
+
 @router.post("/preview")
 async def preview(file: UploadFile = File(...), r: Repo = Depends(repo)):
     try:
         data = await file.read()
-        return parse_workbook(data)
+        parsed = parse_workbook(data)
+        parsed["changes"] = _diff_existing(r, parsed)
+        return parsed
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"讀取檔案失敗: {e}")
 
