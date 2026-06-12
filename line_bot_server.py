@@ -1035,7 +1035,15 @@ def _run_calendar_reminders() -> None:
                     blocks.append("\n".join(p))
                     break  # event เดียวเตือนครั้งเดียวต่อรอบ
         if blocks:
-            _push_to_admins("您好 🔔\n\n" + "\n\n".join(blocks))
+            import random
+            blessing = random.choice([
+                "祝您今天一切順利，加油！",
+                "願您有個美好順心的一天！",
+                "今天也要好好加油，您一定可以的！",
+                "祝您事事順利，保持好心情！",
+                "今天的您一定也很棒，加油！",
+            ])
+            _push_to_admins("您好 🔔\n\n" + "\n\n".join(blocks) + "\n\n" + blessing)
     except Exception as ex:
         print(f"[calendar reminder] error: {ex}")
 
