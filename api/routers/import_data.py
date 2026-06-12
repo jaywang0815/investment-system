@@ -85,13 +85,14 @@ def _to_num(v):
         return None
 
 
-def _map_headers(ws, aliases: dict):
-    """หาแถวหัวตาราง + แมพ field -> column index。คืน (header_row_idx, {field: col})。"""
+def _map_headers(rows: list, aliases: dict):
+    """หาแถวหัวตาราง + แมพ field -> column index (0-based)。คืน (header_row_idx, {field: col})。
+    rows = list ของ tuple (มาจาก iter_rows(values_only=True))。"""
     best_row, best_map = None, {}
-    for r in range(1, min(ws.max_row, 8) + 1):
+    for r in range(min(len(rows), 8)):
         colmap = {}
-        for c in range(1, ws.max_column + 1):
-            h = _norm(ws.cell(r, c).value)
+        for c, val in enumerate(rows[r]):
+            h = _norm(val)
             if not h:
                 continue
             for field, al in aliases.items():
@@ -105,10 +106,11 @@ def _map_headers(ws, aliases: dict):
     return best_row, best_map
 
 
-def _rows(ws, hr, colmap):
+def _rows(rows: list, hr: int, colmap: dict):
     out = []
-    for r in range(hr + 1, ws.max_row + 1):
-        rec = {f: ws.cell(r, c).value for f, c in colmap.items()}
+    for r in range(hr + 1, len(rows)):
+        row = rows[r]
+        rec = {f: (row[c] if c < len(row) else None) for f, c in colmap.items()}
         if all(v is None or str(v).strip() == "" for v in rec.values()):
             continue
         out.append(rec)
@@ -116,8 +118,9 @@ def _rows(ws, hr, colmap):
 
 
 def parse_workbook(data: bytes) -> dict:
+    # read_only=True → อ่านแบบ stream ไม่โหลด style ทั้งไฟล์ (ไฟล์บวม format จะเร็วขึ้นมาก, กัน OOM/timeout บน Render)
     from openpyxl import load_workbook
-    wb = load_workbook(io.BytesIO(data), data_only=True)
+    wb = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
     customers, products, investments, warnings = [], [], [], []
 
     # หา sheet ของแต่ละชนิดจากชื่อ
@@ -128,12 +131,15 @@ def parse_workbook(data: bytes) -> dict:
             if _norm(hint) in n and kind_sheets[kind] is None:
                 kind_sheets[kind] = sn
 
+    def _sheet_rows(name):
+        return list(wb[name].iter_rows(values_only=True))
+
     # 客戶
     if kind_sheets["cust"]:
-        ws = wb[kind_sheets["cust"]]
-        hr, cm = _map_headers(ws, CUST)
+        rows = _sheet_rows(kind_sheets["cust"])
+        hr, cm = _map_headers(rows, CUST)
         if "name" in cm:
-            for rec in _rows(ws, hr, cm):
+            for rec in _rows(rows, hr, cm):
                 nm = rec.get("name")
                 if not nm or _norm(nm) in ("姓名", "戶名"):
                     continue
@@ -149,10 +155,10 @@ def parse_workbook(data: bytes) -> dict:
 
     # 商品
     if kind_sheets["prod"]:
-        ws = wb[kind_sheets["prod"]]
-        hr, cm = _map_headers(ws, PROD)
+        rows = _sheet_rows(kind_sheets["prod"])
+        hr, cm = _map_headers(rows, PROD)
         if "product_code" in cm:
-            for rec in _rows(ws, hr, cm):
+            for rec in _rows(rows, hr, cm):
                 code = rec.get("product_code")
                 if not code or _norm(code) in ("代號", "商品代號", "期初價格"):
                     continue
@@ -182,10 +188,10 @@ def parse_workbook(data: bytes) -> dict:
 
     # 投資
     if kind_sheets["inv"]:
-        ws = wb[kind_sheets["inv"]]
-        hr, cm = _map_headers(ws, INV)
+        rows = _sheet_rows(kind_sheets["inv"])
+        hr, cm = _map_headers(rows, INV)
         if "customer" in cm and "product_code" in cm:
-            for rec in _rows(ws, hr, cm):
+            for rec in _rows(rows, hr, cm):
                 cu = rec.get("customer"); pc = rec.get("product_code")
                 if not cu or not pc:
                     continue
@@ -201,6 +207,7 @@ def parse_workbook(data: bytes) -> dict:
     if not any(kind_sheets.values()):
         warnings.append("找不到 客戶/商品/投資 分頁，請使用標準範本")
 
+    wb.close()
     return {"customers": customers, "products": products, "investments": investments, "warnings": warnings}
 
 
