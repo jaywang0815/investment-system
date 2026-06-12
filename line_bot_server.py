@@ -333,104 +333,9 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             "  幫助 → 顯示此說明"
         ), ""
 
-    # 日報
+    # 日報 — ใช้ตัวสร้างเดียวกับรายงานเช้า/ค่ำ (ฟอร์แมตเดียวกัน + บอกสถานะตลาด)
     if text in ["日報", "報告", "今日", "today"]:
-        sns = get_sns("active")
-        customers = get_customers()
-        total_usd = sum(c.get("usd_amount", 0) or 0 for c in customers)
-        today_date = date.today()
-
-        # ดึงราคาทุก ticker ในครั้งเดียว
-        all_tickers = list(set(
-            s.get(f"underlying_{i}")
-            for s in sns for i in range(1, 6)
-            if isinstance(s.get(f"underlying_{i}"), str)
-        ))
-        prices = {t: get_stock_price(t) for t in all_tickers}
-
-        lines = [
-            f"📊 每日投資報告",
-            f"🗓️ {today}",
-            "─────────────",
-            f"👥 客戶: {len(customers)} 人",
-            f"📊 有效商品: {len(sns)} 筆",
-            f"💰 總額度: USD {total_usd:,.0f}",
-            "",
-            "📋 商品狀況:",
-        ]
-
-        pending_sns = []  # SN ที่ยังไม่มีข้อมูลราคา
-        sn_customers = get_sn_customer_map()
-
-        for sn in sorted(sns, key=lambda s: s.get("observation_date") or ""):
-            code = sn.get("product_code", "—")
-            obs = str(sn.get("observation_date") or "")[:10]
-            try:
-                days_left = (date.fromisoformat(obs) - today_date).days if obs else 0
-                badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
-                days_str = f"剩{days_left}天"
-            except Exception:
-                badge = "📅"
-                days_str = ""
-                days_left = 999
-
-            # คำนวณ worst performance + KO/KI status
-            ko = sn.get("ko_barrier")
-            ki = sn.get("ki_barrier")
-            worst_pct = None
-            detail_lines = []
-            for i in range(1, 6):
-                ticker = sn.get(f"underlying_{i}")
-                init_p = sn.get(f"initial_price_{i}")
-                if not ticker or not init_p or init_p <= 0:
-                    continue
-                curr = prices.get(ticker)
-                if curr:
-                    pct = curr / init_p
-                    if worst_pct is None or pct < worst_pct:
-                        worst_pct = pct
-                    chg = (pct - 1) * 100
-                    arrow = "▲" if chg >= 0 else "▼"
-                    ko_s = (" 🟢KO" if ko and pct >= ko else " 🟡近KO" if ko and pct >= ko * 0.95 else "")
-                    ki_s = (" 🔴KI" if ki and pct <= ki else " 🟠近KI" if ki and pct <= ki * 1.05 else "")
-                    detail_lines.append(f"  {ticker}: ${curr:,.2f} ({arrow}{abs(chg):.1f}%){ko_s}{ki_s}")
-
-            if worst_pct is None:
-                sn_id = sn.get("id", "")
-                names = sn_customers.get(sn_id, [])
-                pending_sns.append((code, obs[5:], badge, days_str, names))
-                continue
-            elif ko and worst_pct >= ko:
-                overall = "🟢 KO觸發"
-            elif ko and worst_pct >= ko * 0.95:
-                overall = "🟡 接近KO"
-            elif ki and worst_pct <= ki:
-                overall = "🔴 KI觸發"
-            elif ki and worst_pct <= ki * 1.05:
-                overall = "🟠 接近KI"
-            else:
-                overall = "✅ 正常"
-
-            sn_id = sn.get("id", "")
-            names = sn_customers.get(sn_id, [])
-            lines.append(f"\n{overall} {code}")
-            if names:
-                lines.append(f"  👤 {' / '.join(names)}")
-            if obs:
-                lines.append(f"  {badge} 比價: {obs} ({days_str})")
-            lines.extend(detail_lines)
-
-        # section ด้านล่าง: SN ที่ยังไม่มีข้อมูลราคา
-        if pending_sns:
-            lines.append(f"\n─────────────")
-            lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
-            for (code, obs_short, badge, days_str, names) in pending_sns:
-                lines.append(f"  {code}  {badge} {obs_short} ({days_str})")
-                if names:
-                    lines.append(f"    👤 {', '.join(names)}")
-
-        lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
-        return "\n".join(lines), ""
+        return _build_daily_report(), ""
 
     # 警示
     if text in ["警示", "alert", "KO", "KI"]:
@@ -1204,20 +1109,28 @@ def _run_obs_alert() -> None:
         print(f"[obs_alert error] {e}")
 
 
-def _run_daily_report() -> None:
-    try:
-        now_tw = datetime.now(TW)
-        today = now_tw.strftime("%Y/%m/%d")
-        now_str = now_tw.strftime("%H:%M")
-        hour = now_tw.hour
-        is_morning = hour < 12
-        if is_morning:
-            session     = "🌅 早盤報告"
-            price_note  = "📌 價格為美股昨日收盤價"
-        else:
-            session     = "🌙 夜盤報告"
-            price_note  = "📌 價格為美股盤中即時報價"
+def _us_market_note(now_tw):
+    """สถานะตลาดสหรัฐ ณ เวลาไต้หวัน → (is_open, note)。
+    US 09:30–16:00 ET ≈ 台灣 21:30–次日 04:00。"""
+    minutes = now_tw.hour * 60 + now_tw.minute
+    is_open = (minutes >= 21 * 60 + 30) or (minutes < 4 * 60)
+    asof = now_tw.strftime("%m/%d %H:%M")
+    if is_open:
+        note = f"📌 美股盤中 · 即時報價（約延遲 15 分）· 截至 {asof}"
+    else:
+        note = f"📌 美股已收盤 · 顯示最新收盤價 · 截至 {asof}"
+    return is_open, note
 
+
+def _build_daily_report() -> str:
+    """สร้างข้อความรายงานประจำวัน (ใช้ร่วมกัน: cron เช้า/ค่ำ + คำสั่ง 日報)。"""
+    now_tw = datetime.now(TW)
+    today = now_tw.strftime("%Y/%m/%d")
+    now_str = now_tw.strftime("%H:%M")
+    session = "🌅 早盤報告" if now_tw.hour < 12 else "🌙 夜盤報告"
+    _, price_note = _us_market_note(now_tw)
+
+    if True:
         customers = get_customers()
         sns = get_sns("active")
         total_usd = sum(c.get("usd_amount", 0) or 0 for c in customers)
@@ -1307,7 +1220,13 @@ def _run_daily_report() -> None:
                 if names:
                     lines.append(f"    👤 {', '.join(names)}")
 
-        _push_to_admins("\n".join(lines))
+        lines += ["", "─────────────", "輸入客戶姓名查詢個人持倉"]
+        return "\n".join(lines)
+
+
+def _run_daily_report() -> None:
+    try:
+        _push_to_admins(_build_daily_report())
     except Exception as e:
         _push_to_admins(f"⚠️ 日報發送失敗: {e}")
 
