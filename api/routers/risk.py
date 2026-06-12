@@ -1,4 +1,5 @@
 """KO/KI Risk Radar — 此租戶每檔有效 SN 距離 KO/KI 的狀態 (reuse analyze_sn_status)。"""
+import re
 from fastapi import APIRouter, Depends
 from ..deps import repo
 from ..db import Repo
@@ -6,6 +7,13 @@ from ..db import Repo
 router = APIRouter(prefix="/api/risk", tags=["risk"])
 
 _ORDER = {"ki_triggered": 0, "ki_risk": 1, "ko_triggered": 2, "ko_risk": 3, "normal": 4, "unknown": 5}
+
+# ตัด emoji ออกจาก label (เว็บวาดไฟ CSS เอง ไม่ใช้ emoji)
+_EMOJI = re.compile(r"[\U0001F000-\U0001FAFF☀-➿⬀-⯿️←-⇿]")
+
+
+def _clean(s):
+    return _EMOJI.sub("", str(s)).strip() if s else s
 
 
 @router.get("")
@@ -46,6 +54,18 @@ def risk(r: Repo = Depends(repo)):
             "worst_change_pct": worst.get("change_pct") if worst else None,
             "ko_gap_pct": min(ko_gaps) if ko_gaps else None,   # % ที่ต้องขึ้นถึง KO (น้อย=ใกล้ autocall)
             "ki_gap_pct": min(ki_gaps) if ki_gaps else None,   # buffer เหนือ KI (น้อย=เสี่ยง)
+            # การ์ดรายละเอียดต่อหุ้น (กางออกตอนคลิกแถว)
+            "details": [{
+                "ticker": d.get("ticker"),
+                "initial_price": d.get("initial_price"),
+                "current_price": d.get("current_price"),
+                "change_pct": d.get("change_pct"),
+                "strike_price": d.get("strike_price"),
+                "ko_price": d.get("ko_price"),
+                "ki_price": d.get("ki_price"),
+                "ko_label": _clean(d.get("ko_status")),
+                "ki_label": _clean(d.get("ki_status")),
+            } for d in dets],
         })
 
     items.sort(key=lambda x: (_ORDER.get(x["status"], 9),
