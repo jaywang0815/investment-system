@@ -1058,6 +1058,69 @@ def trigger_calendar_reminder(background_tasks: BackgroundTasks, secret: str = "
     return {"status": "ok", "message": "calendar reminder queued"}
 
 
+@app.get("/debug-calendar-reminder")
+def debug_calendar_reminder(secret: str = "", push: int = 0):
+    """ชั่วคราว: ดูว่า server เจอ event ไหน/สร้างข้อความอะไร/push ได้ไหม (ไม่ push ถ้า push=0)。"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    now = datetime.now(TW)
+    rows = sb_get("calendar_events", {
+        "select": "title,event_date,event_time,notes,remind_offsets,location,url,done"
+    }) or []
+    diag = []
+    blocks = []
+    for e in rows:
+        ev = {"title": e.get("title"), "time": str(e.get("event_time") or ""), "offsets": e.get("remind_offsets"), "done": e.get("done")}
+        try:
+            ed = date.fromisoformat(str(e.get("event_date"))[:10])
+        except Exception:
+            ev["skip"] = "bad date"; diag.append(ev); continue
+        tstr = str(e.get("event_time") or "")[:5]
+        all_day = not tstr
+        try:
+            hh, mm = (9, 0) if all_day else (int(tstr[:2]), int(tstr[3:5]))
+        except Exception:
+            hh, mm = 9, 0
+        event_dt = datetime(ed.year, ed.month, ed.day, hh, mm, tzinfo=TW)
+        offsets = [int(x) for x in str(e.get("remind_offsets") or "").split(",") if x.strip().lstrip("-").isdigit()]
+        ev["fires"] = []
+        for off in offsets:
+            delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
+            fires = (0 <= delta < _CAL_INTERVAL_MIN * 60) and not e.get("done")
+            ev["fires"].append({"off": off, "delta_sec": int(delta), "fires": fires})
+            if fires:
+                blocks.append(f"{e.get('title')} ({event_dt.strftime('%m/%d')}{'' if all_day else ' '+tstr})")
+        diag.append(ev)
+    admins = sb_get("admins", {"select": "name,line_user_id"})
+    admin_info = [{"name": a.get("name"), "uid_len": len(a.get("line_user_id") or "")} for a in admins]
+    out = {
+        "now_tw": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "interval_min": _CAL_INTERVAL_MIN,
+        "events": diag,
+        "would_fire_count": len(blocks),
+        "admins": admin_info,
+        "token_set": bool(LINE_CHANNEL_ACCESS_TOKEN),
+    }
+    # ลอง push จริงเฉพาะเมื่อ push=1 → คืน response จาก LINE API ต่อ admin
+    if push and blocks:
+        results = []
+        text = "您好 🔔（debug 測試）\n\n" + "\n".join(blocks)
+        for a in admins:
+            uid = a.get("line_user_id") or ""
+            if not uid:
+                continue
+            r = requests.post(
+                "https://api.line.me/v2/bot/message/push",
+                headers={"Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}", "Content-Type": "application/json"},
+                json={"to": uid, "messages": [{"type": "text", "text": text[:4000]}]},
+                timeout=10,
+            )
+            results.append({"name": a.get("name"), "status": r.status_code, "body": r.text[:200]})
+        out["push_results"] = results
+    return out
+
+
 @app.get("/trigger-obs-alert")
 def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     """cron-job.org เรียก endpoint นี้ทุกเช้า 07:00 TWN"""
