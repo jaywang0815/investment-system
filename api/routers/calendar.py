@@ -129,10 +129,13 @@ def update_event(eid: str, body: dict, r: Repo = Depends(repo)):
         payload["event_time"] = _clean_time(body["event_time"])
     if "remind_offsets" in body:
         payload["remind_offsets"] = _clean_offsets(body["remind_offsets"])
+    # ถ้าแก้เวลา/วันที่/ตัวเลือกเตือน → รีเซ็ตว่ายังไม่เคยยิง (เลื่อนนัดแล้วต้องเตือนใหม่)
+    if any(k in body for k in ("event_date", "event_time", "remind_offsets")):
+        payload["notified_offsets"] = ""
     try:
         r.update("calendar_events", eid, payload)
     except Exception:
-        for k in ("color", "location", "url"):
+        for k in ("color", "location", "url", "notified_offsets"):
             payload.pop(k, None)
         r.update("calendar_events", eid, payload)
     return {"updated": eid}

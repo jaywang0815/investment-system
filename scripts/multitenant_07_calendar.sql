@@ -17,6 +17,7 @@ create table if not exists calendar_events (
     done            boolean default false,
     location        text,                     -- 地點 (ชื่อสถานที่ → auto Google Maps link)
     url             text,                     -- 連結 (Google Meet / Zoom / 任何 link)
+    notified_offsets text default '',         -- offset (นาที) ที่ยิงเตือนไปแล้ว — กันยิงซ้ำ
     created_at      timestamptz default now()
 );
 
@@ -26,6 +27,7 @@ alter table calendar_events add column if not exists remind_offsets text default
 alter table calendar_events add column if not exists color          text;   -- สีของ event (hex)
 alter table calendar_events add column if not exists location       text;   -- 地點 (ชื่อสถานที่)
 alter table calendar_events add column if not exists url            text;   -- 連結 (Meet/Zoom/link)
+alter table calendar_events add column if not exists notified_offsets text default '';  -- กันยิงเตือนซ้ำ
 
 create index if not exists idx_calendar_events_date   on calendar_events(event_date);
 create index if not exists idx_calendar_events_tenant on calendar_events(tenant_id);
