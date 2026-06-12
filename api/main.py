@@ -4,6 +4,7 @@
 需要環境變數: SUPABASE_URL, SUPABASE_KEY, JWT_SECRET
 此服務為「新平台後端」，與現有 Streamlit / LINE bot 互不影響。
 """
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,10 +12,13 @@ from .routers import auth, customers, products, investments, dashboard, reports,
 
 app = FastAPI(title="Investment Platform API", version="0.1.0")
 
+# 用 Bearer token (非 cookie) → allow_credentials=False 才能搭配 "*" (避免 prod 跨網域被擋)。
+# 可用環境變數 CORS_ORIGINS (逗號分隔) 限制來源；未設則允許全部。
+_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],            # 上線後改為 Next.js 後台網域
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
