@@ -571,3 +571,65 @@ def _do_commit(body: dict, r: Repo) -> dict:
     res["investments_created"] += len(new_invs)
 
     return res
+
+
+@router.post("/cleanup")
+def cleanup_dupes(r: Repo = Depends(repo)):
+    """整理重複（deterministic）：暱稱 X*Y 合併到同名全名客戶；代號夾帶 ticker 合併到正確代號。
+    先把投資轉到正確的人/商品（去重）再刪掉重複者。"""
+    try:
+        return _do_cleanup(r)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"整理失敗: {getattr(e, 'message', None) or e}")
+
+
+def _do_cleanup(r: Repo) -> dict:
+    res = {"customers_merged": 0, "products_merged": 0, "details": []}
+
+    # 1) 合併暱稱客戶 (X*Y → 全名)
+    custs = r.list("customers", select="id,name")
+    full_names = {c["name"]: c["id"] for c in custs if c.get("name") and "*" not in c["name"] and "＊" not in c["name"]}
+    invs = r.list("investments", select="id,customer_id,sn_id")
+    pairs = {(i.get("customer_id"), i.get("sn_id")) for i in invs}
+    for c in custs:
+        nm = c.get("name") or ""
+        mt = _match_masked(nm, list(full_names.keys()))
+        if not mt:
+            continue
+        fid = full_names[mt]
+        if fid == c["id"]:
+            continue
+        for i in [x for x in invs if x.get("customer_id") == c["id"]]:
+            if (fid, i.get("sn_id")) in pairs:
+                r.delete("investments", i["id"])           # ผูกซ้ำ → ทิ้ง
+            else:
+                r.update("investments", i["id"], {"customer_id": fid})
+                pairs.add((fid, i.get("sn_id")))
+        r.delete("customers", c["id"])
+        res["customers_merged"] += 1
+        res["details"].append(f"{nm} → {mt}")
+
+    # 2) 合併代號夾帶 ticker (EQDS..TSLA → EQDS..)
+    prods = r.list("structured_notes", select="id,product_code")
+    code2id = {p["product_code"]: p["id"] for p in prods if p.get("product_code")}
+    invs = r.list("investments", select="id,customer_id,sn_id")
+    pairs = {(i.get("customer_id"), i.get("sn_id")) for i in invs}
+    for p in prods:
+        code = p.get("product_code") or ""
+        base, tk = _split_code_ticker(code)
+        if not tk or base == code or base not in code2id:
+            continue
+        clean_id = code2id[base]
+        if clean_id == p["id"]:
+            continue
+        for i in [x for x in invs if x.get("sn_id") == p["id"]]:
+            if (i.get("customer_id"), clean_id) in pairs:
+                r.delete("investments", i["id"])
+            else:
+                r.update("investments", i["id"], {"sn_id": clean_id})
+                pairs.add((i.get("customer_id"), clean_id))
+        r.delete("structured_notes", p["id"])
+        res["products_merged"] += 1
+        res["details"].append(f"{code} → {base}")
+
+    return res
