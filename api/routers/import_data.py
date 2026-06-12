@@ -150,16 +150,26 @@ def _to_bool_mark(v):
     return s in ("V", "✓", "✔", "○", "O", "Y", "YES", "是", "T", "TRUE", "1")
 
 
+def _norm_name(s):
+    return unicodedata.normalize("NFKC", str(s)).replace("＊", "*").strip() if s is not None else ""
+
+
 def _match_masked(name, candidates):
-    """ชื่อย่อแบบ X*Y (มาสก์กลาง) → จับคู่ชื่อเต็มที่หัว+ท้ายตรง + ความยาวเท่ากัน。
-    คืนค่าเฉพาะเมื่อ match ได้ตัวเดียว (unambiguous) ไม่งั้น None (ไม่เดา)。"""
+    """ชื่อย่อมาสก์ (มาสก์ตำแหน่งไหนก็ได้ เช่น 鄭*堃 / 翁* / *美英) → จับคู่ชื่อเต็มความยาวเท่ากัน
+    ที่ตัวอักษร "ไม่ถูกมาสก์" ตรงกันทุกตำแหน่ง。คืนเฉพาะเมื่อ match ตัวเดียว (unambiguous) ไม่งั้น None。"""
     if not name:
         return None
-    nm = unicodedata.normalize("NFKC", str(name)).replace("＊", "*").strip()
+    nm = _norm_name(name)
     if "*" not in nm or len(nm) < 2:
         return None
-    head, tail, ln = nm[0], nm[-1], len(nm)
-    hits = [c for c in candidates if c and len(c) == ln and c[0] == head and c[-1] == tail and "*" not in c]
+    ln = len(nm)
+
+    def ok(full):
+        if not full or len(full) != ln or "*" in full:
+            return False
+        return all(nm[i] == "*" or nm[i] == full[i] for i in range(ln))
+
+    hits = [c for c in candidates if ok(c)]
     return hits[0] if len(hits) == 1 else None
 
 
@@ -583,14 +593,41 @@ def cleanup_dupes(r: Repo = Depends(repo)):
         raise HTTPException(status_code=400, detail=f"整理失敗: {getattr(e, 'message', None) or e}")
 
 
+def _merge_customer(r, from_id, to_id, invs, pairs):
+    """ย้ายการลงทุนของ from_id → to_id (ตัดที่ซ้ำ) แล้วลบลูกค้า from_id。"""
+    for i in [x for x in invs if x.get("customer_id") == from_id]:
+        if (to_id, i.get("sn_id")) in pairs:
+            r.delete("investments", i["id"])
+        else:
+            r.update("investments", i["id"], {"customer_id": to_id})
+            pairs.add((to_id, i.get("sn_id")))
+            i["customer_id"] = to_id
+    r.delete("customers", from_id)
+
+
 def _do_cleanup(r: Repo) -> dict:
     res = {"customers_merged": 0, "products_merged": 0, "details": []}
 
-    # 1) 合併暱稱客戶 (X*Y → 全名)
-    custs = r.list("customers", select="id,name")
-    full_names = {c["name"]: c["id"] for c in custs if c.get("name") and "*" not in c["name"] and "＊" not in c["name"]}
     invs = r.list("investments", select="id,customer_id,sn_id")
     pairs = {(i.get("customer_id"), i.get("sn_id")) for i in invs}
+
+    # 1a) 合併「完全同名」客戶 (เช่น 翁* ซ้ำ 2 แถว)
+    custs = r.list("customers", select="id,name")
+    by_name = {}
+    for c in custs:
+        key = _norm_name(c.get("name"))
+        if not key:
+            continue
+        if key in by_name:
+            _merge_customer(r, c["id"], by_name[key], invs, pairs)
+            res["customers_merged"] += 1
+            res["details"].append(f"{c.get('name')} (重複) → 合併")
+        else:
+            by_name[key] = c["id"]
+
+    # 1b) 合併暱稱客戶 (มาสก์ → 全名)
+    custs = r.list("customers", select="id,name")
+    full_names = {c["name"]: c["id"] for c in custs if c.get("name") and "*" not in _norm_name(c["name"])}
     for c in custs:
         nm = c.get("name") or ""
         mt = _match_masked(nm, list(full_names.keys()))
@@ -599,13 +636,7 @@ def _do_cleanup(r: Repo) -> dict:
         fid = full_names[mt]
         if fid == c["id"]:
             continue
-        for i in [x for x in invs if x.get("customer_id") == c["id"]]:
-            if (fid, i.get("sn_id")) in pairs:
-                r.delete("investments", i["id"])           # ผูกซ้ำ → ทิ้ง
-            else:
-                r.update("investments", i["id"], {"customer_id": fid})
-                pairs.add((fid, i.get("sn_id")))
-        r.delete("customers", c["id"])
+        _merge_customer(r, c["id"], fid, invs, pairs)
         res["customers_merged"] += 1
         res["details"].append(f"{nm} → {mt}")
 
