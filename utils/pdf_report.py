@@ -52,7 +52,22 @@ GRAY_LIGHT = colors.HexColor(B.hx(B.C_ZEBRA))     # 斑馬列中性暖灰
 RED        = colors.HexColor(B.hx(B.C_RED))
 GREEN      = colors.HexColor(B.hx(B.C_GREEN))
 ORANGE     = colors.HexColor("#EA580C")
+GOLD_HEAD  = colors.HexColor(B.hx(B.C_TABLE_HEAD))  # 明細表頭 (依主題)
 WHITE      = colors.white
+
+
+def _refresh_palette():
+    """依目前 branding 主題色重新計算本模組色票 (apply_theme 後呼叫)。"""
+    global BLUE_DARK, BLUE_MID, BLUE_LIGHT, GRAY, GRAY_LIGHT, RED, GREEN, ORANGE, GOLD_HEAD
+    BLUE_DARK  = colors.HexColor(B.hx(B.C_PRIMARY))
+    BLUE_MID   = colors.HexColor(B.hx(B.C_ACCENT))
+    BLUE_LIGHT = colors.HexColor(B.hx(B.C_TINT))
+    GRAY       = colors.HexColor("#" + B.C_MUTED)
+    GRAY_LIGHT = colors.HexColor(B.hx(B.C_ZEBRA))
+    RED        = colors.HexColor(B.hx(B.C_RED))
+    GREEN      = colors.HexColor(B.hx(B.C_GREEN))
+    ORANGE     = colors.HexColor("#EA580C")
+    GOLD_HEAD  = colors.HexColor(B.hx(B.C_TABLE_HEAD))
 
 _EMOJI_RE = re.compile(
     "[\U0001F300-\U0001FFFF\U00002600-\U000027BF\U0000FE00-\U0000FE0F]+",
@@ -240,7 +255,7 @@ def _summary_table(investments, W):
     """客戶報表用的「投資明細」摘要表 (6 欄, 綠表頭, 出場標綠)，回傳 flowables。"""
     from utils.money import format_money
     out = _sec("投資明細")
-    HEAD_GREEN = colors.HexColor("#CD9A3F")
+    HEAD_GREEN = GOLD_HEAD
     EXIT_GREEN = colors.HexColor("#F3E6CC")
     BORDER     = colors.HexColor("#D9D9D9")
     DARK       = colors.HexColor("#1F1B1B")
@@ -521,7 +536,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
     header_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CD9A3F")),
+        ("BACKGROUND", (0, 0), (-1, -1), GOLD_HEAD),
         ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#1F1B1B")),
         ("LINEABOVE", (0, 0), (-1, 0), 2.2, colors.HexColor(B.hx(B.C_PRIMARY))),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -585,7 +600,7 @@ def _add_sn_detail(story, idx, inv, sn, prices, W, chart_period="6mo",
             ("FONTNAME", (0, 0), (-1, -1), FONT),
             ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#CD9A3F")),
+            ("BACKGROUND", (0, 0), (-1, 0), GOLD_HEAD),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F1B1B")),
             ("ALIGN", (1, 0), (-1, -1), "CENTER"),
             ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor(B.hx(B.C_BORDER))),
@@ -737,7 +752,7 @@ def generate_portfolio_detail(items: list, report_date: str = "",
             return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
         return ""
 
-    HEAD_GREEN = colors.HexColor("#CD9A3F")
+    HEAD_GREEN = GOLD_HEAD
     EXIT_GREEN = colors.HexColor("#F3E6CC")
     BORDER     = colors.HexColor("#D9D9D9")
     DARK       = colors.HexColor("#1A1A1A")

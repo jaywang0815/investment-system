@@ -1,12 +1,30 @@
 """報表 — 重用既有 Python 模組 (pdf_report / excel_export)，tenant-scoped。"""
+import threading
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
 from datetime import date
 from urllib.parse import quote
+from utils import branding as B
 from ..deps import repo
 from ..db import Repo
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+# 主題色用「覆寫全域 branding」方式 → 用鎖序列化 PDF 產生，避免併發互相干擾。
+_PDF_LOCK = threading.Lock()
+
+
+def _generate_with_theme(theme: Optional[str], fn, *args, **kwargs) -> bytes:
+    """套用主題色 → 產生 PDF → 還原預設色 (緒安全)。"""
+    from utils.pdf_report import _refresh_palette
+    with _PDF_LOCK:
+        B.apply_theme(theme)
+        _refresh_palette()
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            B.apply_theme(B.DEFAULT_THEME)
+            _refresh_palette()
 
 
 def _pdf_response(pdf: bytes, name: str) -> Response:
@@ -41,14 +59,15 @@ CHART_PERIODS = [
 
 @router.get("/options")
 def report_options(r: Repo = Depends(repo)):
-    """報表設定彈窗用的選項 (欄位 / 區間)。"""
-    return {"columns": REPORT_COLUMNS, "periods": CHART_PERIODS}
+    """報表設定彈窗用的選項 (欄位 / 區間 / 主題色)。"""
+    return {"columns": REPORT_COLUMNS, "periods": CHART_PERIODS, "themes": B.themes_list()}
 
 
 @router.get("/customer/{cid}/pdf")
 def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
                  columns: Optional[str] = None, show_info: bool = True,
-                 show_amount: bool = True, r: Repo = Depends(repo)):
+                 show_amount: bool = True, theme: Optional[str] = None,
+                 r: Repo = Depends(repo)):
     """單一客戶完整報表 PDF (含投資明細 + 走勢圖)。
     columns: 逗號分隔欄位名 (省略=全部)；charts=true 會較慢 (抓 yfinance)。"""
     cust = r.get("customers", cid)
@@ -61,14 +80,14 @@ def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
     cols = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
     from utils.pdf_report import generate_customer_report
     prices = _prices_for(invs) if charts else {}
-    pdf = generate_customer_report(cust, invs, prices, chart_period=period,
-                                   columns=cols, show_info=show_info,
-                                   show_amount=show_amount, show_charts=charts)
+    pdf = _generate_with_theme(theme, generate_customer_report, cust, invs, prices,
+                               chart_period=period, columns=cols, show_info=show_info,
+                               show_amount=show_amount, show_charts=charts)
     return _pdf_response(pdf, f"report_{cust.get('name','customer')}_{date.today():%Y%m%d}.pdf")
 
 
 @router.get("/portfolio/pdf")
-def portfolio_pdf(section: str = "CTBC", r: Repo = Depends(repo)):
+def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None, r: Repo = Depends(repo)):
     """全部客戶投資明細表 PDF (此租戶)。"""
     rows = r.find("investments",
                   select="amount_usd,currency,customers(name),structured_notes(product_code,trade_date,observation_date,coupon_pct,exit_date)")
@@ -89,5 +108,6 @@ def portfolio_pdf(section: str = "CTBC", r: Repo = Depends(repo)):
         raise HTTPException(status_code=404, detail="無投資資料")
     items.sort(key=lambda i: i["customer"] or "zz")
     from utils.pdf_report import generate_portfolio_detail
-    pdf = generate_portfolio_detail(items, report_date=str(date.today()), section_title=section)
+    pdf = _generate_with_theme(theme, generate_portfolio_detail, items,
+                               report_date=str(date.today()), section_title=section)
     return _pdf_response(pdf, f"portfolio_{date.today():%Y%m%d}.pdf")
