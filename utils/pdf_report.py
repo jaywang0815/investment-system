@@ -220,7 +220,7 @@ def _brand_header(W, title: str, sub: str = ""):
     logo = ""
     if B.has_logo():
         try:
-            logo = RLImage(B.LOGO_PATH, width=15 * mm, height=15 * mm)
+            logo = RLImage(B.logo_source(), width=15 * mm, height=15 * mm)
         except Exception:
             logo = ""
     title_p = Paragraph(

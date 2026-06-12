@@ -5,9 +5,12 @@
 """
 from __future__ import annotations
 import os
+import io
+import base64
 
 _ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 LOGO_PATH = os.path.join(_ASSETS, "company_logo.png")
+_LOGO_BYTES = None  # per-tenant logo override (raw bytes), set ผ่าน apply_identity
 
 COMPANY   = "統一證券"
 REPORTER  = "秦聖鈞"
@@ -19,12 +22,28 @@ DEFAULT_COMPANY  = COMPANY
 DEFAULT_REPORTER = REPORTER
 
 
-def apply_identity(company: str = None, reporter: str = None) -> None:
-    """套用 tenant 品牌 (公司名稱 / 報告人)；空值→預設。會重建 SIGNATURE。"""
-    global COMPANY, REPORTER, SIGNATURE
+def apply_identity(company: str = None, reporter: str = None, logo_b64: str = None) -> None:
+    """套用 tenant 品牌 (公司名稱 / 報告人 / logo)；空值→預設。會重建 SIGNATURE。
+    logo_b64: data URL 或純 base64；空→還原預設檔案 logo。"""
+    global COMPANY, REPORTER, SIGNATURE, _LOGO_BYTES
     COMPANY  = (company or "").strip() or DEFAULT_COMPANY
     REPORTER = (reporter or "").strip() or DEFAULT_REPORTER
     SIGNATURE = f"{COMPANY}　報告人　{REPORTER}"
+    if logo_b64:
+        try:
+            s = logo_b64.split(",", 1)[1] if "," in logo_b64 else logo_b64
+            _LOGO_BYTES = base64.b64decode(s)
+        except Exception:
+            _LOGO_BYTES = None
+    else:
+        _LOGO_BYTES = None
+
+
+def logo_source():
+    """คืน source สำหรับ RLImage: BytesIO (per-tenant) หรือ path ไฟล์ default。"""
+    if _LOGO_BYTES:
+        return io.BytesIO(_LOGO_BYTES)
+    return LOGO_PATH
 
 # ── 配色 (品牌紅，精緻不刺眼) — hex 字串不含 # ────────────────
 # 紅作為「重點色」，大面積用淺底/中性，避免整份過紅。
@@ -100,4 +119,4 @@ def hx(c: str) -> str:
 
 
 def has_logo() -> bool:
-    return os.path.exists(LOGO_PATH)
+    return bool(_LOGO_BYTES) or os.path.exists(LOGO_PATH)

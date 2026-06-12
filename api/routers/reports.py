@@ -15,22 +15,24 @@ _PDF_LOCK = threading.Lock()
 
 
 def _tenant_branding(r: Repo):
-    """อ่านชื่อบริษัท/報告人 ของ tenant ที่ login (ไว้ใส่ใน PDF)。"""
-    try:
-        rows = r.sb.table("tenants").select("company_name,reporter").eq("id", r.tenant_id).execute().data
-        t = rows[0] if rows else {}
-        return t.get("company_name"), t.get("reporter")
-    except Exception:
-        return None, None
+    """อ่านชื่อบริษัท/報告人/logo ของ tenant ที่ login (ไว้ใส่ใน PDF)。"""
+    for cols in ("company_name,reporter,logo", "company_name,reporter"):
+        try:
+            rows = r.sb.table("tenants").select(cols).eq("id", r.tenant_id).execute().data
+            t = rows[0] if rows else {}
+            return t.get("company_name"), t.get("reporter"), t.get("logo")
+        except Exception:
+            continue
+    return None, None, None
 
 
 def _generate_with_theme(theme: Optional[str], branding, fn, *args, **kwargs) -> bytes:
-    """套用主題色 + tenant 品牌 → 產生 PDF → 還原預設 (緒安全)。branding=(company, reporter)。"""
+    """套用主題色 + tenant 品牌 → 產生 PDF → 還原預設 (緒安全)。branding=(company, reporter, logo)。"""
     from utils.pdf_report import _refresh_palette
-    company, reporter = branding or (None, None)
+    company, reporter, logo = (branding or (None, None, None))
     with _PDF_LOCK:
         B.apply_theme(theme)
-        B.apply_identity(company, reporter)
+        B.apply_identity(company, reporter, logo)
         _refresh_palette()
         try:
             return fn(*args, **kwargs)
