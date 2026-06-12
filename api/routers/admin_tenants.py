@@ -96,8 +96,14 @@ def create_tenant(body: dict, _=Depends(require_superadmin)):
     except Exception:
         raise HTTPException(status_code=500, detail="invites 表不存在，請先執行 migration 06")
 
+    _emailed = False
+    try:
+        from utils.mailer import send_invite_email
+        _emailed = send_invite_email(email, company, f"/invite/{token}")
+    except Exception:
+        pass
     return {"tenant_id": t["id"], "email": email, "invite_token": token,
-            "invite_path": f"/invite/{token}"}
+            "invite_path": f"/invite/{token}", "emailed": _emailed}
 
 
 # 租戶資料表 (依 FK 依賴排序：子表先刪，最後刪 tenants 本身)
@@ -149,7 +155,13 @@ def invite_user_to_tenant(tid: str, body: dict, _=Depends(require_superadmin)):
             }).execute()
         except Exception:
             raise HTTPException(status_code=500, detail="invites 表不存在，請先執行 migration 06")
-    return {"tenant_id": tid, "email": email, "invite_token": token, "invite_path": f"/invite/{token}"}
+    _emailed = False
+    try:
+        from utils.mailer import send_invite_email
+        _emailed = send_invite_email(email, t.get("company_name") or t.get("name") or "", f"/invite/{token}")
+    except Exception:
+        pass
+    return {"tenant_id": tid, "email": email, "invite_token": token, "invite_path": f"/invite/{token}", "emailed": _emailed}
 
 
 @router.delete("/invites")
