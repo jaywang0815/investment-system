@@ -1133,7 +1133,15 @@ def _build_daily_report() -> str:
     if True:
         customers = get_customers()
         sns = get_sns("active")
-        total_usd = sum(c.get("usd_amount", 0) or 0 for c in customers)
+
+        def _f(v):
+            try:
+                return float(v) if v not in (None, "") else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+        credit_usd = sum(_f(c.get("usd_amount")) for c in customers)          # เงินทุนลูกค้า
+        _inv_rows = sb_get("investments", {"select": "amount_usd"}) or []
+        invested_usd = sum(_f(i.get("amount_usd")) for i in _inv_rows)         # ลงทุนจริงใน SN
 
         all_tickers = list(set(
             s.get(f"underlying_{i}")
@@ -1150,7 +1158,8 @@ def _build_daily_report() -> str:
             f"\n🏦 管理總覽",
             f"• 客戶總數: {len(customers)} 人",
             f"• 有效商品: {len(sns)} 筆",
-            f"• 總投資金額: USD {total_usd:,.0f}",
+            f"• 投資總額 (SN): USD {invested_usd:,.0f}",
+            f"• 客戶總額度: USD {credit_usd:,.0f}",
             "\n📋 商品狀況",
         ]
 
