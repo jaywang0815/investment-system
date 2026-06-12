@@ -981,6 +981,49 @@ def trigger_report(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "report queued"}
 
 
+def _run_calendar_reminders() -> None:
+    """เตือน event ในปฏิทิน (前一天 / 當天) ไปที่ LINE admins。ให้ cron ยิงวันละครั้งเช้าๆ。"""
+    try:
+        today = datetime.now(TW).date()
+        tomorrow = today + timedelta(days=1)
+        rows = sb_get("calendar_events", {
+            "select": "title,event_date,notes,remind_1day,remind_sameday,done"
+        }) or []
+        items = []
+        for e in rows:
+            if e.get("done"):
+                continue
+            try:
+                ed = date.fromisoformat(str(e.get("event_date"))[:10])
+            except Exception:
+                continue
+            if ed == tomorrow and e.get("remind_1day"):
+                items.append(("明天", e))
+            elif ed == today and e.get("remind_sameday"):
+                items.append(("今天", e))
+        if not items:
+            return
+        items.sort(key=lambda x: 0 if x[0] == "今天" else 1)
+        lines = ["🗓️ 行事曆提醒"]
+        for when, e in items:
+            lines.append(f"\n• [{when}] {e.get('title')}")
+            if e.get("notes"):
+                lines.append(f"  📝 {e.get('notes')}")
+        _push_to_admins("\n".join(lines))
+    except Exception as ex:
+        print(f"[calendar reminder] error: {ex}")
+
+
+@app.get("/trigger-calendar-reminder")
+def trigger_calendar_reminder(background_tasks: BackgroundTasks, secret: str = ""):
+    """cron-job.org ยิงทุกเช้า → เตือน event ปฏิทิน (ก่อน 1 วัน + วันนั้น)。"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    background_tasks.add_task(_run_calendar_reminders)
+    return {"status": "ok", "message": "calendar reminder queued"}
+
+
 @app.get("/trigger-obs-alert")
 def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     """cron-job.org เรียก endpoint นี้ทุกเช้า 07:00 TWN"""
