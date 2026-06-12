@@ -18,6 +18,7 @@ import base64
 import json
 import requests
 from datetime import date, datetime, timezone, timedelta
+from urllib.parse import quote
 
 TW = timezone(timedelta(hours=8))
 
@@ -991,7 +992,7 @@ def _run_calendar_reminders() -> None:
     try:
         now = datetime.now(TW)
         rows = sb_get("calendar_events", {
-            "select": "title,event_date,event_time,notes,remind_offsets,done"
+            "select": "title,event_date,event_time,notes,remind_offsets,location,url,done"
         }) or []
         lines = []
         for e in rows:
@@ -1013,11 +1014,22 @@ def _run_calendar_reminders() -> None:
                 delta = (now - (event_dt - timedelta(minutes=off))).total_seconds()
                 if 0 <= delta < _CAL_INTERVAL_MIN * 60:
                     when = event_dt.strftime("%m/%d") + ("" if all_day else f" {tstr}")
-                    tag = ("現在" if off == 0 else f"{off // 1440}天前" if off % 1440 == 0
-                           else f"{off // 60}小時前" if off % 60 == 0 else f"{off}分前")
-                    lines.append(f"\n• {e.get('title')} ({when}) [{tag}提醒]")
+                    # off==0 = ถึงเวลาพอดี → ไม่ต้องมี tag (เดิมขึ้น [現在提醒] ดูงง); off>0 = เตือนล่วงหน้า
+                    if off == 0:
+                        lines.append(f"\n• {e.get('title')} ({when})")
+                    else:
+                        tag = (f"{off // 1440}天前" if off % 1440 == 0
+                               else f"{off // 60}小時前" if off % 60 == 0 else f"{off}分前")
+                        lines.append(f"\n• {e.get('title')} ({when}) [{tag}提醒]")
+                    loc = (e.get("location") or "").strip()
+                    if loc:
+                        maps = "https://www.google.com/maps/search/?api=1&query=" + quote(loc)
+                        lines.append(f"\n  📍 {loc}\n  {maps}")
+                    url = (e.get("url") or "").strip()
+                    if url:
+                        lines.append(f"\n  🔗 {url}")
                     if e.get("notes"):
-                        lines.append(f"  📝 {e.get('notes')}")
+                        lines.append(f"\n  📝 {e.get('notes')}")
                     break  # event เดียวเตือนครั้งเดียวต่อรอบ
         if lines:
             _push_to_admins("🗓️ 行事曆提醒" + "".join(lines))
