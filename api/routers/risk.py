@@ -29,6 +29,16 @@ def risk(r: Repo = Depends(repo)):
                 tickers.add(t)
     prices = get_prices(list(tickers)) if tickers else {}
 
+    # แมพ SN -> รายชื่อลูกค้าที่ถือ (SN ตัวเดียวอาจมีหลายลูกค้า)
+    holders: dict[str, list[str]] = {}
+    for inv in r.find("investments", select="sn_id,customers(name)"):
+        sid = inv.get("sn_id")
+        nm = (inv.get("customers") or {}).get("name")
+        if sid and nm:
+            holders.setdefault(sid, [])
+            if nm not in holders[sid]:
+                holders[sid].append(nm)
+
     items = []
     for sn in sns:
         a = analyze_sn_status(sn, prices)
@@ -49,6 +59,7 @@ def risk(r: Repo = Depends(repo)):
             "status": a.get("overall_status"),
             "label": a.get("status_label"),
             "observation_date": (sn.get("observation_date") or "")[:10] or None,
+            "customers": holders.get(sn.get("id"), []),
             "underlyings": [d["ticker"] for d in dets],
             "worst_ticker": worst.get("ticker") if worst else None,
             "worst_change_pct": worst.get("change_pct") if worst else None,
