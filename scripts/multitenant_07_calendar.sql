@@ -21,6 +21,7 @@ create table if not exists calendar_events (
 -- เพิ่มคอลัมน์ใหม่ถ้าตารางมีอยู่แล้ว (รันซ้ำได้)
 alter table calendar_events add column if not exists event_time     time;
 alter table calendar_events add column if not exists remind_offsets text default '0';
+alter table calendar_events add column if not exists color          text;   -- สีของ event (hex)
 
 create index if not exists idx_calendar_events_date   on calendar_events(event_date);
 create index if not exists idx_calendar_events_tenant on calendar_events(tenant_id);

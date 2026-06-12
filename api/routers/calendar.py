@@ -50,6 +50,7 @@ def events(r: Repo = Depends(repo)):
                 "title": e.get("title"),
                 "notes": e.get("notes"),
                 "remind_offsets": e.get("remind_offsets") or "",
+                "color": e.get("color"),
                 "done": e.get("done"),
                 "days_until": (d - today).days,
             })
@@ -95,17 +96,23 @@ def create_event(body: dict, r: Repo = Depends(repo)):
         "event_time": _clean_time(body.get("event_time")),
         "notes": (body.get("notes") or "").strip() or None,
         "remind_offsets": _clean_offsets(body.get("remind_offsets")),
+        "color": (body.get("color") or "").strip() or None,
     }
     try:
         return r.create("calendar_events", payload)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"建立失敗（請先在 Supabase 執行 SQL 07）: {getattr(e, 'message', None) or e}")
+    except Exception:
+        # เผื่อยังไม่ได้รัน SQL เพิ่มคอลัมน์ color → ลองใหม่โดยไม่มี color
+        payload.pop("color", None)
+        try:
+            return r.create("calendar_events", payload)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"建立失敗（請先在 Supabase 執行 SQL 07）: {getattr(e, 'message', None) or e}")
 
 
 @router.patch("/events/{eid}")
 def update_event(eid: str, body: dict, r: Repo = Depends(repo)):
     payload = {}
-    for k in ("title", "notes", "done"):
+    for k in ("title", "notes", "done", "color"):
         if k in body:
             payload[k] = body[k]
     if "event_date" in body:
@@ -117,7 +124,11 @@ def update_event(eid: str, body: dict, r: Repo = Depends(repo)):
         payload["event_time"] = _clean_time(body["event_time"])
     if "remind_offsets" in body:
         payload["remind_offsets"] = _clean_offsets(body["remind_offsets"])
-    r.update("calendar_events", eid, payload)
+    try:
+        r.update("calendar_events", eid, payload)
+    except Exception:
+        payload.pop("color", None)
+        r.update("calendar_events", eid, payload)
     return {"updated": eid}
 
 
