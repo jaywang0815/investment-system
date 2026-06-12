@@ -6,8 +6,8 @@
 1. **รัน SQL ปฏิทิน** — Supabase → SQL Editor → วางไฟล์ `scripts/multitenant_07_calendar.sql` → Run
    - (น้องอัปเกรดให้รองรับ "เวลา + ตั้งเตือนล่วงหน้า" แล้ว — ไฟล์เดียวกัน รันซ้ำได้ปลอดภัย idempotent)
 2. **ตั้ง cron เตือนปฏิทิน** — cron-job.org → เพิ่ม job ใหม่
-   - URL: `https://<line-bot-url>.onrender.com/trigger-calendar-reminder?secret=<REPORT_SECRET เดิม>`
-   - ความถี่: **ทุก 15 นาที** (เพื่อให้เตือนตามเวลาที่ตั้งได้แม่น ±15 นาที)
+   - URL: `https://investment-line-bot.onrender.com/trigger-calendar-reminder?secret=douu2026`
+   - Title: `行事曆提醒` · Execution schedule: **Every 15 minutes** · Timezone: Asia/Taipei
 
 ## 🟡 ถ้าอยากได้เมล/ลืมรหัส (Resend) — optional
 3. สมัคร https://resend.com (ฟรี) → เอา **API key**
