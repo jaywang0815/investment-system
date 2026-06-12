@@ -67,6 +67,31 @@ def create_tenant(body: dict, _=Depends(require_superadmin)):
             "invite_path": f"/invite/{token}"}
 
 
+# 租戶資料表 (依 FK 依賴排序：子表先刪，最後刪 tenants 本身)
+_TENANT_TABLES = [
+    "alerts", "investments", "daily_prices", "structured_notes",
+    "customers", "articles", "app_settings", "invites", "app_users",
+]
+
+
+@router.delete("/tenants/{tid}")
+def delete_tenant(tid: str, user=Depends(require_superadmin)):
+    """刪除整個會員 (含其所有資料)。不可刪除自己所屬租戶。"""
+    if tid == user.get("tenant_id"):
+        raise HTTPException(status_code=400, detail="不能刪除自己所屬的會員")
+    sb = get_sb()
+    rows = sb.table("tenants").select("id").eq("id", tid).execute().data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="找不到此會員")
+    for tbl in _TENANT_TABLES:
+        try:
+            sb.table(tbl).delete().eq("tenant_id", tid).execute()
+        except Exception:
+            pass  # 表不存在或無此欄位 → 略過
+    sb.table("tenants").delete().eq("id", tid).execute()
+    return {"deleted": tid}
+
+
 @router.post("/tenants/{tid}/invite")
 def invite_user_to_tenant(tid: str, body: dict, _=Depends(require_superadmin)):
     """เชิญ user เข้า tenant ที่มีอยู่แล้ว (เห็นข้อมูลชุดเดิม ไม่สร้างใหม่)。"""
