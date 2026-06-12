@@ -42,9 +42,24 @@ def list_products(status: str = None, category: str = None, r: Repo = Depends(re
         eq["status"] = status
     if category:
         eq["category"] = category
-    if eq:
-        return r.find("structured_notes", order="observation_date", **eq)
-    return r.list("structured_notes", order="observation_date")
+    prods = (r.find("structured_notes", order="observation_date", **eq) if eq
+             else r.list("structured_notes", order="observation_date"))
+    # แนบ "ผู้ถือครอง" (ลูกค้า + ยอด) ต่อสินค้า → รู้ว่าของใครเป็นของใคร
+    try:
+        by_sn: dict = {}
+        for iv in r.list("investments", select="sn_id,amount_usd,customers(name)"):
+            sid = iv.get("sn_id")
+            if not sid:
+                continue
+            by_sn.setdefault(sid, []).append({
+                "name": (iv.get("customers") or {}).get("name"),
+                "amount": iv.get("amount_usd"),
+            })
+        for p in prods:
+            p["holders"] = by_sn.get(p.get("id"), [])
+    except Exception:
+        pass
+    return prods
 
 
 @router.post("")

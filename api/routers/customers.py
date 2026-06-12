@@ -8,7 +8,14 @@ router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 @router.get("")
 def list_customers(r: Repo = Depends(repo)):
-    return r.list("customers", order="name")
+    custs = r.list("customers", order="name")
+    try:
+        inv_ids = {i.get("customer_id") for i in r.list("investments", select="customer_id")}
+    except Exception:
+        inv_ids = set()
+    for c in custs:
+        c["has_investments"] = c.get("id") in inv_ids
+    return custs
 
 
 @router.post("")
@@ -39,3 +46,24 @@ def delete_customer(cid: str, r: Repo = Depends(repo)):
         raise HTTPException(status_code=404, detail="找不到客戶")
     r.delete("customers", cid)
     return {"ok": True}
+
+
+@router.post("/{cid}/merge-into/{target_id}")
+def merge_customer(cid: str, target_id: str, r: Repo = Depends(repo)):
+    """รวมลูกค้า cid (เช่นชื่อเล่น 莫姐) เข้ากับ target (ชื่อเต็ม 莫新鳳)：
+    ย้ายการลงทุนไป target (ตัดที่ซ้ำ sn) แล้วลบ cid。"""
+    if cid == target_id:
+        raise HTTPException(status_code=400, detail="不能合併自己")
+    if not r.get("customers", cid) or not r.get("customers", target_id):
+        raise HTTPException(status_code=404, detail="找不到客戶")
+    moved = 0
+    dst_sns = {i.get("sn_id") for i in r.find("investments", customer_id=target_id)}
+    for iv in r.find("investments", customer_id=cid):
+        if iv.get("sn_id") in dst_sns:
+            r.delete("investments", iv["id"])
+        else:
+            r.update("investments", iv["id"], {"customer_id": target_id})
+            dst_sns.add(iv.get("sn_id"))
+            moved += 1
+    r.delete("customers", cid)
+    return {"merged": cid, "into": target_id, "moved": moved}
