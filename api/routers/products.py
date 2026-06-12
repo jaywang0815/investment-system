@@ -1,9 +1,28 @@
 """SN 商品 (structured_notes) CRUD — tenant-scoped。"""
+import re as _re
 from fastapi import APIRouter, Depends, HTTPException
 from ..deps import repo
 from ..db import Repo
 
 router = APIRouter(prefix="/api/products", tags=["products"])
+
+
+def _safe_write(fn, body: dict):
+    """เขียน DB โดยตัดคอลัมน์ที่ยังไม่มี (เผื่อ migration ยังไม่รัน) แล้วลองใหม่。"""
+    b = dict(body)
+    for _ in range(8):
+        try:
+            return fn(b)
+        except Exception as e:
+            msg = getattr(e, "message", None) or str(e)
+            # select: "column structured_notes.x does not exist"
+            # insert/update: "Could not find the 'x' column ... in the schema cache"
+            m = (_re.search(r"column \S*?\.?(\w+) does not exist", msg)
+                 or _re.search(r"Could not find the '(\w+)' column", msg))
+            if not m or m.group(1) not in b:
+                raise
+            b.pop(m.group(1), None)
+    return fn(b)
 
 
 # 公司業務分類 (來自名片) + SN
@@ -32,7 +51,7 @@ def list_products(status: str = None, category: str = None, r: Repo = Depends(re
 def create_product(body: dict, r: Repo = Depends(repo)):
     if not (body.get("product_code") or "").strip():
         raise HTTPException(status_code=422, detail="缺少商品代號")
-    return r.create("structured_notes", body)
+    return _safe_write(lambda b: r.create("structured_notes", b), body)
 
 
 @router.get("/{pid}")
@@ -47,7 +66,7 @@ def get_product(pid: str, r: Repo = Depends(repo)):
 def update_product(pid: str, body: dict, r: Repo = Depends(repo)):
     if not r.get("structured_notes", pid):
         raise HTTPException(status_code=404, detail="找不到商品")
-    return r.update("structured_notes", pid, body)
+    return _safe_write(lambda b: r.update("structured_notes", pid, b), body)
 
 
 @router.delete("/{pid}")
