@@ -7,7 +7,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import auth, customers, products, investments, dashboard, reports, market, risk, calendar, settings, coupons, admin_tenants, invite, import_data
+from .routers import auth, customers, products, investments, dashboard, reports, market, risk, calendar, settings, coupons, admin_tenants, invite, import_data, export_data
 
 app = FastAPI(title="Investment Platform API", version="0.1.0")
 
@@ -33,6 +33,7 @@ app.include_router(coupons.router)
 app.include_router(admin_tenants.router)
 app.include_router(invite.router)
 app.include_router(import_data.router)
+app.include_router(export_data.router)
 
 
 @app.get("/")
