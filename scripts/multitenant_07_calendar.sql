@@ -15,6 +15,8 @@ create table if not exists calendar_events (
     remind_1day     boolean default true,     -- (legacy 保留)
     remind_sameday  boolean default true,     -- (legacy 保留)
     done            boolean default false,
+    location        text,                     -- 地點 (ชื่อสถานที่ → auto Google Maps link)
+    url             text,                     -- 連結 (Google Meet / Zoom / 任何 link)
     created_at      timestamptz default now()
 );
 
@@ -22,6 +24,8 @@ create table if not exists calendar_events (
 alter table calendar_events add column if not exists event_time     time;
 alter table calendar_events add column if not exists remind_offsets text default '0';
 alter table calendar_events add column if not exists color          text;   -- สีของ event (hex)
+alter table calendar_events add column if not exists location       text;   -- 地點 (ชื่อสถานที่)
+alter table calendar_events add column if not exists url            text;   -- 連結 (Meet/Zoom/link)
 
 create index if not exists idx_calendar_events_date   on calendar_events(event_date);
 create index if not exists idx_calendar_events_tenant on calendar_events(tenant_id);

@@ -51,6 +51,8 @@ def events(r: Repo = Depends(repo)):
                 "notes": e.get("notes"),
                 "remind_offsets": e.get("remind_offsets") or "",
                 "color": e.get("color"),
+                "location": e.get("location"),
+                "url": e.get("url"),
                 "done": e.get("done"),
                 "days_until": (d - today).days,
             })
@@ -97,12 +99,15 @@ def create_event(body: dict, r: Repo = Depends(repo)):
         "notes": (body.get("notes") or "").strip() or None,
         "remind_offsets": _clean_offsets(body.get("remind_offsets")),
         "color": (body.get("color") or "").strip() or None,
+        "location": (body.get("location") or "").strip() or None,
+        "url": (body.get("url") or "").strip() or None,
     }
     try:
         return r.create("calendar_events", payload)
     except Exception:
-        # เผื่อยังไม่ได้รัน SQL เพิ่มคอลัมน์ color → ลองใหม่โดยไม่มี color
-        payload.pop("color", None)
+        # เผื่อยังไม่ได้รัน SQL เพิ่มคอลัมน์ใหม่ (color/location/url) → ลองใหม่โดยไม่มีคอลัมน์ optional
+        for k in ("color", "location", "url"):
+            payload.pop(k, None)
         try:
             return r.create("calendar_events", payload)
         except Exception as e:
@@ -112,7 +117,7 @@ def create_event(body: dict, r: Repo = Depends(repo)):
 @router.patch("/events/{eid}")
 def update_event(eid: str, body: dict, r: Repo = Depends(repo)):
     payload = {}
-    for k in ("title", "notes", "done", "color"):
+    for k in ("title", "notes", "done", "color", "location", "url"):
         if k in body:
             payload[k] = body[k]
     if "event_date" in body:
@@ -127,7 +132,8 @@ def update_event(eid: str, body: dict, r: Repo = Depends(repo)):
     try:
         r.update("calendar_events", eid, payload)
     except Exception:
-        payload.pop("color", None)
+        for k in ("color", "location", "url"):
+            payload.pop(k, None)
         r.update("calendar_events", eid, payload)
     return {"updated": eid}
 
