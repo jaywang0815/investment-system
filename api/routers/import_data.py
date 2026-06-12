@@ -1,6 +1,7 @@
 """資料匯入 — 讀標準範本 (依「標題」非位置)，預覽後確認，寫入登入者自己的 tenant。
 無 AI、不外傳資料；% 欄 ÷100；日期 ISO；配息頻率/狀態 中→英 對應。"""
 import io
+import re as _re
 import unicodedata
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
@@ -8,6 +9,29 @@ from ..deps import repo
 from ..db import Repo
 
 router = APIRouter(prefix="/api/import", tags=["import"])
+
+
+def _safe_bulk(r: Repo, table: str, rows: list):
+    """bulk insert + เติม tenant_id + ตัดคอลัมน์ที่ DB ยังไม่มีแล้วลองใหม่ (กัน migration ไม่ครบ)。คืนแถวที่สร้าง。"""
+    if not rows:
+        return []
+    payload = [{**row, "tenant_id": r.tenant_id} for row in rows]
+    for _ in range(8):
+        try:
+            return r.sb.table(table).insert(payload).execute().data or []
+        except Exception as e:
+            msg = getattr(e, "message", None) or str(e)
+            mm = (_re.search(r"column \S*?\.?(\w+) does not exist", msg)
+                  or _re.search(r"Could not find the '(\w+)' column", msg))
+            if not mm:
+                raise
+            bad, removed = mm.group(1), False
+            for row in payload:
+                if bad in row:
+                    row.pop(bad, None); removed = True
+            if not removed:
+                raise
+    return r.sb.table(table).insert(payload).execute().data or []
 
 
 def _norm(s) -> str:
@@ -398,9 +422,25 @@ async def preview(file: UploadFile = File(...), r: Repo = Depends(repo)):
         raise HTTPException(status_code=400, detail=f"讀取檔案失敗: {e}")
 
 
+_PFIELDS = ("product_code", "category",
+            "underlying_1", "underlying_2", "underlying_3", "underlying_4", "underlying_5",
+            "initial_price_1", "initial_price_2", "initial_price_3", "initial_price_4", "initial_price_5",
+            "ko_barrier", "ki_barrier",
+            "strike_pct", "coupon_pct", "coupon_freq", "trade_date", "observation_date", "exit_date", "status")
+
+
 @router.post("/commit")
 def commit(body: dict, r: Repo = Depends(repo)):
-    """寫入登入者自己的 tenant，去重 (依姓名/代號)，連結投資。"""
+    """寫入登入者自己的 tenant，去重 (依姓名/代號)，連結投資。
+    一次載入既有資料 + 批次寫入 (少 round-trip → 不會在 Render 逾時/斷線)。"""
+    try:
+        return _do_commit(body, r)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"匯入失敗: {getattr(e, 'message', None) or e}")
+
+
+def _do_commit(body: dict, r: Repo) -> dict:
+    from .products import _safe_write  # reuse column-resilient single writer
     custs = body.get("customers") or []
     prods = body.get("products") or []
     invs = body.get("investments") or []
@@ -408,87 +448,76 @@ def commit(body: dict, r: Repo = Depends(repo)):
            "products_created": 0, "products_updated": 0,
            "investments_created": 0, "investments_skipped": 0, "warnings": []}
 
-    # customers (upsert by name within tenant)
-    name2id = {}
+    # 一次載入既有資料，建索引 (取代逐筆 find)
+    name2id = {c["name"]: c["id"] for c in r.list("customers", select="id,name") if c.get("name")}
+    code2id = {s["product_code"]: s["id"] for s in r.list("structured_notes", select="id,product_code") if s.get("product_code")}
+    inv_set = {(i.get("customer_id"), i.get("sn_id")) for i in r.list("investments", select="customer_id,sn_id")}
+
+    # 客戶：既有 → update；新 → 批次 insert
+    new_cust = []
     for cu in custs:
         nm = (cu.get("name") or "").strip()
         if not nm:
             continue
-        payload = {k: cu.get(k) for k in ("name", "usd_amount", "currency", "unified_account", "notes")}
-        existing = r.find("customers", name=nm)
-        if existing:
-            cid = existing[0]["id"]
-            r.update("customers", cid, payload)
+        payload = {k: cu.get(k) for k in ("name", "usd_amount", "currency", "unified_account", "notes") if cu.get(k) is not None}
+        payload["name"] = nm
+        if nm in name2id:
+            _safe_write(lambda b, _id=name2id[nm]: r.update("customers", _id, b), payload)
             res["customers_updated"] += 1
         else:
-            cid = r.create("customers", payload)["id"]
-            res["customers_created"] += 1
-        name2id[nm] = cid
+            new_cust.append(payload)
+    for row in _safe_bulk(r, "customers", new_cust):
+        if row.get("name"):
+            name2id[row["name"]] = row["id"]
+    res["customers_created"] += len(new_cust)
 
-    # products (upsert by product_code)
-    code2id = {}
-    PFIELDS = ("product_code", "category",
-               "underlying_1", "underlying_2", "underlying_3", "underlying_4", "underlying_5",
-               "initial_price_1", "initial_price_2", "initial_price_3", "initial_price_4", "initial_price_5",
-               "ko_barrier", "ki_barrier",
-               "strike_pct", "coupon_pct", "coupon_freq", "trade_date", "observation_date", "exit_date", "status")
-    from .products import _safe_write  # reuse column-resilient writer
+    # 商品：逐筆 (保留 column-resilient)，但不再 find
     for p in prods:
         code = (p.get("product_code") or "").strip()
         if not code:
             continue
-        payload = {k: p.get(k) for k in PFIELDS if p.get(k) is not None}
-        existing = r.find("structured_notes", product_code=code)
-        if existing:
-            pid = existing[0]["id"]
-            _safe_write(lambda b, _pid=pid: r.update("structured_notes", _pid, b), payload)
+        payload = {k: p.get(k) for k in _PFIELDS if p.get(k) is not None}
+        if code in code2id:
+            _safe_write(lambda b, _id=code2id[code]: r.update("structured_notes", _id, b), payload)
             res["products_updated"] += 1
         else:
             pid = _safe_write(lambda b: r.create("structured_notes", b), payload)["id"]
+            code2id[code] = pid
             res["products_created"] += 1
-        code2id[code] = pid
 
-    # resolve names/codes not in this import from existing DB
-    def cust_id(nm):
-        if nm in name2id:
-            return name2id[nm]
-        ex = r.find("customers", name=nm)
-        if ex:
-            name2id[nm] = ex[0]["id"]; return ex[0]["id"]
-        return None
-
-    def prod_id(code):
-        if code in code2id:
-            return code2id[code]
-        ex = r.find("structured_notes", product_code=code)
-        if ex:
-            code2id[code] = ex[0]["id"]; return ex[0]["id"]
-        return None
-
+    # 投資：先批次建「暱稱」客戶 → 再批次 insert 投資
+    missing, seen = [], set()
     for iv in invs:
         nm = (iv.get("customer") or "").strip()
-        cid = cust_id(nm)
-        pid = prod_id((iv.get("product_code") or "").strip())
+        code = (iv.get("product_code") or "").strip()
+        if code in code2id and nm and nm not in name2id and nm not in seen:
+            missing.append(nm); seen.add(nm)
+    if missing:
+        for row in _safe_bulk(r, "customers", [{"name": nm} for nm in missing]):
+            if row.get("name"):
+                name2id[row["name"]] = row["id"]
+        res["customers_created"] += len(missing)
+        for nm in missing:
+            res["warnings"].append(f"自動建立投資人「{nm}」— 可能是既有客戶的暱稱，請至客戶頁確認/合併")
+
+    new_invs = []
+    for iv in invs:
+        nm = (iv.get("customer") or "").strip()
+        code = (iv.get("product_code") or "").strip()
+        pid = code2id.get(code)
+        cid = name2id.get(nm)
         if not pid:
             res["investments_skipped"] += 1
-            res["warnings"].append(f"連結失敗(找不到商品): {iv.get('customer')} / {iv.get('product_code')}")
+            res["warnings"].append(f"連結失敗(找不到商品): {iv.get('customer')} / {code}")
             continue
-        if not cid and nm:
-            # ชื่อผู้ลงทุน (มักเป็นชื่อย่อ) ยังไม่มีในระบบ → สร้างให้ ไม่ทิ้งข้อมูล แล้วเตือนให้ merge
-            cid = r.create("customers", {"name": nm})["id"]
-            name2id[nm] = cid
-            res["customers_created"] += 1
-            res["warnings"].append(f"自動建立投資人「{nm}」— 可能是既有客戶的暱稱，請至客戶頁確認/合併")
-        if not cid:
+        if not cid or (cid, pid) in inv_set:
             res["investments_skipped"] += 1
             continue
-        dup = [x for x in r.find("investments", customer_id=cid) if x.get("sn_id") == pid]
-        if dup:
-            res["investments_skipped"] += 1
-            continue
-        r.create("investments", {"customer_id": cid, "sn_id": pid,
-                                 "amount_usd": iv.get("amount_usd") or 0,
-                                 "currency": iv.get("currency") or "USD"})
-        res["investments_created"] += 1
+        inv_set.add((cid, pid))
+        new_invs.append({"customer_id": cid, "sn_id": pid,
+                         "amount_usd": iv.get("amount_usd") or 0,
+                         "currency": iv.get("currency") or "USD"})
+    _safe_bulk(r, "investments", new_invs)
+    res["investments_created"] += len(new_invs)
 
     return res
