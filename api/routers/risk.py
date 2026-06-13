@@ -67,8 +67,10 @@ def risk(r: Repo = Depends(repo)):
             "underlyings": [d["ticker"] for d in dets],
             "worst_ticker": worst.get("ticker") if worst else None,
             "worst_change_pct": worst.get("change_pct") if worst else None,
-            "ko_gap_pct": min(ko_gaps) if ko_gaps else None,   # % ที่ต้องขึ้นถึง KO (น้อย=ใกล้ autocall)
-            "ki_gap_pct": min(ki_gaps) if ki_gaps else None,   # buffer เหนือ KI (น้อย=เสี่ยง)
+            # autocall = worst-of: ยึด "ตัวอ่อนสุด" = ตัวที่ต้องวิ่งขึ้นมากสุดถึง KO → max(ko_gaps)
+            # (+ = ตัวอ่อนสุดต้องขึ้นอีกกี่ % ถึง autocall; ≤0 = แม้ตัวอ่อนสุดก็เกิน KO แล้ว = KO 觸發)
+            "ko_gap_pct": max(ko_gaps) if ko_gaps else None,
+            "ki_gap_pct": min(ki_gaps) if ki_gaps else None,   # buffer เหนือ KI ของตัวอ่อนสุด (น้อย=เสี่ยง)
             # การ์ดรายละเอียดต่อหุ้น (กางออกตอนคลิกแถว)
             "details": [{
                 "ticker": d.get("ticker"),
