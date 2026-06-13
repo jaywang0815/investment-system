@@ -1,10 +1,13 @@
-"""事件行事曆 — SN 關鍵日期 (比價日/出場日) + 顧問自訂事件 (含 LINE 提醒)。"""
+"""事件行事曆 — SN 關鍵日期 (比價日/出場日) + 配息日 + 顧問自訂事件 (含 LINE 提醒)。"""
+import calendar as _cal
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from ..deps import repo
 from ..db import Repo
 
 router = APIRouter(prefix="/api/calendar", tags=["calendar"])
+
+_COUPON_HORIZON_DAYS = 100  # แสดงวันจ่ายคูปองล่วงหน้าไม่เกิน ~3 เดือน (กันปฏิทินรก)
 
 
 def _d(v):
@@ -14,13 +17,23 @@ def _d(v):
         return None
 
 
+def _add_months(d: date, n: int) -> date:
+    """บวก n เดือนแบบรักษาวันที่ (เกินสิ้นเดือนปัดลงวันสุดท้ายของเดือน)。"""
+    m = d.month - 1 + n
+    y = d.year + m // 12
+    mo = m % 12 + 1
+    return date(y, mo, min(d.day, _cal.monthrange(y, mo)[1]))
+
+
 @router.get("/events")
 def events(r: Repo = Depends(repo)):
     today = date.today()
     out = []
 
+    sns = r.list("structured_notes", select="*")
+
     # SN 關鍵日期 (比價/出場) — แก้ไม่ได้ (มาจากข้อมูลสินค้า)
-    for sn in r.list("structured_notes", select="*"):
+    for sn in sns:
         for field, label in (("observation_date", "比價日"), ("exit_date", "出場日")):
             d = _d(sn.get(field))
             if not d:
@@ -34,6 +47,49 @@ def events(r: Repo = Depends(repo)):
                 "category": sn.get("category") or "SN",
                 "days_until": (d - today).days,
             })
+
+    # 配息日 — รายเดือนจาก 比價日 (logic A: งวดแรก ณ 比價日 จากนั้นทุกเดือน) จนถึง 出場日
+    # โชว์เฉพาะที่จะถึงภายใน ~3 เดือน (กันรก) · ยอด = Σ เงินลงทุน × coupon_pct ÷ 12
+    try:
+        inv_by_sn: dict[str, float] = {}
+        for inv in r.find("investments", select="amount_usd,sn_id"):
+            sid = inv.get("sn_id")
+            if sid:
+                inv_by_sn[sid] = inv_by_sn.get(sid, 0.0) + (float(inv.get("amount_usd") or 0) or 0.0)
+        for sn in sns:
+            if (sn.get("status") or "active") != "active":
+                continue
+            obs = _d(sn.get("observation_date"))
+            try:
+                rate = float(sn.get("coupon_pct") or 0)
+            except (TypeError, ValueError):
+                rate = 0.0
+            amt = inv_by_sn.get(sn.get("id"), 0.0)
+            if not obs or rate <= 0 or amt <= 0:
+                continue
+            monthly = round(amt * rate / 12.0, 2)
+            exit_d = _d(sn.get("exit_date"))
+            k = 0
+            cd = obs
+            while cd < today:                    # ข้ามงวดที่ผ่านไปแล้ว
+                k += 1
+                cd = _add_months(obs, k)
+            while (cd - today).days <= _COUPON_HORIZON_DAYS:
+                if exit_d and cd > exit_d:
+                    break
+                out.append({
+                    "kind": "coupon",
+                    "date": cd.isoformat(),
+                    "type": "配息",
+                    "title": f"{sn.get('product_code')} 配息",
+                    "product_code": sn.get("product_code"),
+                    "amount": monthly,
+                    "days_until": (cd - today).days,
+                })
+                k += 1
+                cd = _add_months(obs, k)
+    except Exception:
+        pass
 
     # 顧問自訂事件 (แก้/ลบได้) — เผื่อยังไม่ได้รัน SQL 07 ก็ไม่พัง
     try:
