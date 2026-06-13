@@ -1072,6 +1072,88 @@ def trigger_calendar_reminder(background_tasks: BackgroundTasks, secret: str = "
     return {"status": "ok", "message": "calendar reminder queued"}
 
 
+def _add_months_d(d: date, n: int) -> date:
+    import calendar as _cal
+    m = d.month - 1 + n
+    y = d.year + m // 12
+    mo = m % 12 + 1
+    return date(y, mo, min(d.day, _cal.monthrange(y, mo)[1]))
+
+
+def _run_pipeline_digest() -> None:
+    """สรุปรายสัปดาห์: 配息 ภายใน 7 วัน + 到期 ภายใน 30 วัน → push เข้า admin (DOUU)。"""
+    try:
+        today = datetime.now(TW).date()
+        sns = sb_get("structured_notes", {
+            "select": "id,product_code,observation_date,exit_date,coupon_pct,status"
+        }) or []
+        holders: dict = {}
+        for inv in sb_get("investments", {"select": "amount_usd,sn_id,customers(name)"}) or []:
+            sid = inv.get("sn_id")
+            if not sid:
+                continue
+            nm = (inv.get("customers") or {}).get("name")
+            amt = float(inv.get("amount_usd") or 0) or 0.0
+            holders.setdefault(sid, []).append((nm, amt))
+
+        coupons, mats = [], []   # (sort_date, text)
+        for sn in sns:
+            if (sn.get("status") or "active") != "active":
+                continue
+            code = sn.get("product_code") or "—"
+            hs = holders.get(sn.get("id"), [])
+            names = "、".join([n for (n, _a) in hs if n]) or "—"
+            total = sum(a for (_n, a) in hs)
+            obs = None
+            try:
+                obs = date.fromisoformat(str(sn.get("observation_date"))[:10])
+            except Exception:
+                obs = None
+            try:
+                exit_d = date.fromisoformat(str(sn.get("exit_date"))[:10])
+            except Exception:
+                exit_d = None
+            try:
+                rate = float(sn.get("coupon_pct") or 0)
+            except (TypeError, ValueError):
+                rate = 0.0
+            # 配息 ภายใน 7 วัน (รายเดือนจาก 比價日, logic A)
+            if obs and rate > 0 and total > 0:
+                monthly = total * rate / 12.0
+                k, cd = 0, obs
+                while cd < today:
+                    k += 1
+                    cd = _add_months_d(obs, k)
+                if 0 <= (cd - today).days <= 7 and (not exit_d or cd <= exit_d):
+                    coupons.append((cd, f"・{code}　{cd.strftime('%m/%d')}　${round(monthly):,}\n　{names}"))
+            # 到期 ภายใน 30 วัน
+            if exit_d and 0 <= (exit_d - today).days <= 30:
+                mats.append((exit_d, f"・{code}　{exit_d.strftime('%m/%d')}（剩 {(exit_d - today).days} 天）　${round(total):,}\n　{names}"))
+
+        if not coupons and not mats:
+            msg = "您好 🔔 本週沒有即將到期或配息的項目，祝您有美好的一週！"
+        else:
+            parts = ["您好 🔔 這是本週的重點提醒"]
+            if coupons:
+                parts.append("【即將配息】7 天內\n" + "\n".join(t for _d, t in sorted(coupons)))
+            if mats:
+                parts.append("【即將到期】30 天內\n" + "\n".join(t for _d, t in sorted(mats)))
+            msg = "\n\n".join(parts)
+        _push_to_admins(msg)
+    except Exception as ex:
+        print(f"[pipeline digest] error: {ex}")
+
+
+@app.get("/trigger-pipeline-digest")
+def trigger_pipeline_digest(background_tasks: BackgroundTasks, secret: str = ""):
+    """cron รายสัปดาห์ → สรุป 配息(7วัน)+到期(30วัน) เข้า LINE (DOUU)。"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    background_tasks.add_task(_run_pipeline_digest)
+    return {"status": "ok", "message": "pipeline digest queued"}
+
+
 @app.get("/trigger-obs-alert")
 def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     """cron-job.org เรียก endpoint นี้ทุกเช้า 07:00 TWN"""
