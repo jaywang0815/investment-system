@@ -1161,6 +1161,82 @@ def trigger_pipeline_digest(background_tasks: BackgroundTasks, secret: str = "")
     return {"status": "ok", "message": "pipeline digest queued"}
 
 
+def _run_keydate_digest() -> None:
+    """今日關鍵日期 (ระบบสร้าง): 比價日 + 配息 + 出場日 ที่ถึงกำหนด "วันนี้" → รวมเป็น 1 ข้อความ push เข้า admin (DOUU)。
+    ใช้คู่กับ cron รายวัน (เช้า) — วันไหนไม่มีอะไรก็ไม่ push (ประหยัด)。"""
+    try:
+        today = datetime.now(TW).date()
+        sns = sb_get("structured_notes", {
+            "select": "id,product_code,observation_date,exit_date,coupon_pct,status"
+        }) or []
+        holders: dict = {}
+        for inv in sb_get("investments", {"select": "amount_usd,sn_id,customers(name)"}) or []:
+            sid = inv.get("sn_id")
+            if not sid:
+                continue
+            nm = (inv.get("customers") or {}).get("name")
+            amt = float(inv.get("amount_usd") or 0) or 0.0
+            holders.setdefault(sid, []).append((nm, amt))
+
+        obs_lines, coupon_lines, exit_lines = [], [], []
+        for sn in sns:
+            if (sn.get("status") or "active") != "active":
+                continue
+            code = sn.get("product_code") or "—"
+            hs = holders.get(sn.get("id"), [])
+            names = "、".join([n for (n, _a) in hs if n]) or "—"
+            total = sum(a for (_n, a) in hs)
+            try:
+                obs = date.fromisoformat(str(sn.get("observation_date"))[:10])
+            except Exception:
+                obs = None
+            try:
+                exit_d = date.fromisoformat(str(sn.get("exit_date"))[:10])
+            except Exception:
+                exit_d = None
+            try:
+                rate = float(sn.get("coupon_pct") or 0)
+            except (TypeError, ValueError):
+                rate = 0.0
+            # 比價日 วันนี้
+            if obs and obs == today:
+                obs_lines.append(f"・{code}　{names}")
+            # 出場日 วันนี้
+            if exit_d and exit_d == today:
+                exit_lines.append(f"・{code}　${round(total):,}　{names}")
+            # 配息日 วันนี้ (รายเดือนจาก 比價日; today ตรงกับงวดไหน)
+            if obs and rate > 0 and total > 0 and today >= obs and (not exit_d or today <= exit_d):
+                k, cd = 0, obs
+                while cd < today:
+                    k += 1
+                    cd = _add_months_d(obs, k)
+                if cd == today:
+                    coupon_lines.append(f"・{code}　${round(total * rate / 12.0):,}　{names}")
+
+        if not (obs_lines or coupon_lines or exit_lines):
+            return  # ไม่มี key date วันนี้ → ไม่ push
+        parts = ["您好 🔔 今日關鍵日期"]
+        if obs_lines:
+            parts.append("【比價日】\n" + "\n".join(obs_lines))
+        if coupon_lines:
+            parts.append("【配息】\n" + "\n".join(coupon_lines))
+        if exit_lines:
+            parts.append("【出場日】\n" + "\n".join(exit_lines))
+        _push_to_admins("\n\n".join(parts))
+    except Exception as ex:
+        print(f"[keydate digest] error: {ex}")
+
+
+@app.get("/trigger-keydate-digest")
+def trigger_keydate_digest(background_tasks: BackgroundTasks, secret: str = ""):
+    """cron รายวัน (เช้า) → สรุป 比價日/配息/出場日 ของ "วันนี้" รวม 1 ข้อความ เข้า LINE (DOUU)。"""
+    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
+    if REPORT_SECRET and secret != REPORT_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    background_tasks.add_task(_run_keydate_digest)
+    return {"status": "ok", "message": "keydate digest queued"}
+
+
 @app.get("/trigger-obs-alert")
 def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     """cron-job.org เรียก endpoint นี้ทุกเช้า 07:00 TWN"""
