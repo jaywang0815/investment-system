@@ -74,14 +74,21 @@ def coupons(r: Repo = Depends(repo)):
         daily = annual_amt / 365.0
         annual_total += per_year
 
-        # 目前累積配息：เดือนเต็ม × ดอกเดือน ; ถ้า KO/出場 แล้ว + วันเศษ × ดอกวัน
-        start = _d(sn.get("trade_date"))
+        # 目前累積配息：คูปองเริ่มจ่าย "หลังถึง 比價日 (observation_date)" เท่านั้น
+        # ก่อนถึง 比價日 = ยังไม่มีคูปอง (= 0) ; ถึง 比價日 = งวดแรก, จากนั้นรายเดือน
+        # → จำนวนงวด = เดือนเต็มนับจาก 比價日 + 1 ; KO/出場 บวกวันเศษ × ดอกวัน
+        obs_start = _d(sn.get("observation_date"))
         status = (sn.get("status") or "active")
         exited = status not in ("active", "", None)
-        exit_d = _d(sn.get("exit_date")) or _d(sn.get("observation_date"))
+        exit_d = _d(sn.get("exit_date"))
         end = (exit_d or today) if exited else today
-        months, leftover = _months_days(start, end)
-        accrued = months * monthly + (leftover * daily if exited else 0.0)
+        if not obs_start or not end or end < obs_start:
+            periods = 0   # ยังไม่ถึง 比價日 → ยังไม่จ่ายคูปอง
+            accrued = 0.0
+        else:
+            months, leftover = _months_days(obs_start, end)
+            periods = months + 1
+            accrued = periods * monthly + (leftover * daily if exited else 0.0)
         accrued = round(accrued, 2)
         accrued_total += accrued
 
@@ -97,7 +104,7 @@ def coupons(r: Repo = Depends(repo)):
             "per_payment": per_payment,
             "per_year": per_year,
             "accrued": accrued,
-            "accrued_months": months,
+            "accrued_months": periods,
             "exited": exited,
             "status": status,
             "obs_date": obs.isoformat() if obs else None,
