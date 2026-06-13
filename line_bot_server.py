@@ -1262,13 +1262,18 @@ def _build_daily_report() -> str:
             code = sn.get("product_code", "—")
             obs = str(sn.get("observation_date") or "")[:10]
             sn_id = sn.get("id", "")
-            try:
-                days_left = (date.fromisoformat(obs) - today_date).days if obs else 0
-                badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
-                days_str = f"剩{days_left}天"
-            except Exception:
-                badge = "📅"
-                days_str = ""
+            if obs:
+                try:
+                    days_left = (date.fromisoformat(obs) - today_date).days
+                    badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
+                    days_str = f"剩{days_left}天"
+                except Exception:
+                    badge = "📅"
+                    days_str = ""
+            else:
+                # 比價日 ยังไม่ได้ตั้งในข้อมูล → อย่าโชว์ 剩0天/🔴 (ทำให้เข้าใจผิดว่าครบกำหนดวันนี้)
+                badge = "⚪"
+                days_str = "未設定"
 
             ko = sn.get("ko_barrier")
             ki = sn.get("ki_barrier")
@@ -1309,14 +1314,14 @@ def _build_daily_report() -> str:
             lines.append(f"\n{overall} {code}")
             if names:
                 lines.append(f"  👤 {' / '.join(names)}")
-            lines.append(f"  {badge} 比價日: {obs} ({days_str})")
+            lines.append(f"  {badge} 比價日: {obs} ({days_str})" if obs else f"  {badge} 比價日: {days_str}")
             lines.extend(detail_lines)
 
         if pending_sns:
             lines.append("\n─────────────")
             lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
             for (code, obs_short, badge, days_str, names) in pending_sns:
-                lines.append(f"  {code}  {badge} {obs_short} ({days_str})")
+                lines.append(f"  {code}  {badge} {obs_short} ({days_str})" if obs_short else f"  {code}  {badge} {days_str}")
                 if names:
                     lines.append(f"    👤 {', '.join(names)}")
 
