@@ -957,8 +957,11 @@ def _do_excel_import(user_id: str, file_bytes: bytes, action: str) -> None:
 
 
 def _push_to_admins(text: str) -> None:
-    admins = sb_get("admins", {"select": "line_user_id"})
+    # select * → ไม่ error ถ้ายังไม่มีคอลัมน์ receive_push; ข้ามเฉพาะคนที่ตั้ง receive_push=false (ค่าว่าง/true = รับ)
+    admins = sb_get("admins", {"select": "*"})
     for a in admins:
+        if a.get("receive_push") is False:
+            continue
         uid = a.get("line_user_id", "")
         if uid:
             requests.post(
