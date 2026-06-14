@@ -1,6 +1,7 @@
 """資料匯入 — 讀標準範本 (依「標題」非位置)，預覽後確認，寫入登入者自己的 tenant。
 無 AI、不外傳資料；% 欄 ÷100；日期 ISO；配息頻率/狀態 中→英 對應。"""
 import io
+import math
 import re as _re
 import unicodedata
 from datetime import datetime, date
@@ -142,6 +143,17 @@ def _to_date(v, year_hint=None):
             return date(int(m2.group(1)), int(m2.group(2)), int(m2.group(3))).isoformat()
         except ValueError:
             return None
+    # 2b) ปีอยู่ท้าย: 7/15/2026, 15/7/2026, 07/15/26 (ค่าใด > 12 = วัน → สลับ; ไม่งั้นถือ M/D)
+    m2b = _re.search(r"(\d{1,2})\D{1,2}(\d{1,2})\D{1,2}(\d{2,4})", s)
+    if m2b:
+        a, b, y = int(m2b.group(1)), int(m2b.group(2)), int(m2b.group(3))
+        if y < 100:
+            y += 2000
+        mo, d = (b, a) if a > 12 else (a, b)
+        try:
+            return date(y, mo, d).isoformat()
+        except ValueError:
+            return None
     # 3) ไม่มีปี — ใช้ year_hint หรือปีปัจจุบัน (เฉพาะเมื่อสตริงไม่มีเลข 4 หลัก)
     if not _re.search(r"\d{4}", s):
         m = _re.search(r"(\d{1,2})\s*[月/\-.]\s*(\d{1,2})\s*日?", s)  # 7月15日 / 7/15
@@ -166,8 +178,19 @@ def _to_pct(v):
 def _to_num(v):
     if v is None or v == "":
         return None
+    # ตัวเลขอยู่แล้ว → กัน NaN (เซลล์ว่างจาก pandas = float('nan'))
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        f = float(v)
+        return None if math.isnan(f) else f
+    # สตริง: ลบ comma / ช่องว่าง / $ / สัญลักษณ์เงิน / % ก่อนแปลง ("1,000,000" "8%" "USD 50,000")
+    s = unicodedata.normalize("NFKC", str(v)).strip()
+    s = _re.sub(r"[,\s$＄]", "", s)
+    s = _re.sub(r"(?i)usd|ntd|twd|jpy|eur", "", s).rstrip("%").strip()
+    if not s:
+        return None
     try:
-        return float(v)
+        f = float(s)
+        return None if math.isnan(f) else f
     except (TypeError, ValueError):
         return None
 

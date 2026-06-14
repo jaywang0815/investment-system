@@ -1,4 +1,5 @@
 """客戶 CRUD — 全部經由 Repo，自動限定登入者的 tenant_id。"""
+import math
 from fastapi import APIRouter, Depends, HTTPException
 from ..deps import repo
 from ..db import Repo
@@ -8,7 +9,8 @@ router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 def _f(v):
     try:
-        return float(v) if v not in (None, "") else 0.0
+        f = float(v) if v not in (None, "") else 0.0
+        return 0.0 if math.isnan(f) else f
     except (TypeError, ValueError):
         return 0.0
 

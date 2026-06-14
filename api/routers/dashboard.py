@@ -1,4 +1,5 @@
 """總覽統計 — tenant-scoped。"""
+import math
 from fastapi import APIRouter, Depends
 from ..deps import repo
 from ..db import Repo
@@ -7,9 +8,10 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 def _f(v):
-    # Supabase NUMERIC อาจคืนเป็น string → กัน TypeError ตอนรวมยอด
+    # Supabase NUMERIC อาจคืนเป็น string → กัน TypeError; กัน NaN ไม่ให้ยอดรวมพังทั้งหน้า
     try:
-        return float(v) if v not in (None, "") else 0.0
+        f = float(v) if v not in (None, "") else 0.0
+        return 0.0 if math.isnan(f) else f
     except (TypeError, ValueError):
         return 0.0
 
