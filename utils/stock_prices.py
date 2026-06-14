@@ -150,6 +150,7 @@ def analyze_sn_status(sn: dict, current_prices: dict) -> dict:
 
     details = []
     worst_perf = None
+    missing_any = False   # มี underlying จริง (มี initial) แต่ดึงราคาปัจจุบันไม่ได้ → worst-of สรุปไม่ได้
 
     for u in underlyings:
         ticker = u["ticker"]
@@ -207,6 +208,9 @@ def analyze_sn_status(sn: dict, current_prices: dict) -> dict:
             # 追蹤最差表現 (Worst-Of 結構)
             if worst_perf is None or perf < worst_perf:
                 worst_perf = perf
+        elif initial and initial > 0:
+            # มี underlying จริงแต่ราคาปัจจุบันหาย → ตัวที่หายอาจเป็นตัวอ่อนสุด สรุป worst-of ไม่ได้
+            missing_any = True
 
         details.append(detail)
 
@@ -221,6 +225,11 @@ def analyze_sn_status(sn: dict, current_prices: dict) -> dict:
             overall_status = "ki_risk"
         elif ko_barrier and worst_perf >= ko_barrier * 0.97:
             overall_status = "ko_risk"
+
+    # ราคาหายแม้แต่ตัวเดียว → ยังไม่ KI觸發 → ตอบ "unknown" ดีกว่าเดาว่า 正常 (ตัวที่หายอาจ KI ไปแล้ว)
+    # (KI觸發 จากตัวที่มีราคา = แย่แน่นอนอยู่แล้ว ไม่ถูก missing กลบ)
+    if missing_any and overall_status != "ki_triggered":
+        overall_status = "unknown"
 
     status_labels = {
         "ko_triggered": ("🟢", "KO 觸發 - 即將提前贖回"),
