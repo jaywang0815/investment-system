@@ -60,14 +60,16 @@ def sb_post(table: str, data: dict) -> dict | None:
     return None
 
 
-def sb_patch(table: str, filters: dict, data: dict) -> None:
+def sb_patch(table: str, filters: dict, data: dict) -> bool:
+    """คืน True ถ้าบันทึกสำเร็จ (resp.ok) — caller ที่ไม่สนค่า return ก็ใช้ได้เหมือนเดิม。"""
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
     }
     params = {k: f"eq.{v}" for k, v in filters.items()}
-    requests.patch(f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, params=params, json=data, timeout=15)
+    resp = requests.patch(f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, params=params, json=data, timeout=15)
+    return resp.ok
 
 
 def sb_delete(table: str, filters: dict) -> None:
@@ -1021,6 +1023,7 @@ def _run_calendar_reminders() -> None:
             "select": "id,title,event_date,event_time,notes,remind_offsets,location,url,notified_offsets,done"
         }) or []
         blocks = []
+        pending_marks = []   # (event_id, notified_str) — มาร์กหลัง push สำเร็จ (กันเตือนหายถ้า push พลาด)
         for e in rows:
             if e.get("done"):
                 continue
@@ -1062,12 +1065,9 @@ def _run_calendar_reminders() -> None:
                     if e.get("notes"):
                         p.append(f"備註：{e.get('notes')}")
                     blocks.append("\n".join(p))
-                    # บันทึกว่ายิง offset นี้แล้ว (กันรอบถัดไปยิงซ้ำ)
+                    # เตรียมมาร์กว่ายิง offset นี้แล้ว — ยังไม่บันทึก รอ push สำเร็จก่อน
                     notified.add(str(off))
-                    try:
-                        sb_patch("calendar_events", {"id": e["id"]}, {"notified_offsets": ",".join(sorted(notified, key=lambda x: int(x)))})
-                    except Exception as pe:
-                        print(f"[calendar reminder] mark-notified failed: {pe}")
+                    pending_marks.append((e["id"], ",".join(sorted(notified, key=lambda x: int(x)))))
                     break  # event เดียวเตือนครั้งเดียวต่อรอบ
         if blocks:
             import random
@@ -1078,7 +1078,15 @@ def _run_calendar_reminders() -> None:
                 "祝您事事順利，保持好心情！",
                 "今天的您一定也很棒，加油！",
             ])
+            # push ก่อน — ถ้าพลาด (raise) จะไม่มาร์ก notified → รอบถัดไปยิงใหม่ (ภายในกรอบ grace) ไม่หาย
             _push_to_admins("您好 🔔\n\n" + "\n\n".join(blocks) + "\n\n" + blessing)
+            # push สำเร็จแล้วค่อยบันทึก notified (กันยิงซ้ำ) — log ถ้าบันทึกไม่สำเร็จ
+            for eid, notif_str in pending_marks:
+                try:
+                    if not sb_patch("calendar_events", {"id": eid}, {"notified_offsets": notif_str}):
+                        print(f"[calendar reminder] mark-notified NOT persisted: {eid}")
+                except Exception as pe:
+                    print(f"[calendar reminder] mark-notified failed: {pe}")
     except Exception as ex:
         print(f"[calendar reminder] error: {ex}")
 
