@@ -114,7 +114,7 @@ def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
 def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None, r: Repo = Depends(repo)):
     """全部客戶投資明細表 PDF (此租戶)。"""
     rows = r.find("investments",
-                  select="amount_usd,currency,customers(name),structured_notes(product_code,trade_date,observation_date,coupon_pct,exit_date)")
+                  select="amount_usd,currency,customers(name),structured_notes(product_code,trade_date,observation_date,coupon_pct,exit_date,status)")
     items = []
     for x in rows:
         sn = x.get("structured_notes") or {}
@@ -127,6 +127,7 @@ def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None, r: Repo = 
             "amount": x.get("amount_usd"),
             "currency": x.get("currency") or "USD",
             "exit_date": sn.get("exit_date"),
+            "status": sn.get("status"),
         })
     if not items:
         raise HTTPException(status_code=404, detail="無投資資料")

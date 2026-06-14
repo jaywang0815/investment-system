@@ -280,7 +280,10 @@ def _summary_table(investments, W):
         if not sn:
             continue
         td = _detail_to_date(sn.get("trade_date"))
-        exited = bool(sn.get("exit_date"))
+        # 出場 = ออกจริงเท่านั้น: status ไม่ active (KO/ออก) หรือ 出場日ผ่านไปแล้ว
+        # (SN ทุกตัวมี exit_date = วันครบกำหนด — มี exit_date เฉยๆ ไม่ได้แปลว่าออกแล้ว)
+        _exd = _detail_to_date(sn.get("exit_date"))
+        exited = (sn.get("status") or "active") != "active" or (_exd is not None and _exd <= date.today())
         cp = sn.get("coupon_pct")
         amt = inv.get("amount_usd") or 0
         cur = inv.get("currency") or "USD"
@@ -787,7 +790,12 @@ def generate_portfolio_detail(items: list, report_date: str = "",
                    ("TEXTCOLOR", (1, ri), (1, ri), DARK)]
         for r in rows:
             td = _detail_to_date(r.get("trade_date"))
-            exited = bool(r["exited"]) if r.get("exited") is not None else bool(r.get("exit_date"))
+            # 出場 = ออกจริง: มี flag exited มาก็ใช้เลย; ไม่งั้นดู status ไม่ active หรือ 出場日ผ่านแล้ว
+            if r.get("exited") is not None:
+                exited = bool(r["exited"])
+            else:
+                _exd = _detail_to_date(r.get("exit_date"))
+                exited = (r.get("status") or "active") != "active" or (_exd is not None and _exd <= date.today())
             cp = r.get("coupon_pct")
             coupon = r.get("coupon") or (f"{cp*100:g}%" if cp else "")
             amt = r.get("amount") or 0
