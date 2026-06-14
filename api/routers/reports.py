@@ -82,15 +82,23 @@ def report_options(r: Repo = Depends(repo)):
 def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
                  columns: Optional[str] = None, show_info: bool = True,
                  show_amount: bool = True, theme: Optional[str] = None,
+                 sns: Optional[str] = None,
                  r: Repo = Depends(repo)):
     """單一客戶完整報表 PDF (含投資明細 + 走勢圖)。
-    columns: 逗號分隔欄位名 (省略=全部)；charts=true 會較慢 (抓 yfinance)。"""
+    columns: 逗號分隔欄位名 (省略=全部)；sns: 逗號分隔 SN id (省略=全部商品)；charts=true 會較慢 (抓 yfinance)。"""
     cust = r.get("customers", cid)
     if not cust:
         raise HTTPException(status_code=404, detail="找不到客戶")
     invs = r.find("investments", select="amount_usd,currency,structured_notes(*)", customer_id=cid)
     if not invs:
         raise HTTPException(status_code=404, detail="此客戶尚無投資記錄，無法產生報表")
+
+    # filter เฉพาะ SN ที่เลือก (ถ้าส่งมา) — ไม่ส่ง = ทั้งหมด
+    if sns:
+        want = {s.strip() for s in sns.split(",") if s.strip()}
+        invs = [iv for iv in invs if (iv.get("structured_notes") or {}).get("id") in want]
+        if not invs:
+            raise HTTPException(status_code=404, detail="所選商品無投資記錄")
 
     cols = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
     from utils.pdf_report import generate_customer_report
