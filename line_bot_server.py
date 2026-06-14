@@ -106,6 +106,20 @@ def _roc(s) -> str:
         return s or "—"
 
 
+def _sn_exited(sn: dict) -> bool:
+    """出場 = ออกจริง: status ไม่ active (KO/ออก) หรือ 出場日ผ่านไปแล้ว。
+    SN ทุกตัวมี exit_date (วันครบกำหนด) — มี exit_date เฉยๆ ไม่ได้แปลว่าออกแล้ว。"""
+    if (sn.get("status") or "active") != "active":
+        return True
+    ed = sn.get("exit_date")
+    if not ed:
+        return False
+    try:
+        return date.fromisoformat(str(ed)[:10]) <= datetime.now(TW).date()
+    except Exception:
+        return False
+
+
 def get_sn_customer_map() -> dict:
     """Returns {sn_id: [customer_name, ...]}"""
     rows = sb_get("investments", {"select": "sn_id,customers(name)"})
@@ -417,7 +431,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
                     ten = _ten(sn.get("trade_date"), sn.get("observation_date"))
                     cps = f"{cp*100:g}%" if cp else ""
                     meta = "／".join(x for x in [ten, cps] if x)
-                    ex = " 🟢出場" if sn.get("exit_date") else ""
+                    ex = " 🟢出場" if _sn_exited(sn) else ""  # ออกจริงเท่านั้น (status!=active หรือ 出場日ผ่านแล้ว) — มี exit_date เฉยๆ ไม่นับ
                     out.append(f"• {_roc(sn.get('trade_date'))}  {sn.get('product_code','—')}{ex}")
                     out.append(f"   {meta}｜{format_money(amt, ccy)}")
                 out.append("─────────────")
@@ -457,7 +471,7 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             name_q = text[2:].strip() if len(text) > 2 else ""
             rows = sb_get("investments", {
                 "select": "amount_usd,currency,settle_coupon,customers(name),"
-                          "structured_notes(product_code,trade_date,exit_date,coupon_pct)"
+                          "structured_notes(product_code,trade_date,exit_date,coupon_pct,status)"
             })
             if not rows:
                 return "尚無投資資料", ""
