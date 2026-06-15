@@ -6,6 +6,7 @@ supabase>=2.4
 
 # report / chart generation (reused from utils/*)
 reportlab>=4.0
+pypdf>=4.0
 openpyxl>=3.1
 python-pptx>=0.6
 matplotlib>=3.7

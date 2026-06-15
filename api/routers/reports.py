@@ -140,3 +140,47 @@ def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None,
     pdf = _generate_with_theme(theme, _tenant_branding(r), generate_portfolio_detail, items,
                                report_date=str(date.today()), section_title=section)
     return _pdf_response(pdf, f"portfolio_{date.today():%Y%m%d}.pdf")
+
+
+@router.get("/customers/pdf")
+def customers_batch_pdf(customer_ids: Optional[str] = None, charts: bool = False, period: str = "6mo",
+                        columns: Optional[str] = None, show_info: bool = True, show_amount: bool = True,
+                        theme: Optional[str] = None, r: Repo = Depends(repo)):
+    """每位客戶完整報表รวมในไฟล์เดียว — วนสร้าง report ละเอียดแบบรายคน (投資概覽/明細/持倉) แล้ว merge。
+    customer_ids: เลือกบางคน (ว่าง = ทุกคนที่มีการลงทุน)。"""
+    import io as _io
+    from pypdf import PdfWriter, PdfReader
+    from utils.pdf_report import generate_customer_report
+
+    custs = r.list("customers", order="name")
+    cust_by_id = {c["id"]: c for c in custs}
+    want = {x.strip() for x in customer_ids.split(",") if x.strip()} if customer_ids else None
+
+    # ดึง investments ทั้งหมดครั้งเดียว → group by customer (กัน N queries)
+    invs_by_cust: dict = {}
+    for iv in r.find("investments", select="amount_usd,currency,customer_id,structured_notes(*)"):
+        cid = iv.get("customer_id")
+        if not cid or (want is not None and cid not in want):
+            continue
+        invs_by_cust.setdefault(cid, []).append(iv)
+
+    order = [c["id"] for c in custs if c["id"] in invs_by_cust]  # เรียงตามชื่อ + เฉพาะคนที่มีการลงทุน
+    if not order:
+        raise HTTPException(status_code=404, detail="所選客戶皆無投資記錄")
+
+    cols = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
+    branding = _tenant_branding(r)
+    writer = PdfWriter()
+    for cid in order:
+        cust, invs = cust_by_id.get(cid), invs_by_cust.get(cid)
+        if not cust or not invs:
+            continue
+        prices = _prices_for(invs) if charts else {}
+        pdf = _generate_with_theme(theme, branding, generate_customer_report,
+                                   cust, invs, prices, chart_period=period, columns=cols,
+                                   show_info=show_info, show_amount=show_amount, show_charts=charts)
+        writer.append(PdfReader(_io.BytesIO(pdf)))
+
+    out = _io.BytesIO()
+    writer.write(out)
+    return _pdf_response(out.getvalue(), f"reports_{date.today():%Y%m%d}.pdf")
