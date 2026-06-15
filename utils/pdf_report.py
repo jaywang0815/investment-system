@@ -408,9 +408,11 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
         except (TypeError, ValueError):
             return "—"
 
+    # 美元總額度 = ผลรวม持倉จริง (ให้ตรงกับ 投資概覽/LIST ทุกที่); ลูกค้าที่ไม่มี持倉 ค่อย fallback usd_amount (วงเงินกรอกเอง)
+    total_invested = sum(inv.get("amount_usd", 0) or 0 for inv in investments)
     info_data = [
         ["客戶姓名", customer.get("name", "—"), "報表日期", report_date],
-        ["美元總額度", _fmt_usd(customer.get("usd_amount")),
+        ["美元總額度", _fmt_usd(total_invested if total_invested else customer.get("usd_amount")),
          "中信部位",  _fmt_usd(customer.get("ctbc_position"))],
     ]
     info_table = Table(info_data, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
@@ -432,8 +434,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     story.append(info_table)
     story.append(Spacer(1, 8*mm))
 
-    # ── 投資概覽 ────────────────────────────────────────────
-    total_invested = sum(inv.get("amount_usd", 0) or 0 for inv in investments)
+    # ── 投資概覽 ──────────────────────────────────────────── (total_invested คำนวณไว้ด้านบนแล้ว)
     active_count = len([inv for inv in investments
                         if inv.get("structured_notes", {}).get("status") == "active"])
 
