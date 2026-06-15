@@ -58,6 +58,9 @@ def coupons(r: Repo = Depends(repo)):
         sn = sns.get(inv.get("sn_id"))
         if not sn:
             continue
+        # DRA (區間計息) = range accrual ราย季 path-dependent → ยังไม่คิดแบบ FCN รายเดือน (เฟส 1) ข้ามไป
+        if (sn.get("product_type") or "FCN").upper() == "DRA":
+            continue
         rate = _num(sn.get("coupon_pct"))
         amt = _num(inv.get("amount_usd"))
         if not rate or not amt:

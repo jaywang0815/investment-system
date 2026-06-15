@@ -57,7 +57,8 @@ def events(r: Repo = Depends(repo)):
             if sid:
                 inv_by_sn[sid] = inv_by_sn.get(sid, 0.0) + (float(inv.get("amount_usd") or 0) or 0.0)
         for sn in sns:
-            if (sn.get("status") or "active") != "active":
+            # ข้าม DRA — คูปอง range accrual ราย季 ไม่ใช่รายเดือน (เฟส 1 ยังไม่ gen วันคูปอง DRA)
+            if (sn.get("status") or "active") != "active" or (sn.get("product_type") or "FCN").upper() == "DRA":
                 continue
             obs = _d(sn.get("observation_date"))
             try:

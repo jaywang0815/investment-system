@@ -88,6 +88,7 @@ SHEET_HINT = {"客戶": "cust", "投資人": "cust", "customer": "cust", "開戶
 SN_BLOCK_HDR = {
     "date": ["日期", "成交日", "date"],
     "code": ["代號", "商品代號", "code"],
+    "tenor": ["期間", "年期", "期限", "tenor"],
     "u1": ["標的1", "標的一"],
     "u2": ["標的2", "標的二"],
     "u3": ["標的3", "標的三"],
@@ -143,6 +144,13 @@ def _to_date(v, year_hint=None):
             return date(int(m2.group(1)), int(m2.group(2)), int(m2.group(3))).isoformat()
         except ValueError:
             return None
+    # 2a) ROC (民國) string: 113/5/13, 115/0507 (ปี 3 หลัก 1xx → +1911) — ต้องอยู่ก่อน 2b กัน 113/5/13 ถูกอ่านเป็น 2013
+    roc = _re.fullmatch(r"(1\d{2})\D+(\d{1,2})\D+(\d{1,2})", s) or _re.fullmatch(r"(1\d{2})\D+(\d{2})(\d{2})", s)
+    if roc:
+        try:
+            return date(int(roc.group(1)) + 1911, int(roc.group(2)), int(roc.group(3))).isoformat()
+        except ValueError:
+            return None
     # 2b) ปีอยู่ท้าย: 7/15/2026, 15/7/2026, 07/15/26 (ค่าใด > 12 = วัน → สลับ; ไม่งั้นถือ M/D)
     m2b = _re.search(r"(\d{1,2})\D{1,2}(\d{1,2})\D{1,2}(\d{2,4})", s)
     if m2b:
@@ -193,6 +201,15 @@ def _to_num(v):
         return None if math.isnan(f) else f
     except (TypeError, ValueError):
         return None
+
+
+def _looks_dra(coupon, tenor) -> bool:
+    """แยก DRA/區間計息 ออกจาก FCN：配息 มี 2 อัตราคั่นด้วย "/" (10%/6.5%) หรือ 期間 เป็นปี (7Y/8Y/10Y)。
+    FCN ในไฟล์ = เดือน (7M) + อัตราเดียว → จับแยกได้สะอาด。"""
+    if "/" in str(coupon or ""):
+        return True
+    t = unicodedata.normalize("NFKC", str(tenor or "")).strip().upper()
+    return bool(_re.search(r"\d+\s*Y", t))
 
 
 def _to_bool_mark(v):
@@ -370,6 +387,7 @@ def _parse_sn_block(rows: list, hr: int, cm: dict):
             cur = {
                 "product_code": _clean_code(code_cell),
                 "category": "SN",
+                "product_type": "DRA" if _looks_dra(g(row, "coupon"), g(row, "tenor")) else "FCN",
                 "trade_date": _to_date(d, _yr),
                 "strike_pct": _to_pct(g(row, "strike")),
                 "coupon_pct": _to_pct(g(row, "coupon")),
