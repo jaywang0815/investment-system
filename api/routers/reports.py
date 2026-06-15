@@ -111,10 +111,14 @@ def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
 
 
 @router.get("/portfolio/pdf")
-def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None, r: Repo = Depends(repo)):
-    """全部客戶投資明細表 PDF (此租戶)。"""
+def portfolio_pdf(section: str = "CTBC", theme: Optional[str] = None,
+                  customer_ids: Optional[str] = None, r: Repo = Depends(repo)):
+    """客戶投資明細表 PDF (此租戶)。customer_ids: 逗號分隔 customer id (省略=全部客戶)。"""
     rows = r.find("investments",
-                  select="amount_usd,currency,customers(name),structured_notes(product_code,trade_date,observation_date,coupon_pct,exit_date,status)")
+                  select="amount_usd,currency,customer_id,customers(name),structured_notes(product_code,trade_date,observation_date,coupon_pct,exit_date,status)")
+    if customer_ids:
+        want = {c.strip() for c in customer_ids.split(",") if c.strip()}
+        rows = [x for x in rows if x.get("customer_id") in want]
     items = []
     for x in rows:
         sn = x.get("structured_notes") or {}
