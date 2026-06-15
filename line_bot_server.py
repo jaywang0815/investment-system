@@ -1452,8 +1452,13 @@ def _build_daily_report() -> str:
             if obs:
                 try:
                     days_left = (date.fromisoformat(obs) - today_date).days
-                    badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
-                    days_str = f"剩{days_left}天"
+                    if days_left < 0:
+                        # 比價日ผ่านไปแล้ว → โชว์ "已過 X 天" แทน "剩-X天" (กันเข้าใจผิด)
+                        badge = "✅"
+                        days_str = f"已過{-days_left}天"
+                    else:
+                        badge = "🔴" if days_left <= 3 else "⚠️" if days_left <= 7 else "📅"
+                        days_str = f"剩{days_left}天"
                 except Exception:
                     badge = "📅"
                     days_str = ""
