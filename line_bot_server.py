@@ -30,23 +30,52 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 FINNHUB_TOKEN = os.environ.get("FINNHUB_TOKEN", "")
 BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+# tenant ของบอตเดิม (DOUU) ที่ยังใช้ token จาก env — ตั้ง env นี้เพื่อให้ /webhook (legacy) + cron กรองข้อมูลเฉพาะ DOUU
+BOT_DEFAULT_TENANT_ID = os.environ.get("BOT_DEFAULT_TENANT_ID", "")
 
 app = FastAPI(title="投資管理 LINE Bot")
+
+# ── per-tenant bot context ────────────────────────────────────
+# ตั้ง 1 ครั้งต่อ request/cron → sb_* กรอง tenant + reply/push ใช้ token ของ tenant นั้นอัตโนมัติ
+import contextvars
+_BOT_CTX: "contextvars.ContextVar[dict]" = contextvars.ContextVar("bot_ctx", default={})
+# ตารางที่มี tenant_id (auto-scope เมื่อ context มี tid); tenants/app_settings ไม่อยู่ → ไม่ถูกกรอง
+_TENANT_TABLES = {"customers", "structured_notes", "investments", "admins",
+                  "calendar_events", "alerts", "articles"}
+
+
+def _set_bot_ctx(tid=None, token=None, secret=None) -> None:
+    _BOT_CTX.set({"tid": tid or None, "token": token or None, "secret": secret or None})
+
+
+def _bot_tid():
+    return (_BOT_CTX.get() or {}).get("tid")
+
+
+def _bot_token() -> str:
+    return (_BOT_CTX.get() or {}).get("token") or LINE_CHANNEL_ACCESS_TOKEN
 
 
 # ── Supabase 直接 REST 呼叫 (不依賴 streamlit) ────────────────
 def sb_get(table: str, params: dict = None) -> list:
+    params = dict(params or {})
+    tid = _bot_tid()
+    if tid and table in _TENANT_TABLES and "tenant_id" not in params:
+        params["tenant_id"] = f"eq.{tid}"
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json"
     }
-    resp = requests.get(url, headers=headers, params=params or {}, timeout=10)
+    resp = requests.get(url, headers=headers, params=params, timeout=10)
     return resp.json() if resp.ok else []
 
 
 def sb_post(table: str, data: dict) -> dict | None:
+    tid = _bot_tid()
+    if tid and table in _TENANT_TABLES and isinstance(data, dict) and "tenant_id" not in data:
+        data = {**data, "tenant_id": tid}
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -62,6 +91,10 @@ def sb_post(table: str, data: dict) -> dict | None:
 
 def sb_patch(table: str, filters: dict, data: dict) -> bool:
     """คืน True ถ้าบันทึกสำเร็จ (resp.ok) — caller ที่ไม่สนค่า return ก็ใช้ได้เหมือนเดิม。"""
+    filters = dict(filters)
+    tid = _bot_tid()
+    if tid and table in _TENANT_TABLES and "tenant_id" not in filters:
+        filters["tenant_id"] = tid
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -73,6 +106,10 @@ def sb_patch(table: str, filters: dict, data: dict) -> bool:
 
 
 def sb_delete(table: str, filters: dict) -> None:
+    filters = dict(filters)
+    tid = _bot_tid()
+    if tid and table in _TENANT_TABLES and "tenant_id" not in filters:
+        filters["tenant_id"] = tid
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     params = {k: f"eq.{v}" for k, v in filters.items()}
     requests.delete(f"{SUPABASE_URL}/rest/v1/{table}", headers=headers, params=params, timeout=15)
@@ -151,14 +188,53 @@ def get_stock_price(ticker: str) -> Optional[float]:
 
 
 # ── LINE Signature 驗證 ────────────────────────────────────────
-def verify_signature(body: bytes, signature: str) -> bool:
+def verify_signature(body: bytes, signature: str, secret: str = "") -> bool:
     hash_value = hmac.new(
-        LINE_CHANNEL_SECRET.encode("utf-8"),
+        (secret or LINE_CHANNEL_SECRET).encode("utf-8"),
         body,
         hashlib.sha256
     ).digest()
     expected = base64.b64encode(hash_value).decode("utf-8")
     return hmac.compare_digest(expected, signature)
+
+
+def _tenant_bot_creds(tid: str):
+    """อ่าน (secret, token) ของ tenant จาก DB; ไม่มี/ยังไม่ตั้ง = (None, None)。tenants ไม่อยู่ใน _TENANT_TABLES → ไม่ถูก auto-scope。"""
+    rows = sb_get("tenants", {"select": "line_channel_secret,line_channel_access_token", "id": f"eq.{tid}"})
+    if rows:
+        return rows[0].get("line_channel_secret"), rows[0].get("line_channel_access_token")
+    return None, None
+
+
+def _bot_tenants() -> list:
+    """รายชื่อบอตที่ cron ต้อง process: tenants ที่ตั้ง token ใน DB + DOUU (env) ถ้าตั้ง BOT_DEFAULT_TENANT_ID。
+    ถ้าไม่มีอะไรเลย → [(default_or_None, env_token, env_secret)] = พฤติกรรมเดิม (ไม่ scope)。"""
+    out, seen = [], set()
+    try:
+        rows = sb_get("tenants", {"select": "id,line_channel_secret,line_channel_access_token"})
+    except Exception:
+        rows = []
+    for t in rows or []:
+        if t.get("line_channel_access_token"):
+            out.append((t["id"], t["line_channel_access_token"], t.get("line_channel_secret")))
+            seen.add(t["id"])
+    if LINE_CHANNEL_ACCESS_TOKEN and BOT_DEFAULT_TENANT_ID and BOT_DEFAULT_TENANT_ID not in seen:
+        out.append((BOT_DEFAULT_TENANT_ID, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET))
+    if not out:
+        out.append((BOT_DEFAULT_TENANT_ID or None, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET))
+    return out
+
+
+def _run_for_all_bots(fn) -> None:
+    """รัน cron fn แยกต่อ tenant: set context (tid+token) → fn auto-scope query + push ด้วย token ของ tenant นั้น。"""
+    for tid, token, secret in _bot_tenants():
+        try:
+            _set_bot_ctx(tid, token, secret)
+            fn()
+        except Exception as e:
+            print(f"[cron] tenant={tid} fn={getattr(fn, '__name__', '?')} error: {e}")
+        finally:
+            _set_bot_ctx(None, None, None)
 
 
 # ── 回覆 LINE 訊息 ─────────────────────────────────────────────
@@ -173,7 +249,7 @@ def reply(reply_token: str, text: str, chart_url: str = "") -> None:
     requests.post(
         "https://api.line.me/v2/bot/message/reply",
         headers={
-            "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+            "Authorization": f"Bearer {_bot_token()}",
             "Content-Type": "application/json"
         },
         json={"replyToken": reply_token, "messages": messages},
@@ -832,14 +908,16 @@ _excel_cache: dict[str, bytes] = {}  # user_id → raw Excel bytes (short-lived,
 def _download_line_content(message_id: str) -> bytes | None:
     resp = requests.get(
         f"https://api-data.line.me/v2/bot/message/{message_id}/content",
-        headers={"Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"},
+        headers={"Authorization": f"Bearer {_bot_token()}"},
         timeout=30,
     )
     return resp.content if resp.ok else None
 
 
-def _process_file_event(reply_token: str, message_id: str, filename: str, user_id: str) -> None:
+def _process_file_event(reply_token: str, message_id: str, filename: str, user_id: str,
+                        tid=None, token=None, secret=None) -> None:
     """Handle Excel file — redirect to web import (parsing on Render causes OOM on free tier)"""
+    _set_bot_ctx(tid, token, secret)
     reply(reply_token,
           "收到 Excel 了！\n\n"
           "伺服器記憶體有限，無法在這裡直接處理檔案。\n\n"
@@ -981,7 +1059,8 @@ def _do_excel_import(user_id: str, file_bytes: bytes, action: str) -> None:
 
 def _push_to_admins(text: str) -> None:
     # select * → ไม่ error ถ้ายังไม่มีคอลัมน์ receive_push; ข้ามเฉพาะคนที่ตั้ง receive_push=false (ค่าว่าง/true = รับ)
-    admins = sb_get("admins", {"select": "*"})
+    admins = sb_get("admins", {"select": "*"})  # auto-scoped ตาม tenant context
+    token = _bot_token()
     for a in admins:
         if a.get("receive_push") is False:
             continue
@@ -990,7 +1069,7 @@ def _push_to_admins(text: str) -> None:
             requests.post(
                 "https://api.line.me/v2/bot/message/push",
                 headers={
-                    "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+                    "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json"
                 },
                 json={"to": uid, "messages": [{"type": "text", "text": text[:4000]}]},
@@ -1004,7 +1083,7 @@ def trigger_report(background_tasks: BackgroundTasks, secret: str = ""):
     REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
     if REPORT_SECRET and secret != REPORT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    background_tasks.add_task(_run_daily_report)
+    background_tasks.add_task(_run_for_all_bots, _run_daily_report)
     return {"status": "ok", "message": "report queued"}
 
 
@@ -1097,7 +1176,7 @@ def trigger_calendar_reminder(background_tasks: BackgroundTasks, secret: str = "
     REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
     if REPORT_SECRET and secret != REPORT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    background_tasks.add_task(_run_calendar_reminders)
+    background_tasks.add_task(_run_for_all_bots, _run_calendar_reminders)
     return {"status": "ok", "message": "calendar reminder queued"}
 
 
@@ -1179,7 +1258,7 @@ def trigger_pipeline_digest(background_tasks: BackgroundTasks, secret: str = "")
     REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
     if REPORT_SECRET and secret != REPORT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    background_tasks.add_task(_run_pipeline_digest)
+    background_tasks.add_task(_run_for_all_bots, _run_pipeline_digest)
     return {"status": "ok", "message": "pipeline digest queued"}
 
 
@@ -1255,7 +1334,7 @@ def trigger_keydate_digest(background_tasks: BackgroundTasks, secret: str = ""):
     REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
     if REPORT_SECRET and secret != REPORT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    background_tasks.add_task(_run_keydate_digest)
+    background_tasks.add_task(_run_for_all_bots, _run_keydate_digest)
     return {"status": "ok", "message": "keydate digest queued"}
 
 
@@ -1265,7 +1344,7 @@ def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
     if REPORT_SECRET and secret != REPORT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    background_tasks.add_task(_run_obs_alert)
+    background_tasks.add_task(_run_for_all_bots, _run_obs_alert)
     return {"status": "ok", "message": "obs alert queued"}
 
 
@@ -1600,7 +1679,7 @@ def _push_line(user_id: str, text: str) -> None:
     requests.post(
         "https://api.line.me/v2/bot/message/push",
         headers={
-            "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+            "Authorization": f"Bearer {_bot_token()}",
             "Content-Type": "application/json",
         },
         json={"to": user_id, "messages": [{"type": "text", "text": text[:4000]}]},
@@ -1842,9 +1921,11 @@ def _handle_new_customer(reply_token: str, text: str, user_id: str, session: dic
             reply(reply_token, "❌ 新增失敗，請稍後再試。")
 
 
-def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
-    """รัน background — ตอบ LINE หลังจาก webhook คืนค่าแล้ว"""
+def _process_event(reply_token: str, user_text: str, user_id: str,
+                   tid=None, token=None, secret=None) -> None:
+    """รัน background — ตอบ LINE หลังจาก webhook คืนค่าแล้ว (set context ตาม tenant ของบอตที่รับ event)"""
     import re
+    _set_bot_ctx(tid, token, secret)
     try:
         text = user_text.strip()
 
@@ -2044,15 +2125,13 @@ def _process_event(reply_token: str, user_text: str, user_id: str) -> None:
         print(f"[process_event error] {e}")
 
 
-@app.post("/webhook")
-async def webhook(request: Request, background_tasks: BackgroundTasks):
-    # ตรวจ signature ก่อน
+async def _dispatch_webhook(request: Request, background_tasks: BackgroundTasks,
+                           tid, token: str, secret: str):
+    """รับ event ของบอต tenant หนึ่ง → validate ด้วย secret ของ tenant นั้น → ส่งงานเข้า background พร้อม ctx。"""
     body = await request.body()
     signature = request.headers.get("X-Line-Signature", "")
-
-    if LINE_CHANNEL_SECRET and not verify_signature(body, signature):
+    if secret and not verify_signature(body, signature, secret):
         raise HTTPException(status_code=400, detail="Invalid signature")
-
     try:
         data = json.loads(body)
     except Exception:
@@ -2067,15 +2146,32 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
         if msg.get("type") == "text":
             user_text = msg.get("text", "").strip()
-            background_tasks.add_task(_process_event, reply_token, user_text, user_id)
+            background_tasks.add_task(_process_event, reply_token, user_text, user_id, tid, token, secret)
 
         elif msg.get("type") == "file":
             message_id = msg.get("id", "")
             filename = msg.get("fileName", "file.xlsx")
-            background_tasks.add_task(_process_file_event, reply_token, message_id, filename, user_id)
+            background_tasks.add_task(_process_file_event, reply_token, message_id, filename, user_id, tid, token, secret)
 
     # ตอบ LINE ทันที ก่อนที่ reply_token จะหมดอายุ
     return JSONResponse({"status": "ok"})
+
+
+@app.post("/webhook")
+async def webhook(request: Request, background_tasks: BackgroundTasks):
+    """บอตเดิม (DOUU) — ใช้ creds จาก env; scope เฉพาะ DOUU ถ้าตั้ง BOT_DEFAULT_TENANT_ID。"""
+    return await _dispatch_webhook(request, background_tasks,
+                                   BOT_DEFAULT_TENANT_ID or None,
+                                   LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET)
+
+
+@app.post("/webhook/{tid}")
+async def webhook_tenant(tid: str, request: Request, background_tasks: BackgroundTasks):
+    """บอตของ advisor แต่ละราย — webhook URL = /webhook/<tenant_id>; ใช้ creds ของ tenant นั้น。"""
+    secret, token = _tenant_bot_creds(tid)
+    if not (secret and token):
+        raise HTTPException(status_code=404, detail="bot not configured for this tenant")
+    return await _dispatch_webhook(request, background_tasks, tid, token, secret)
 
 
 if __name__ == "__main__":
