@@ -1,10 +1,20 @@
-"""租戶設定 — 報表品牌 + 修改密碼 + LINE 管理員，tenant-scoped。"""
+"""租戶設定 — 報表品牌 + 修改密碼 + LINE 管理員 + LINE Bot 憑證，tenant-scoped。"""
+import os
 import re as _re
 from fastapi import APIRouter, Depends, HTTPException
 from ..deps import repo, current_user
 from ..db import Repo, get_sb
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+# โฮสต์ของ LINE bot service (คนละ service กับ api นี้) — ใช้สร้าง webhook URL ให้ advisor ก๊อปไปตั้ง
+_BOT_BASE_URL = os.environ.get("LINE_BOT_BASE_URL", "https://investment-line-bot.onrender.com").rstrip("/")
+
+
+def _mask(s):
+    """โชว์แค่ 4 ตัวท้าย กันหลุด secret กลับไป frontend。"""
+    s = (s or "").strip()
+    return ("•••• " + s[-4:]) if len(s) >= 4 else ("••••" if s else "")
 
 
 @router.get("/branding")
@@ -109,3 +119,42 @@ def del_line_admin(line_user_id: str, r: Repo = Depends(repo)):
     except Exception:
         pass
     return {"deleted": line_user_id}
+
+
+# ---------- LINE Bot 憑證 (per-tenant bot：advisor 連自己的 LINE bot) ----------
+@router.get("/linebot")
+def get_linebot(r: Repo = Depends(repo)):
+    """อ่านสถานะบอตของ tenant ตัวเอง + webhook URL ที่ต้องเอาไปตั้งใน LINE Console。
+    ไม่คืน secret/token เต็ม (โชว์แค่ masked)。"""
+    t = {}
+    try:
+        rows = r.sb.table("tenants").select(
+            "line_channel_secret,line_channel_access_token").eq("id", r.tenant_id).execute().data
+        t = rows[0] if rows else {}
+    except Exception:
+        t = {}
+    secret = t.get("line_channel_secret") or ""
+    token = t.get("line_channel_access_token") or ""
+    return {
+        "configured": bool(secret and token),
+        "secret_masked": _mask(secret),
+        "token_masked": _mask(token),
+        "webhook_url": f"{_BOT_BASE_URL}/webhook/{r.tenant_id}",
+    }
+
+
+@router.put("/linebot")
+def update_linebot(body: dict, r: Repo = Depends(repo)):
+    """บันทึก channel secret + access token ของ tenant。
+    ส่งค่าว่าง/null = ล้าง (ปิดบอต)。ส่ง key มาเฉพาะที่ต้องการแก้。"""
+    payload = {}
+    if "line_channel_secret" in body:
+        v = (body.get("line_channel_secret") or "").strip()
+        payload["line_channel_secret"] = v or None
+    if "line_channel_access_token" in body:
+        v = (body.get("line_channel_access_token") or "").strip()
+        payload["line_channel_access_token"] = v or None
+    if not payload:
+        raise HTTPException(status_code=422, detail="無可更新欄位")
+    _safe_update(r, payload)
+    return {"ok": True}
