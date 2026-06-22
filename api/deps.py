@@ -13,8 +13,15 @@ def current_user(authorization: str = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="invalid or expired token")
 
 
-def repo(user: dict = Depends(current_user)) -> Repo:
-    return Repo(get_sb(), user["tenant_id"])
+def repo(user: dict = Depends(current_user),
+         x_act_as_tenant: str = Header(None)) -> Repo:
+    """สร้าง Repo จำกัด tenant ของผู้ login。
+    superadmin ส่ง header X-Act-As-Tenant ได้ เพื่อ 'เข้าไปตรวจสอบบ้าน' ของ tenant อื่น (เวลามีปัญหา)。
+    คนทั่วไปส่ง header นี้มาก็ถูกเพิกเฉย (ใช้ tenant ตัวเองเสมอ)。"""
+    tid = user["tenant_id"]
+    if x_act_as_tenant and user.get("role") == "superadmin":
+        tid = x_act_as_tenant
+    return Repo(get_sb(), tid)
 
 
 def require_superadmin(user: dict = Depends(current_user)) -> dict:
