@@ -290,7 +290,7 @@ def _summary_table(investments, W):
         grand[cur] = grand.get(cur, 0) + amt
         data.append([
             _roc(td), sn.get("product_code") or "",
-            _tenor_ym(sn.get("trade_date"), sn.get("observation_date")),
+            _tenor_ym(sn.get("trade_date"), sn.get("exit_date")),
             f"{cp*100:g}%" if cp else "",
             format_money(amt, cur),
             "出場" if exited else "",
@@ -694,9 +694,9 @@ def _roc(d):
     return f"{d.year - 1911}/{d.month:02d}/{d.day:02d}"
 
 
-def _tenor_ym(trade, obs):
-    """交易日→比價日 推算期間: <12月→#M, 否則→#Y"""
-    td, od = _detail_to_date(trade), _detail_to_date(obs)
+def _tenor_ym(trade, end):
+    """交易日→到期日 推算期間: <12月→#M, 否則→#Y"""
+    td, od = _detail_to_date(trade), _detail_to_date(end)
     if td and od and od > td:
         m = max(round((od - td).days / 30), 1)
         return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
@@ -750,7 +750,7 @@ def generate_portfolio_detail(items: list, report_date: str = "",
         t = r.get("tenor")
         if t:
             return t
-        td, od = _detail_to_date(r.get("trade_date")), _detail_to_date(r.get("observation_date"))
+        td, od = _detail_to_date(r.get("trade_date")), _detail_to_date(r.get("exit_date"))
         if td and od and od > td:
             m = max(round((od - td).days / 30), 1)
             return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
