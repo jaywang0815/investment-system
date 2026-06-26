@@ -355,12 +355,17 @@ def _check_stock(ticker: str) -> tuple[str, str]:
                             break
 
                 if matched_sns:
+                    sn_cust = get_sn_customer_map()   # {sn_id: [ชื่อผู้ลงทุน]} (scope ตาม tenant)
                     lines.append("─────────────")
                     for sn, init_p in matched_sns[:3]:
                         code = sn.get("product_code", "—")
                         ko   = sn.get("ko_barrier")
                         ki   = sn.get("ki_barrier")
                         lines.append(f"📌 {code}")
+                        holders = sn_cust.get(sn.get("id"), [])
+                        if holders:
+                            hs = "、".join(holders[:5]) + (f" +{len(holders) - 5}" if len(holders) > 5 else "")
+                            lines.append(f"   持有: {hs}")
                         if init_p and init_p > 0:
                             perf_pct = price / init_p * 100
                             lines.append(f"   期初: ${init_p:,.2f}  [{perf_pct:.1f}%]")
