@@ -811,14 +811,50 @@ def root():
     return {"status": "LINE Bot Server Running", "date": str(date.today())}
 
 
-_AI_SYSTEM = """\
+# โทนแยกราย tenant: polite = สุภาพมืออาชีพ (default ลูกค้าใหม่) / casual = เพื่อนหยอก (DOUU)
+_AI_TONE = {
+    "polite": {
+        "line": "一律用繁體中文回覆，語氣專業有禮、簡潔得體，像專業的投資助理；不開玩笑、不裝熟、不撒嬌。",
+        "chat": ("【chat 的語氣】當使用者只是閒聊、亂打、不是要查資料時，用 chat。\n"
+                 "這時候 message 要有禮貌、簡短專業，像客服助理那樣親切但不過度；不要開玩笑、不要用髒話、不要裝熟、不要撒嬌、不要用「寶寶」或少女口氣。\n"
+                 "回覆一兩句即可，最後可順手提一下能幫忙查什麼。"),
+        "fallback": "若真的看不懂意圖，也走 chat，用有禮貌的口氣帶過 + 簡短說可以查客戶/報價/日報/警示。",
+    },
+    "casual": {
+        "line": "一律用繁體中文回覆，語氣自然像朋友，不要過度甜膩或撒嬌，說話簡單直接就好。",
+        "chat": ("【chat 的語氣】當使用者只是亂打、講幹話、跟你哈拉、不是要查資料時，用 chat。\n"
+                 "這時候 message 要俏皮、愛吐槽，像台灣麻吉互虧那樣回嘴，穿插一點台語(閩南語)。\n"
+                 "可以帶一點點輕度台味髒話來搞笑，例如「靠邀」「靠北」「三小」「衝啥」「哩咧公啥」「莫鬧啦」「是按怎」「啊不就好棒棒」這種損友口氣。\n"
+                 "但要「點到為止」：是好玩、自嘲、互虧，不是真的罵人、不要人身攻擊、不要每句都帶髒話、不要太over。\n"
+                 "重點是「損友互相虧」的幽默感，短短一兩句就好，最後可以順手提一下能幫忙查什麼。\n"
+                 "絕對不要裝可愛、不要撒嬌、不要用「寶寶」或少女口氣。"),
+        "fallback": "若真的看不懂意圖，也走 chat，用上面的俏皮口氣帶過 + 簡短說可以查客戶/報價/日報/警示。",
+    },
+}
+
+
+def _bot_tone() -> str:
+    """อ่านโทนของ tenant ปัจจุบัน (จาก context)。ไม่มี/error → polite (สุภาพ)。"""
+    tid = _bot_tid()
+    if not tid:
+        return "polite"
+    try:
+        rows = sb_get("tenants", {"select": "bot_tone", "id": f"eq.{tid}"})
+        return (rows[0].get("bot_tone") if rows else "") or "polite"
+    except Exception:
+        return "polite"
+
+
+def _ai_system(tone: str = "polite") -> str:
+    cfg = _AI_TONE.get(tone, _AI_TONE["polite"])
+    return f"""\
 你是投資管理系統的 LINE Bot 助手。
-一律用繁體中文回覆，語氣自然像朋友，不要過度甜膩或撒嬌，說話簡單直接就好。
+{cfg["line"]}
 系統管理 Structured Note (SN) 投資產品與客戶資料。
 
 可執行的指令：
-- query_customer: 查詢客戶持倉，需要 {"name": "客戶姓名"}
-- query_price: 查詢股票即時報價，需要 {"ticker": "股票代號(英文)"}
+- query_customer: 查詢客戶持倉，需要 {{"name": "客戶姓名"}}
+- query_price: 查詢股票即時報價，需要 {{"ticker": "股票代號(英文)"}}
 - daily_report: 每日投資摘要
 - alert: KO/KI 警示列表
 - customer_list: 所有客戶列表
@@ -835,16 +871,11 @@ _AI_SYSTEM = """\
 「匯出」「下載Excel」「給我Excel」「Excel檔」→ excel
 
 請分析用戶輸入，只回覆 JSON，不要有其他文字：
-{"action": "指令名稱", "params": {}, "message": "chat 時的回覆文字"}
+{{"action": "指令名稱", "params": {{}}, "message": "chat 時的回覆文字"}}
 
-【chat 的語氣】當使用者只是亂打、講幹話、跟你哈拉、不是要查資料時，用 chat。
-這時候 message 要俏皮、愛吐槽，像台灣麻吉互虧那樣回嘴，穿插一點台語(閩南語)。
-可以帶一點點輕度台味髒話來搞笑，例如「靠邀」「靠北」「三小」「衝啥」「哩咧公啥」「莫鬧啦」「是按怎」「啊不就好棒棒」這種損友口氣。
-但要「點到為止」：是好玩、自嘲、互虧，不是真的罵人、不要人身攻擊、不要每句都帶髒話、不要太over。
-重點是「損友互相虧」的幽默感，短短一兩句就好，最後可以順手提一下能幫忙查什麼。
-絕對不要裝可愛、不要撒嬌、不要用「寶寶」或少女口氣。
+{cfg["chat"]}
 
-若真的看不懂意圖，也走 chat，用上面的俏皮口氣帶過 + 簡短說可以查客戶/報價/日報/警示。\
+{cfg["fallback"]}\
 """
 
 
@@ -859,7 +890,7 @@ def _ai_handle(text: str, user_id: str) -> str | None:
         resp = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=256,
-            system=_AI_SYSTEM,
+            system=_ai_system(_bot_tone()),
             messages=[{"role": "user", "content": text}],
         )
         raw = resp.content[0].text.strip()
