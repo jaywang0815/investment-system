@@ -242,7 +242,11 @@ def _to_bool_mark(v):
 
 
 def _norm_name(s):
-    return unicodedata.normalize("NFKC", str(s)).replace("＊", "*").strip() if s is not None else ""
+    if s is None:
+        return ""
+    s = unicodedata.normalize("NFKC", str(s)).replace("＊", "*").strip()
+    # ตัดอักขระ PUA (U+E000–U+F8FF) ที่แสดงผลไม่ได้ → ขึ้น "?" (ชื่อหายากในไฟล์ต้นฉบับ เช่น 賴x?)
+    return _re.sub(r"[-]", "", s)
 
 
 def _match_masked(name, candidates):
