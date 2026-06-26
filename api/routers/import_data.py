@@ -102,6 +102,25 @@ SN_BLOCK_HDR = {
     "exit": ["出場", "到期日", "exit", "maturity"],
 }
 
+# 「券商庫存匯出」格式 (扁平，每列一筆持倉=商品+客戶+金額)；標的含交易所後綴 "TSLA UW"
+# 配息起算 = 發行日 (券商確認)；配息頻率=月配
+BROKER_HDR = {
+    "code": ["psc商品代碼", "商品代碼"],
+    "currency": ["幣別"],
+    "amount": ["名目本金"],
+    "customer": ["客戶名稱"],
+    "trade_date": ["交易日"],
+    "obs_date": ["發行日"],
+    "exit_date": ["商品到期日"],
+    "ptype": ["產品別"],
+    "u1": ["連結標的1"], "u2": ["連結標的2"], "u3": ["連結標的3"], "u4": ["連結標的4"], "u5": ["連結標的5"],
+    "coupon": ["利率"],
+    "strike": ["執行價"],
+    "ko": ["提前出場價"],
+    "ki": ["界限價"],
+    "ip1": ["期初價格1"], "ip2": ["期初價格2"], "ip3": ["期初價格3"], "ip4": ["期初價格4"], "ip5": ["期初價格5"],
+}
+
 
 def _year_of(v):
     """ดึงปีจากค่าวันที่ (datetime/date/ROC-int) เพื่อใช้เป็นปีให้กับ "M月D日" ที่ไม่มีปี。"""
@@ -271,6 +290,16 @@ def _clean_code(v):
     return c or None
 
 
+def _clean_broker_ticker(v):
+    """券商標的 "TSLA UW" / "ORCL UN" → ตัด suffix ตลาด เหลือ ticker。"""
+    if v is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(v)).strip()
+    if not s:
+        return None
+    return _clean_ticker(s.split()[0])
+
+
 def _is_date_cell(v):
     if isinstance(v, (datetime, date)):
         return True
@@ -426,6 +455,56 @@ def _parse_sn_block(rows: list, hr: int, cm: dict):
     return products, investments
 
 
+def _broker_header(rows: list):
+    """ตรวจชีต "券商庫存匯出" (扁平)。ต้องมี code + customer + amount。คืน (hr, colmap) หรือ (None, None)。"""
+    hr, cm = _map_headers(rows, BROKER_HDR)
+    if cm and all(k in cm for k in ("code", "customer", "amount")):
+        return hr, cm
+    return None, None
+
+
+def _parse_broker(rows: list, hr: int, cm: dict):
+    """อ่านชีตแบบ券商庫存 (แถวละ 1 持倉) → (products, customers, investments)。
+    商品 dedup ตาม code; 客戶 dedup ตามชื่อ。配息起算=發行日, 配息頻率=月配。"""
+    products, customers, investments = {}, {}, []
+    for rec in _rows(rows, hr, cm):
+        code = _clean_code(rec.get("code"))
+        if not code or _norm(rec.get("code")) in ("psc商品代碼", "商品代碼"):
+            continue
+        cust = _norm_name(rec.get("customer"))
+        amt = _to_num(rec.get("amount"))
+        cur = (str(rec.get("currency")).strip() if rec.get("currency") else "") or "USD"
+
+        if code not in products:
+            pt = (str(rec.get("ptype")).strip().upper() if rec.get("ptype") else "FCN")
+            p = {
+                "product_code": code,
+                "category": "SN",
+                "product_type": "DRA" if pt == "DRA" else "FCN",
+                "trade_date": _to_date(rec.get("trade_date")),
+                "observation_date": _to_date(rec.get("obs_date")),   # 發行日
+                "exit_date": _to_date(rec.get("exit_date")),
+                "coupon_pct": _to_pct(rec.get("coupon")),
+                "ko_barrier": _to_pct(rec.get("ko")),
+                "ki_barrier": _to_pct(rec.get("ki")),
+                "strike_pct": _to_pct(rec.get("strike")),
+                "coupon_freq": "monthly",
+                "status": "active",
+            }
+            for i in range(1, 6):
+                tk = _clean_broker_ticker(rec.get(f"u{i}"))
+                p[f"underlying_{i}"] = tk
+                p[f"initial_price_{i}"] = _to_num(rec.get(f"ip{i}")) if tk else None
+            products[code] = p
+
+        if cust and cust not in customers:
+            customers[cust] = {"name": cust}
+        if cust and amt:
+            investments.append({"customer": cust, "product_code": code,
+                                "amount_usd": amt, "currency": cur})
+    return list(products.values()), list(customers.values()), investments
+
+
 def _materialize(ws, max_empty: int = 50):
     """อ่านแถวจาก read-only sheet แบบมีขอบเขต (กัน max_row บานเป็นล้านแถวจาก format ค้าง)。"""
     out, empty = [], 0
@@ -450,6 +529,17 @@ def parse_workbook(data: bytes) -> dict:
 
     sheets = {sn: _materialize(wb[sn]) for sn in wb.sheetnames}
     wb.close()
+
+    # 0) ชีตแบบ "券商庫存匯出" (扁平 แถวละ 1 持倉 รวม สินค้า+ลูกค้า+ยอด) → จบในตัว
+    for sn, rows in sheets.items():
+        hr, cm = _broker_header(rows)
+        if cm is not None:
+            p, c, iv = _parse_broker(rows, hr, cm)
+            products += p
+            customers += c
+            investments += iv
+    if products or customers or investments:
+        return {"customers": customers, "products": products, "investments": investments, "warnings": warnings}
 
     # 1) ชีตแบบ "บล็อก" (ฟอร์แมต DOUU ปัจจุบัน) → สินค้า + การลงทุน
     block_handled = False
