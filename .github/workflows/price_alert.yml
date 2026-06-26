@@ -36,4 +36,5 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          BOT_DEFAULT_TENANT_ID: 3da82a79-8ef5-4f8c-9df3-faed33e75b64
         run: python scripts/price_alert.py

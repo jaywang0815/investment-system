@@ -11,31 +11,52 @@ from datetime import datetime, timezone, timedelta
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+# tenant ของบอตเดิม (DOUU) ที่ใช้ token จาก env — ใช้ scope ข้อมูล DOUU
+BOT_DEFAULT_TENANT_ID = os.environ.get("BOT_DEFAULT_TENANT_ID", "")
 
 ALERT_DOWN_PCT = 7.0
 ALERT_UP_PCT   = 5.0
+# ตารางที่มี tenant_id (auto-scope เมื่อระบุ tid)
+_TENANT_TABLES = {"structured_notes", "investments", "admins", "customers"}
 
 
-def sb_get(table: str, params: dict = None) -> list:
+def sb_get(table: str, params: dict = None, tid: str = None) -> list:
+    params = dict(params or {})
+    if tid and table in _TENANT_TABLES and "tenant_id" not in params:
+        params["tenant_id"] = f"eq.{tid}"
     resp = requests.get(
         f"{SUPABASE_URL}/rest/v1/{table}",
         headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
-        params=params or {},
+        params=params,
         timeout=15,
     )
     return resp.json() if resp.ok else []
 
 
-def push_line(user_id: str, text: str) -> None:
+def push_line(user_id: str, text: str, token: str) -> None:
     requests.post(
         "https://api.line.me/v2/bot/message/push",
         headers={
-            "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         },
         json={"to": user_id, "messages": [{"type": "text", "text": text[:4000]}]},
         timeout=10,
     )
+
+
+def tenant_bots() -> list:
+    """[(tenant_id, token)] ของทุกบอต: tenants ที่ตั้ง token ใน DB + DOUU (env) ถ้าตั้ง BOT_DEFAULT_TENANT_ID。"""
+    out, seen = [], set()
+    for t in sb_get("tenants", {"select": "id,line_channel_access_token"}):  # tenants ไม่ scope
+        if t.get("line_channel_access_token"):
+            out.append((t["id"], t["line_channel_access_token"]))
+            seen.add(t["id"])
+    if LINE_CHANNEL_ACCESS_TOKEN and BOT_DEFAULT_TENANT_ID and BOT_DEFAULT_TENANT_ID not in seen:
+        out.append((BOT_DEFAULT_TENANT_ID, LINE_CHANNEL_ACCESS_TOKEN))
+    if not out and LINE_CHANNEL_ACCESS_TOKEN:
+        out.append((None, LINE_CHANNEL_ACCESS_TOKEN))  # fallback: พฤติกรรมเดิม (ไม่ scope)
+    return out
 
 
 def get_quote(ticker: str):
@@ -115,22 +136,19 @@ def build_alert_msg(alerts: list, recipient: str = None) -> str:
     return "\n".join(lines)
 
 
-def get_admin_line_ids() -> list:
-    rows = sb_get("admins", {"select": "line_user_id"})
-    return [r["line_user_id"] for r in rows if r.get("line_user_id")]
+def get_admin_line_ids(tid: str = None) -> list:
+    # ข้ามคนที่ตั้ง receive_push=false (ค่าว่าง/true = รับ)
+    rows = sb_get("admins", {"select": "line_user_id,receive_push"}, tid)
+    return [r["line_user_id"] for r in rows
+            if r.get("line_user_id") and r.get("receive_push") is not False]
 
 
-def main():
-    if not all([LINE_CHANNEL_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_KEY]):
-        print("ERROR: Missing environment variables")
-        sys.exit(1)
-
-    admin_ids = get_admin_line_ids()
-    print(f"Admins: {len(admin_ids)}")
-
-    sns = sb_get("structured_notes", {"status": "eq.active", "select": "*"})
-    if not sns:
-        print("No active SNs")
+def run_for_tenant(tid: str, token: str) -> None:
+    """ตรวจ + ส่ง price alert ของ tenant เดียว (scope ข้อมูล + push ด้วย token ของ tenant นั้น)。"""
+    admin_ids = get_admin_line_ids(tid)
+    sns = sb_get("structured_notes", {"status": "eq.active", "select": "*"}, tid)
+    print(f"[tenant {str(tid)[:8]}] admins={len(admin_ids)} SN={len(sns)}")
+    if not sns or not admin_ids:
         return
 
     ticker_sns: dict[str, list] = {}
@@ -140,34 +158,23 @@ def main():
             if ticker:
                 ticker_sns.setdefault(ticker, []).append(sn)
 
-    print(f"Checking {len(ticker_sns)} tickers: {', '.join(ticker_sns)}")
-
-    # admin_alerts: (ticker, price, prev_close, change_pct, sn, [customer_names])
     admin_alerts: list = []
-    # customer_id → (line_id, name, [(ticker, price, prev_close, change_pct, sn, [])])
     customer_alerts: dict = {}
 
     for ticker, related_sns in ticker_sns.items():
         price, prev_close, change_pct = get_quote(ticker)
-
         if price is None or change_pct is None:
-            print(f"  {ticker}: no data")
             continue
-
-        print(f"  {ticker}: ${price:.2f} ({change_pct:+.2f}%)")
-
         if not (change_pct <= -ALERT_DOWN_PCT or change_pct >= ALERT_UP_PCT):
             continue
-
         print(f"  >>> ALERT: {ticker} {change_pct:+.2f}%")
 
         ticker_customer_names: list[str] = []
-
         for sn in related_sns:
             invs = sb_get("investments", {
                 "sn_id": f"eq.{sn['id']}",
                 "select": "customer_id,customers(id,name,line_user_id)",
-            })
+            }, tid)
             for inv in invs:
                 customer = inv.get("customers") or {}
                 cid      = customer.get("id")
@@ -180,29 +187,35 @@ def main():
                 if line_id:
                     if cid not in customer_alerts:
                         customer_alerts[cid] = (line_id, name, [])
-                    customer_alerts[cid][2].append(
-                        (ticker, price, prev_close, change_pct, sn, [])
-                    )
+                    customer_alerts[cid][2].append((ticker, price, prev_close, change_pct, sn, []))
 
         if related_sns:
-            admin_alerts.append(
-                (ticker, price, prev_close, change_pct, related_sns[0], ticker_customer_names)
-            )
+            admin_alerts.append((ticker, price, prev_close, change_pct, related_sns[0], ticker_customer_names))
 
     if not admin_alerts:
-        print(f"No alerts (down>{ALERT_DOWN_PCT}% / up>{ALERT_UP_PCT}%)")
+        print(f"  No alerts (down>{ALERT_DOWN_PCT}% / up>{ALERT_UP_PCT}%)")
         return
-
-    print(f"\nAlerts: {', '.join(f'{t} {c:+.2f}%' for t, _, _, c, _, _ in admin_alerts)}")
 
     msg = build_alert_msg(admin_alerts)
     for aid in admin_ids:
-        push_line(aid, msg)
+        push_line(aid, msg, token)
         print(f"  Sent to admin {aid[:8]}...")
-
     for cid, (line_id, name, alerts) in customer_alerts.items():
-        push_line(line_id, build_alert_msg(alerts, recipient=name))
+        push_line(line_id, build_alert_msg(alerts, recipient=name), token)
         print(f"  Sent to {name} ({line_id[:8]}...)")
+
+
+def main():
+    if not all([LINE_CHANNEL_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_KEY]):
+        print("ERROR: Missing environment variables")
+        sys.exit(1)
+    bots = tenant_bots()
+    print(f"Bots (tenants): {len(bots)}")
+    for tid, token in bots:
+        try:
+            run_for_tenant(tid, token)
+        except Exception as e:
+            print(f"[tenant {str(tid)[:8]}] error: {e}")
 
 
 if __name__ == "__main__":
