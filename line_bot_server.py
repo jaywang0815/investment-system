@@ -845,12 +845,27 @@ def _bot_tone() -> str:
         return "polite"
 
 
-def _ai_system(tone: str = "polite") -> str:
+def _bot_name() -> str:
+    """ชื่อผู้ใช้ (報告人) ของ tenant ปัจจุบัน — ให้ AI เรียกแบบสุภาพ。"""
+    tid = _bot_tid()
+    if not tid:
+        return ""
+    try:
+        rows = sb_get("tenants", {"select": "reporter", "id": f"eq.{tid}"})
+        return (rows[0].get("reporter") if rows else "") or ""
+    except Exception:
+        return ""
+
+
+def _ai_system(tone: str = "polite", name: str = "") -> str:
     cfg = _AI_TONE.get(tone, _AI_TONE["polite"])
+    # ไต้หวัน: ห้ามเรียกชื่อเต็ม (ไม่สุภาพ) — ใช้ 姓+先生/小姐 หรือ暱稱
+    sal = (f"對方的名字是「{name}」。若要稱呼對方，請用姓氏加「先生／小姐」或英文暱稱，"
+           f"切勿直呼全名（在台灣直呼全名不禮貌）；不確定稱謂時用姓氏加「您」。\n" if name else "")
     return f"""\
 你是投資管理系統的 LINE Bot 助手。
 {cfg["line"]}
-系統管理 Structured Note (SN) 投資產品與客戶資料。
+{sal}系統管理 Structured Note (SN) 投資產品與客戶資料。
 
 可執行的指令：
 - query_customer: 查詢客戶持倉，需要 {{"name": "客戶姓名"}}
@@ -890,7 +905,7 @@ def _ai_handle(text: str, user_id: str) -> str | None:
         resp = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=256,
-            system=_ai_system(_bot_tone()),
+            system=_ai_system(_bot_tone(), _bot_name()),
             messages=[{"role": "user", "content": text}],
         )
         raw = resp.content[0].text.strip()
