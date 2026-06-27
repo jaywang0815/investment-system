@@ -1399,63 +1399,6 @@ def trigger_obs_alert(background_tasks: BackgroundTasks, secret: str = ""):
     return {"status": "ok", "message": "obs alert queued"}
 
 
-_GREETINGS = {
-    "morning": [
-        "寶寶早安☀️ 今天也要加油喔！",
-        "寶寶早安～ 喝杯咖啡，新的一天開始了。",
-        "起床了嗎寶寶☀️ 今天也要好好的喔。",
-        "早安寶寶！昨晚睡得好嗎？今天加油💪",
-        "寶寶早安～ 準備出發了嗎🫡",
-    ],
-    "noon": [
-        "寶寶，中午了🍱 記得吃飯，別餓著自己。",
-        "寶寶吃飯了嗎？別忘了休息一下～",
-        "午休時間～ 寶寶，工作先放一放，吃個飯再說🍱",
-        "寶寶，中午了，今天上午順利嗎？吃飯充個電！",
-        "寶寶記得吃午飯喔，下午才有力氣😄",
-    ],
-    "night": [
-        "寶寶晚安🌙 今天辛苦了，早點休息。",
-        "寶寶該休息了，明天的事明天再說🌙",
-        "收工了嗎寶寶？今天做得不錯，好好睡一覺。",
-        "寶寶晚安～ 身體最重要，別太晚睡了。",
-        "寶寶，一天結束了🌙 辛苦了，明天繼續加油。",
-    ],
-}
-
-
-def _get_greeting(type: str) -> str:
-    period = {"morning": "早上", "noon": "中午", "night": "晚上"}.get(type, "")
-    if ANTHROPIC_API_KEY:
-        try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=80,
-                messages=[{"role": "user", "content":
-                    f"用繁體中文傳一句{period}問候語，語氣像男女朋友，稱呼對方「寶寶」，自然溫柔但不過度撒嬌，一到兩句就好，不要加任何前綴或說明。"
-                }],
-            )
-            return resp.content[0].text.strip()
-        except Exception:
-            pass
-    import random
-    return random.choice(_GREETINGS.get(type, [""]))
-
-
-@app.get("/trigger-greeting")
-def trigger_greeting(background_tasks: BackgroundTasks, type: str = "", secret: str = ""):
-    """cron-job.org ยิง 3 ครั้ง/วัน — morning / noon / night"""
-    REPORT_SECRET = os.environ.get("REPORT_SECRET", "")
-    if REPORT_SECRET and secret != REPORT_SECRET:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    if type not in _GREETINGS:
-        raise HTTPException(status_code=400, detail="type must be morning / noon / night")
-    background_tasks.add_task(_push_to_admins, _get_greeting(type))
-    return {"status": "ok", "type": type}
-
-
 def _run_obs_alert() -> None:
     try:
         today = datetime.now(TW).date()
