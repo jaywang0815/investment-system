@@ -1915,6 +1915,17 @@ def _handle_new_customer(reply_token: str, text: str, user_id: str, session: dic
             reply(reply_token, "❌ 新增失敗，請稍後再試。")
 
 
+def _is_admin(uid: str) -> bool:
+    """sender เป็น admin (advisor) ของ tenant นี้ไหม — บอตตอบเฉพาะ admin。
+    error → True (fail-open กันบอตเงียบทั้งหมดถ้า DB สะดุด)。"""
+    if not uid:
+        return False
+    try:
+        return any((a.get("line_user_id") or "") == uid for a in sb_get("admins", {"select": "line_user_id"}))
+    except Exception:
+        return True
+
+
 def _process_event(reply_token: str, user_text: str, user_id: str,
                    tid=None, token=None, secret=None) -> None:
     """รัน background — ตอบ LINE หลังจาก webhook คืนค่าแล้ว (set context ตาม tenant ของบอตที่รับ event)"""
@@ -1922,6 +1933,11 @@ def _process_event(reply_token: str, user_text: str, user_id: str,
     _set_bot_ctx(tid, token, secret)
     try:
         text = user_text.strip()
+
+        # บอตตอบเฉพาะ admin (advisor) — คนอื่น (ลูกค้า) ทักมา บอตเงียบ ปล่อยให้คนตอบเอง
+        # → ไม่เปลือง token AI + AI ไม่แทรกบทสนทนา (myid ยังใช้ได้ทุกคน เพื่อ onboard admin ใหม่)
+        if text.lower() not in ("myid", "my id", "我的id", "id") and not _is_admin(user_id):
+            return
 
         # ── Excel import session (ตรวจก่อนทุกอย่าง) ─────────────────
         _es = _session_load(user_id)
