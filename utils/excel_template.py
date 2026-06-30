@@ -193,19 +193,35 @@ UNIDOS_HEADERS = [
 
 
 def build_unidos_workbook(rows: list) -> Workbook:
-    """rows = list[dict] keyed by UNIDOS_HEADERS → sheet 庫存查詢 (統一證券 ฟอร์แมต)。"""
+    """rows = list[dict] keyed by UNIDOS_HEADERS → sheet 庫存查詢 (統一證券 ฟอร์แมต)。
+    มีกรอบเส้น + แถบสลับสี + freeze หัวตาราง เพื่อให้อ่านง่าย。"""
     wb = Workbook(); wb.remove(wb.active)
     ws = wb.create_sheet("庫存查詢")
     ws.sheet_view.showGridLines = False
+    border = _thin()
+    ncol = len(UNIDOS_HEADERS)
+
     ws.append(UNIDOS_HEADERS)
-    head_fill = PatternFill("solid", fgColor=GREEN)
-    for c in range(1, len(UNIDOS_HEADERS) + 1):
+    head_fill = PatternFill("solid", fgColor=GREEN_DK)
+    for c in range(1, ncol + 1):
         cell = ws.cell(row=1, column=c)
-        cell.font = Font(name=FONT, bold=True, color=WHITE)
+        cell.font = Font(name=FONT, bold=True, color=WHITE, size=11)
         cell.fill = head_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border
         ws.column_dimensions[cell.column_letter].width = max(11, len(str(UNIDOS_HEADERS[c - 1])) + 2)
+    ws.row_dimensions[1].height = 30
     ws.freeze_panes = "A2"
-    for r in rows:
+
+    for ridx, r in enumerate(rows):
+        excel_row = ridx + 2  # +1 header, +1 1-based
         ws.append([r.get(h) for h in UNIDOS_HEADERS])
+        fill = PatternFill("solid", fgColor=WHITE if excel_row % 2 == 0 else ZEBRA)
+        for c in range(1, ncol + 1):
+            cell = ws.cell(row=excel_row, column=c)
+            cell.fill = fill
+            cell.border = border
+            cell.font = Font(name=FONT, size=10.5, color=INK)
+            cell.alignment = Alignment(vertical="center")
+        ws.row_dimensions[excel_row].height = 20
     return wb
