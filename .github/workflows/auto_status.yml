@@ -1,0 +1,35 @@
+name: Auto SN Status
+
+on:
+  schedule:
+    # ทุกวัน หลังตลาด US ปิด (21:30 UTC = หลังปิดทั้ง EDT/EST) — ใช้ราคาปิดตัดสิน KO
+    # 期末到期 อิงวันที่ → รันทุกวันรวมเสาร์-อาทิตย์เพื่อ flip ทันวันครบกำหนด
+    - cron: '30 21 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'DRY RUN (1 = พิมพ์อย่างเดียว ไม่เขียน DB)'
+        required: false
+        default: '0'
+
+jobs:
+  auto-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests yfinance
+
+      - name: Run auto status
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          BOT_DEFAULT_TENANT_ID: ${{ secrets.BOT_DEFAULT_TENANT_ID }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: python scripts/auto_status.py
