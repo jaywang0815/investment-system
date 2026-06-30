@@ -14,3 +14,4 @@ mplfinance==0.12.10b0
 yfinance>=0.2
 pandas>=2.0
 python-multipart
+holidays>=0.40

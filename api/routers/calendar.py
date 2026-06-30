@@ -25,13 +25,23 @@ def _add_months(d: date, n: int) -> date:
     return date(y, mo, min(d.day, _cal.monthrange(y, mo)[1]))
 
 
+try:
+    import holidays as _holidays
+    _TW_HOLIDAYS = _holidays.country_holidays("TW")  # 國定假日 (lazy รายปี, รวมวันหยุดจันทรคติ เช่นตรุษจีน)
+except Exception:
+    _TW_HOLIDAYS = set()  # lib หาย → fallback ข้ามแค่เสาร์อาทิตย์ (API ไม่ล่ม)
+
+
+def _is_business_day(d: date) -> bool:
+    return d.weekday() < 5 and d not in _TW_HOLIDAYS  # จันทร์-ศุกร์ และไม่ใช่ 國定假日
+
+
 def _add_business_days(d: date, n: int) -> date:
-    """+n วันทำการ (ข้ามเสาร์-อาทิตย์) — 配息日 = 比價日 T+3。
-    หมายเหตุ: ยังไม่รวมวันหยุดธนาคาร (เฉพาะข้ามเสาร์อาทิตย์)。"""
+    """+n วันทำการ — 配息日 = 比價日 T+3 (ข้ามเสาร์-อาทิตย์ + 國定假日ไต้หวัน)。"""
     cur, added = d, 0
     while added < n:
         cur += timedelta(days=1)
-        if cur.weekday() < 5:  # จันทร์-ศุกร์
+        if _is_business_day(cur):
             added += 1
     return cur
 
