@@ -294,7 +294,7 @@ def _summary_table(investments, W, notes=None):
         note = notes.get(code) or ("出場" if exited else "")
         data.append([
             _roc(td), code,
-            _tenor_ym(sn.get("trade_date"), sn.get("exit_date")),
+            _tenor_ym(sn.get("trade_date"), sn.get("exit_date"), sn.get("tenor_months")),
             f"{cp*100:g}%" if cp else "",
             format_money(amt, cur),
             note,
@@ -704,13 +704,21 @@ def _roc(d):
     return f"{d.year - 1911}/{d.month:02d}/{d.day:02d}"
 
 
-def _tenor_ym(trade, end):
-    """交易日→到期日 推算期間: <12月→#M, 否則→#Y"""
-    td, od = _detail_to_date(trade), _detail_to_date(end)
-    if td and od and od > td:
-        m = max(round((od - td).days / 30), 1)
-        return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
-    return ""
+def _tenor_ym(trade, end, tenor_months=None):
+    """期間: 優先用 term sheet 的 天期(月) tenor_months；否則由 交易日→到期日 推算。<12月→#M, 否則→#Y"""
+    m = None
+    if tenor_months is not None:
+        try:
+            m = int(tenor_months)
+        except (ValueError, TypeError):
+            m = None
+    if not m:
+        td, od = _detail_to_date(trade), _detail_to_date(end)
+        if td and od and od > td:
+            m = max(round((od - td).days / 30), 1)
+    if not m:
+        return ""
+    return f"{round(m/12)}Y" if m >= 12 else f"{m}M"
 
 
 def generate_portfolio_detail(items: list, report_date: str = "",
