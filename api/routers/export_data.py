@@ -29,11 +29,12 @@ FREQ_TO_NUM = {"monthly": "1", "quarterly": "3", "semiannual": "6", "annual": "1
 
 
 @router.get("/unidos")
-def export_unidos(r: Repo = Depends(repo)):
-    """匯出成 統一證券 庫存查詢 ฟอร์แมต (แถวละ 1 持倉, 32 คอลัมน์) — import กลับได้。"""
+def export_unidos(blank: bool = False, r: Repo = Depends(repo)):
+    """匯出成 統一證券 庫存查詢 ฟอร์แมต (32 คอลัมน์) — import กลับได้。
+    blank=true → ฟอร์มเปล่า (หัวอย่างเดียว, เหมือน Template.xlsx) สำหรับกรอกใหม่。"""
     from utils.excel_template import build_unidos_workbook
 
-    invs = r.find("investments", select="amount_usd,currency,customers(name),structured_notes(*)")
+    invs = [] if blank else r.find("investments", select="amount_usd,currency,customers(name),structured_notes(*)")
     rows = []
     for iv in invs:
         sn = iv.get("structured_notes") or {}
@@ -68,7 +69,7 @@ def export_unidos(r: Repo = Depends(repo)):
 
     wb = build_unidos_workbook(rows)
     buf = io.BytesIO(); wb.save(buf)
-    name = f"unidos_export_{date.today():%Y%m%d}.xlsx"
+    name = "unidos_template.xlsx" if blank else f"unidos_export_{date.today():%Y%m%d}.xlsx"
     return Response(content=buf.getvalue(),
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
