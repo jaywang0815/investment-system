@@ -46,12 +46,15 @@ def _add_business_days(d: date, n: int) -> date:
     return cur
 
 
+_HOL_LANG = {"zh": "zh_TW", "en": "en_US", "th": "th"}  # ชื่อวันหยุดตามภาษาที่เลือก
+
+
 @router.get("/holidays")
-def holidays_list(year: int, r: Repo = Depends(repo)):
-    """國定假日 ไต้หวันของปีนั้น {date: ชื่อ} — ใช้ทำตัวเลขวันหยุดสีแดงในปฏิทิน。"""
+def holidays_list(year: int, lang: str = "zh", r: Repo = Depends(repo)):
+    """國定假日 ไต้หวันของปีนั้น {date: ชื่อ} — ใช้ทำตัวเลขวันหยุดสีแดง + ชื่อในปฏิทิน。"""
     try:
         import holidays as _h
-        hd = _h.country_holidays("TW", years=[year])
+        hd = _h.country_holidays("TW", years=[year], language=_HOL_LANG.get(lang, "zh_TW"))
         return {"holidays": {d.isoformat(): str(n) for d, n in hd.items()}}
     except Exception:
         return {"holidays": {}}
