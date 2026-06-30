@@ -263,10 +263,10 @@ def _summary_table(investments, W, notes=None):
     DARK       = colors.HexColor("#1F1B1B")
     RED_CODE   = colors.HexColor(B.hx(B.C_PRIMARY))
     _note_style = _style("SumNote", fontSize=8.5, leading=10, textColor=DARK)
-    # สถานะ → ข้อความใน 備註 (已出場=KO/ออกก่อน, 期末到期=ครบกำหนด, 暫停=พัก)
-    _STATUS_LBL = {"exited": "已出場", "matured": "期末到期", "inactive": "暫停"}
+    # สถานะ → ป้ายในคอลัมน์ 狀態 (進行中/已出場=KO ออกก่อน/期末到期=ครบกำหนด/暫停=พัก)
+    _STATUS_LBL = {"active": "進行中", "exited": "已出場", "matured": "期末到期", "inactive": "暫停"}
 
-    data = [["日期", "代號", "期間", "配息", "金額", "備註"]]
+    data = [["日期", "代號", "期間", "配息", "金額", "狀態", "備註"]]
     styles = [
         ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
@@ -274,7 +274,8 @@ def _summary_table(investments, W, notes=None):
         ("BACKGROUND", (0, 0), (-1, 0), HEAD_GREEN),
         ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
         ("ALIGN", (0, 0), (0, -1), "CENTER"), ("ALIGN", (2, 0), (3, -1), "CENTER"),
-        ("ALIGN", (4, 0), (4, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (4, 0), (4, -1), "RIGHT"), ("ALIGN", (5, 0), (5, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.4, BORDER),
         ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -294,18 +295,16 @@ def _summary_table(investments, W, notes=None):
         cur = inv.get("currency") or "USD"
         grand[cur] = grand.get(cur, 0) + amt
         code = sn.get("product_code") or ""
-        # 備註 = สถานะ (อัตโนมัติ) + note ที่พิมพ์เอง — รวมกัน คั่นบรรทัด ไม่ทับกัน
-        status_lbl = _STATUS_LBL.get(sn.get("status") or "active", "")
-        if not status_lbl and exited:
-            status_lbl = "已出場"
+        # 狀態 = คอลัมน์แยก · 備註 = Note ที่พิมพ์เองอย่างเดียว
+        status_lbl = _STATUS_LBL.get(sn.get("status") or "active", "進行中")
         typed = (notes.get(code) or "").strip()
-        note_txt = "<br/>".join(x for x in (status_lbl, typed) if x)
-        note_cell = Paragraph(note_txt, _note_style) if note_txt else ""
+        note_cell = Paragraph(typed, _note_style) if typed else ""
         data.append([
             _roc(td), code,
             _tenor_ym(sn.get("trade_date"), sn.get("exit_date"), sn.get("tenor_months")),
             f"{cp*100:g}%" if cp else "",
             format_money(amt, cur),
+            status_lbl,
             note_cell,
         ])
         ri = len(data) - 1
@@ -315,7 +314,7 @@ def _summary_table(investments, W, notes=None):
             styles.append(("BACKGROUND", (0, ri), (-1, ri), EXIT_GREEN))
 
     tot = "　".join(format_money(v, c) for c, v in sorted(grand.items())) or "—"
-    data.append(["小計", "", "", "", tot, ""])
+    data.append(["小計", "", "", "", tot, "", ""])
     ri = len(data) - 1
     styles += [("SPAN", (0, ri), (3, ri)), ("FONTNAME", (0, ri), (-1, ri), FONT_BOLD),
                ("BACKGROUND", (0, ri), (-1, ri), colors.HexColor(B.hx(B.C_TINT))),
@@ -323,7 +322,7 @@ def _summary_table(investments, W, notes=None):
                ("ALIGN", (0, ri), (0, ri), "LEFT"), ("ALIGN", (4, ri), (4, ri), "RIGHT"),
                ("LINEABOVE", (0, ri), (-1, ri), 1, BLUE_DARK)]
 
-    col_w = [22 * mm, 30 * mm, 16 * mm, 22 * mm, 36 * mm, W - 126 * mm]
+    col_w = [20 * mm, 28 * mm, 14 * mm, 18 * mm, 34 * mm, 18 * mm, W - 132 * mm]
     t = Table(data, colWidths=col_w, repeatRows=1)
     t.setStyle(TableStyle(styles))
     out.append(t)
