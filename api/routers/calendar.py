@@ -46,6 +46,17 @@ def _add_business_days(d: date, n: int) -> date:
     return cur
 
 
+@router.get("/holidays")
+def holidays_list(year: int, r: Repo = Depends(repo)):
+    """國定假日 ไต้หวันของปีนั้น {date: ชื่อ} — ใช้ทำตัวเลขวันหยุดสีแดงในปฏิทิน。"""
+    try:
+        import holidays as _h
+        hd = _h.country_holidays("TW", years=[year])
+        return {"holidays": {d.isoformat(): str(n) for d, n in hd.items()}}
+    except Exception:
+        return {"holidays": {}}
+
+
 @router.get("/coupon-date")
 def coupon_date(obs: str, r: Repo = Depends(repo)):
     """配息日 = 比價日 T+3 (วันทำการ ข้ามเสาร์อาทิตย์ + 國定假日) — ใช้ auto-fill ในฟอร์ม。"""
