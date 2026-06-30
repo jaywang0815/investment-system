@@ -168,17 +168,42 @@ def build_report(stats, sns, prices):
     return "\n".join(lines)
 
 
+def _split_chunks(text: str, limit: int = 4800) -> list[str]:
+    """แบ่งข้อความเป็นชิ้น ≤ limit ตัวอักษร (LINE จำกัด 5000/ข้อความ) โดยไม่ตัดกลางบรรทัด
+    — พยายามตัดที่ขอบ SN block (บรรทัดว่าง) เพื่อไม่ให้รายการขาดครึ่ง。"""
+    chunks, cur = [], ""
+    for line in text.split("\n"):
+        add = line if not cur else "\n" + line
+        if cur and len(cur) + len(add) > limit:
+            chunks.append(cur)
+            cur = line
+        else:
+            cur += add
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
 def send_line(user_id: str, message: str) -> bool:
-    resp = requests.post(
-        "https://api.line.me/v2/bot/message/push",
-        headers={
-            "Authorization": f"Bearer {LINE_TOKEN}",
-            "Content-Type": "application/json"
-        },
-        json={"to": user_id, "messages": [{"type": "text", "text": message}]},
-        timeout=10
-    )
-    return resp.status_code == 200
+    """ส่ง 日報 — ถ้ายาวเกิน 5000 ตัว แบ่งหลายข้อความ (LINE push ≤5 ข้อความ/คำขอ)。"""
+    parts = _split_chunks(message)
+    n = len(parts)
+    if n > 1:
+        parts = [(p if i == 0 else f"📊 日報（{i + 1}/{n}）\n{p}") for i, p in enumerate(parts)]
+    ok_all = True
+    for i in range(0, len(parts), 5):
+        batch = [{"type": "text", "text": p} for p in parts[i:i + 5]]
+        resp = requests.post(
+            "https://api.line.me/v2/bot/message/push",
+            headers={
+                "Authorization": f"Bearer {LINE_TOKEN}",
+                "Content-Type": "application/json"
+            },
+            json={"to": user_id, "messages": batch},
+            timeout=10
+        )
+        ok_all = ok_all and resp.status_code == 200
+    return ok_all
 
 
 if __name__ == "__main__":
