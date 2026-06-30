@@ -115,10 +115,20 @@ BROKER_HDR = {
     "ptype": ["產品別"],
     "u1": ["連結標的1"], "u2": ["連結標的2"], "u3": ["連結標的3"], "u4": ["連結標的4"], "u5": ["連結標的5"],
     "coupon": ["利率"],
-    "strike": ["執行價"],
+    "strike": ["執行價"],          # 配息區間/執行價 → 履約價
     "ko": ["提前出場價"],
     "ki": ["界限價"],
     "ip1": ["期初價格1"], "ip2": ["期初價格2"], "ip3": ["期初價格3"], "ip4": ["期初價格4"], "ip5": ["期初價格5"],
+    # 統一證券 ฟิลด์เพิ่ม (เก็บครบฟอร์แมต) — alias ต้องตรง/ไม่ชนกับคอลัมน์อื่น
+    "issue_date": ["發行日"],
+    "final_date": ["期末訂價日"],
+    "tenor": ["天期"],
+    "ko_type": ["提前出場型式"],
+    "ki_type": ["下限型式"],
+    "settle_date": ["交割日"],
+    "guar_months": ["保證配息月數"],
+    "counterparty": ["成交上手"],
+    "price_type": ["價格"],          # อยู่หน้า 期初價格 → exact match ก่อน (กันชน substring)
 }
 
 
@@ -471,6 +481,15 @@ def _parse_broker(rows: list, hr: int, cm: dict):
     """อ่านชีตแบบ券商庫存 (แถวละ 1 持倉) → (products, customers, investments)。
     商品 dedup ตาม code; 客戶 dedup ตามชื่อ。配息起算=發行日, 配息頻率=月配。"""
     products, customers, investments = {}, {}, []
+
+    def _s(v):
+        s = str(v).strip() if v is not None else ""
+        return s or None
+
+    def _i(v):
+        n = _to_num(v)
+        return int(n) if n is not None else None
+
     for rec in _rows(rows, hr, cm):
         code = _clean_code(rec.get("code"))
         if not code or _norm(rec.get("code")) in ("psc商品代碼", "商品代碼"):
@@ -486,7 +505,7 @@ def _parse_broker(rows: list, hr: int, cm: dict):
                 "category": "SN",
                 "product_type": "DRA" if pt == "DRA" else "FCN",
                 "trade_date": _to_date(rec.get("trade_date")),
-                "observation_date": _to_date(rec.get("obs_date")),   # 發行日
+                "observation_date": _to_date(rec.get("obs_date")),   # = 最後保證配息日 (ดอกเริ่มนับ)
                 "exit_date": _to_date(rec.get("exit_date")),
                 "coupon_pct": _to_pct(rec.get("coupon")),
                 "ko_barrier": _to_pct(rec.get("ko")),
@@ -494,6 +513,16 @@ def _parse_broker(rows: list, hr: int, cm: dict):
                 "strike_pct": _to_pct(rec.get("strike")),
                 "coupon_freq": "monthly",
                 "status": "active",
+                # 統一證券 ฟิลด์เต็ม
+                "issue_date": _to_date(rec.get("issue_date")),
+                "final_pricing_date": _to_date(rec.get("final_date")),
+                "tenor_months": _i(rec.get("tenor")),
+                "ko_type": _s(rec.get("ko_type")),
+                "ki_type": _s(rec.get("ki_type")),
+                "settlement_days": _i(rec.get("settle_date")),
+                "guaranteed_coupon_months": _i(rec.get("guar_months")),
+                "counterparty": _s(rec.get("counterparty")),
+                "price_type": _s(rec.get("price_type")),
             }
             for i in range(1, 6):
                 tk = _clean_broker_ticker(rec.get(f"u{i}"))
@@ -638,7 +667,9 @@ def parse_workbook(data: bytes) -> dict:
 _DIFF_PFIELDS = ["underlying_1", "underlying_2", "underlying_3", "underlying_4", "underlying_5",
                  "initial_price_1", "initial_price_2", "initial_price_3", "initial_price_4", "initial_price_5",
                  "strike_pct", "coupon_pct", "ko_barrier", "ki_barrier",
-                 "trade_date", "observation_date", "exit_date", "status"]
+                 "trade_date", "observation_date", "exit_date", "status",
+                 "issue_date", "final_pricing_date", "tenor_months", "ko_type", "ki_type",
+                 "settlement_days", "guaranteed_coupon_months", "counterparty", "price_type"]
 _DIFF_CFIELDS = ["usd_amount", "ctbc_position", "fund_amount", "unified_account", "pi_signed", "ordered"]
 
 
