@@ -181,3 +181,31 @@ def build_workbook(data: dict = None, with_sample: bool = False) -> Workbook:
         wb.defined_names.add(dnI); wb.defined_names.add(dnP)
     _ = end3
     return wb
+
+
+# ── 統一證券 庫存查詢 ฟอร์แมต (แถวละ 1 持倉, 32 คอลัมน์) — export ตรง Template.xlsx, round-trip import ได้ ──
+UNIDOS_HEADERS = [
+    "PSC商品代碼", "幣別", "名目本金(計價幣)", "客戶名稱", "交易日", "最後保證配息日", "發行日",
+    "期末訂價日", "商品到期日", "產品別", "連結標的1", "連結標的2", "連結標的3", "連結標的4", "連結標的5",
+    "天期 (月)", "利率", "配息頻率", "配息區間/執行價", "提前出場型式", "提前出場價", "下限型式", "界限價",
+    "交割日", "保證配息月數", "成交上手", "價格", "期初價格1", "期初價格2", "期初價格3", "期初價格4", "期初價格5",
+]
+
+
+def build_unidos_workbook(rows: list) -> Workbook:
+    """rows = list[dict] keyed by UNIDOS_HEADERS → sheet 庫存查詢 (統一證券 ฟอร์แมต)。"""
+    wb = Workbook(); wb.remove(wb.active)
+    ws = wb.create_sheet("庫存查詢")
+    ws.sheet_view.showGridLines = False
+    ws.append(UNIDOS_HEADERS)
+    head_fill = PatternFill("solid", fgColor=GREEN)
+    for c in range(1, len(UNIDOS_HEADERS) + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.font = Font(name=FONT, bold=True, color=WHITE)
+        cell.fill = head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.column_dimensions[cell.column_letter].width = max(11, len(str(UNIDOS_HEADERS[c - 1])) + 2)
+    ws.freeze_panes = "A2"
+    for r in rows:
+        ws.append([r.get(h) for h in UNIDOS_HEADERS])
+    return wb
