@@ -46,6 +46,13 @@ def _add_business_days(d: date, n: int) -> date:
     return cur
 
 
+@router.get("/coupon-date")
+def coupon_date(obs: str, r: Repo = Depends(repo)):
+    """配息日 = 比價日 T+3 (วันทำการ ข้ามเสาร์อาทิตย์ + 國定假日) — ใช้ auto-fill ในฟอร์ม。"""
+    d = _d(obs)
+    return {"coupon_date": _add_business_days(d, 3).isoformat() if d else None}
+
+
 @router.get("/events")
 def events(r: Repo = Depends(repo)):
     today = date.today()
@@ -91,15 +98,20 @@ def events(r: Repo = Depends(repo)):
                 continue
             monthly = round(amt * rate / 12.0, 2)
             exit_d = _d(sn.get("exit_date"))
+            # advisor ตั้ง 配息日 เอง (override งวดแรก) → anchor รายเดือนจากวันนั้นตรงๆ
+            # ไม่ได้ตั้ง → ใช้ 比價日 แล้ว +T+3 ทุกงวด
+            anchor_cd = _d(sn.get("coupon_date"))
+            base = anchor_cd or obs
+            shift3 = anchor_cd is None
             k = 0
-            cd = obs                              # 比價日ของงวด (anchor)
-            pay = _add_business_days(cd, 3)       # 配息日 = 比價日 T+3 (วันทำการ)
+            anchor = _add_months(base, 0)         # 比價日/ฐานของงวด
+            pay = _add_business_days(anchor, 3) if shift3 else anchor   # 配息日
             while pay < today:                    # ข้ามงวดที่จ่ายไปแล้ว (อิงวันจ่ายจริง)
                 k += 1
-                cd = _add_months(obs, k)
-                pay = _add_business_days(cd, 3)
+                anchor = _add_months(base, k)
+                pay = _add_business_days(anchor, 3) if shift3 else anchor
             while (pay - today).days <= _COUPON_HORIZON_DAYS:
-                if exit_d and cd > exit_d:
+                if exit_d and anchor > exit_d:
                     break
                 out.append({
                     "kind": "coupon",
@@ -111,8 +123,8 @@ def events(r: Repo = Depends(repo)):
                     "days_until": (pay - today).days,
                 })
                 k += 1
-                cd = _add_months(obs, k)
-                pay = _add_business_days(cd, 3)
+                anchor = _add_months(base, k)
+                pay = _add_business_days(anchor, 3) if shift3 else anchor
     except Exception:
         pass
 
