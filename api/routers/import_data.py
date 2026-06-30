@@ -49,7 +49,6 @@ CUST = {
     "unified_account": ["統一開戶", "統一帳號"],   # BOOLEAN (Ｖ → true)
     "pi_signed": ["pi見簽", "見簽", "pi"],          # BOOLEAN
     "ordered": ["已下單"],                          # BOOLEAN
-    "ctbc_position": ["中信部位", "中信"],
     "fund_amount": ["fund", "基金部位"],
     "notes": ["備註", "備注", "notes", "note"],
 }
@@ -607,7 +606,6 @@ def parse_workbook(data: bytes) -> dict:
                     "unified_account": _to_bool_mark(rec.get("unified_account")),
                     "pi_signed": _to_bool_mark(rec.get("pi_signed")),
                     "ordered": _to_bool_mark(rec.get("ordered")),
-                    "ctbc_position": _to_num(rec.get("ctbc_position")),
                     "fund_amount": _to_num(rec.get("fund_amount")),
                     "notes": (str(rec.get("notes")).strip() if rec.get("notes") else None),
                 })
@@ -670,7 +668,7 @@ _DIFF_PFIELDS = ["underlying_1", "underlying_2", "underlying_3", "underlying_4",
                  "trade_date", "observation_date", "exit_date", "status",
                  "issue_date", "final_pricing_date", "tenor_months", "ko_type", "ki_type",
                  "settlement_days", "guaranteed_coupon_months", "counterparty", "price_type"]
-_DIFF_CFIELDS = ["usd_amount", "ctbc_position", "fund_amount", "unified_account", "pi_signed", "ordered"]
+_DIFF_CFIELDS = ["usd_amount", "fund_amount", "unified_account", "pi_signed", "ordered"]
 
 
 def _changed(old, new):
@@ -760,7 +758,7 @@ def _do_commit(body: dict, r: Repo) -> dict:
         if not nm:
             continue
         payload = {k: cu.get(k) for k in ("name", "usd_amount", "unified_account", "pi_signed",
-                                          "ordered", "ctbc_position", "fund_amount", "notes") if cu.get(k) is not None}
+                                          "ordered", "fund_amount", "notes") if cu.get(k) is not None}
         payload["name"] = nm
         if nm in name2id:
             _safe_write(lambda b, _id=name2id[nm]: r.update("customers", _id, b), payload)
