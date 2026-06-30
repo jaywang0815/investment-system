@@ -1,6 +1,6 @@
 """事件行事曆 — SN 關鍵日期 (比價日/出場日) + 配息日 + 顧問自訂事件 (含 LINE 提醒)。"""
 import calendar as _cal
-from datetime import date
+from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from ..deps import repo
 from ..db import Repo
@@ -23,6 +23,17 @@ def _add_months(d: date, n: int) -> date:
     y = d.year + m // 12
     mo = m % 12 + 1
     return date(y, mo, min(d.day, _cal.monthrange(y, mo)[1]))
+
+
+def _add_business_days(d: date, n: int) -> date:
+    """+n วันทำการ (ข้ามเสาร์-อาทิตย์) — 配息日 = 比價日 T+3。
+    หมายเหตุ: ยังไม่รวมวันหยุดธนาคาร (เฉพาะข้ามเสาร์อาทิตย์)。"""
+    cur, added = d, 0
+    while added < n:
+        cur += timedelta(days=1)
+        if cur.weekday() < 5:  # จันทร์-ศุกร์
+            added += 1
+    return cur
 
 
 @router.get("/events")
@@ -71,24 +82,27 @@ def events(r: Repo = Depends(repo)):
             monthly = round(amt * rate / 12.0, 2)
             exit_d = _d(sn.get("exit_date"))
             k = 0
-            cd = obs
-            while cd < today:                    # ข้ามงวดที่ผ่านไปแล้ว
+            cd = obs                              # 比價日ของงวด (anchor)
+            pay = _add_business_days(cd, 3)       # 配息日 = 比價日 T+3 (วันทำการ)
+            while pay < today:                    # ข้ามงวดที่จ่ายไปแล้ว (อิงวันจ่ายจริง)
                 k += 1
                 cd = _add_months(obs, k)
-            while (cd - today).days <= _COUPON_HORIZON_DAYS:
+                pay = _add_business_days(cd, 3)
+            while (pay - today).days <= _COUPON_HORIZON_DAYS:
                 if exit_d and cd > exit_d:
                     break
                 out.append({
                     "kind": "coupon",
-                    "date": cd.isoformat(),
+                    "date": pay.isoformat(),
                     "type": "配息",
                     "title": f"{sn.get('product_code')} 配息",
                     "product_code": sn.get("product_code"),
                     "amount": monthly,
-                    "days_until": (cd - today).days,
+                    "days_until": (pay - today).days,
                 })
                 k += 1
                 cd = _add_months(obs, k)
+                pay = _add_business_days(cd, 3)
     except Exception:
         pass
 
