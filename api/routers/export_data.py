@@ -8,7 +8,7 @@ from ..db import Repo
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 FREQ_REV = {"monthly": "月配", "quarterly": "季配", "semiannual": "半年配", "annual": "年配", "maturity": "到期一次"}
-STATUS_REV = {"active": "進行中", "exited": "已出場", "inactive": "暫停"}
+STATUS_REV = {"active": "進行中", "exited": "已出場", "matured": "期末到期", "inactive": "暫停"}
 
 
 def _pct(v):

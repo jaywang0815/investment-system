@@ -262,6 +262,9 @@ def _summary_table(investments, W, notes=None):
     BORDER     = colors.HexColor("#D9D9D9")
     DARK       = colors.HexColor("#1F1B1B")
     RED_CODE   = colors.HexColor(B.hx(B.C_PRIMARY))
+    _note_style = _style("SumNote", fontSize=8.5, leading=10, textColor=DARK)
+    # สถานะ → ข้อความใน 備註 (已出場=KO/ออกก่อน, 期末到期=ครบกำหนด, 暫停=พัก)
+    _STATUS_LBL = {"exited": "已出場", "matured": "期末到期", "inactive": "暫停"}
 
     data = [["日期", "代號", "期間", "配息", "金額", "備註"]]
     styles = [
@@ -291,13 +294,19 @@ def _summary_table(investments, W, notes=None):
         cur = inv.get("currency") or "USD"
         grand[cur] = grand.get(cur, 0) + amt
         code = sn.get("product_code") or ""
-        note = notes.get(code) or ("出場" if exited else "")
+        # 備註 = สถานะ (อัตโนมัติ) + note ที่พิมพ์เอง — รวมกัน คั่นบรรทัด ไม่ทับกัน
+        status_lbl = _STATUS_LBL.get(sn.get("status") or "active", "")
+        if not status_lbl and exited:
+            status_lbl = "已出場"
+        typed = (notes.get(code) or "").strip()
+        note_txt = "<br/>".join(x for x in (status_lbl, typed) if x)
+        note_cell = Paragraph(note_txt, _note_style) if note_txt else ""
         data.append([
             _roc(td), code,
             _tenor_ym(sn.get("trade_date"), sn.get("exit_date"), sn.get("tenor_months")),
             f"{cp*100:g}%" if cp else "",
             format_money(amt, cur),
-            note,
+            note_cell,
         ])
         ri = len(data) - 1
         styles += [("FONTNAME", (1, ri), (1, ri), FONT_BOLD),

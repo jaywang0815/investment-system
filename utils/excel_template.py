@@ -17,7 +17,7 @@ NUM = "#,##0"; NUM2 = "#,##0.00"; DATE = "yyyy-mm-dd"; PCT = "0"
 CATEGORIES = ["SN", "台股", "期貨", "美股", "港股", "國內外基金", "ELN", "PGN", "儲蓄險", "旅平險", "車險", "意外險"]
 CURRENCIES = ["USD", "TWD", "HKD", "EUR", "JPY", "CNY"]
 FREQ = ["月配", "季配", "半年配", "年配", "到期一次"]
-STATUS = ["進行中", "已出場", "暫停"]
+STATUS = ["進行中", "已出場", "期末到期", "暫停"]
 TICKERS = ["NVDA", "TSLA", "TSM", "ANET", "AMD", "INTC", "AVGO", "MSFT", "ORCL", "MU", "GOOG", "GOOGL",
            "CRCL", "LITE", "COHR", "QQQ", "SPY", "SMH", "SOXX", "IBB", "AAPL", "AMZN", "META", "NFLX"]
 

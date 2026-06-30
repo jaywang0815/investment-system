@@ -79,7 +79,7 @@ INV = {
     "currency": ["幣別", "currency"],
 }
 FREQ_MAP = {"月配": "monthly", "季配": "quarterly", "半年配": "semiannual", "年配": "annual", "到期一次": "maturity"}
-STATUS_MAP = {"進行中": "active", "已出場": "exited", "暫停": "inactive"}
+STATUS_MAP = {"進行中": "active", "已出場": "exited", "期末到期": "matured", "暫停": "inactive"}
 SHEET_HINT = {"客戶": "cust", "投資人": "cust", "customer": "cust", "開戶": "cust",
               "商品": "prod", "product": "prod", "sn": "prod",
               "投資": "inv", "持倉": "inv", "holding": "inv"}
