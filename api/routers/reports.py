@@ -82,10 +82,11 @@ def report_options(r: Repo = Depends(repo)):
 def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
                  columns: Optional[str] = None, show_info: bool = True,
                  show_amount: bool = True, theme: Optional[str] = None,
-                 sns: Optional[str] = None,
+                 sns: Optional[str] = None, notes: Optional[str] = None,
                  r: Repo = Depends(repo)):
     """單一客戶完整報表 PDF (含投資明細 + 走勢圖)。
-    columns: 逗號分隔欄位名 (省略=全部)；sns: 逗號分隔 SN id (省略=全部商品)；charts=true 會較慢 (抓 yfinance)。"""
+    columns: 逗號分隔欄位名 (省略=全部)；sns: 逗號分隔 SN id (省略=全部商品)；
+    notes: JSON {product_code: 備註} 顯示於投資明細備註欄；charts=true 會較慢 (抓 yfinance)。"""
     cust = r.get("customers", cid)
     if not cust:
         raise HTTPException(status_code=404, detail="找不到客戶")
@@ -101,12 +102,19 @@ def customer_pdf(cid: str, charts: bool = False, period: str = "6mo",
             raise HTTPException(status_code=404, detail="所選商品無投資記錄")
 
     cols = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
+    note_map = {}
+    if notes:
+        import json
+        try:
+            note_map = {str(k): str(v) for k, v in (json.loads(notes) or {}).items() if v}
+        except (ValueError, TypeError, AttributeError):
+            note_map = {}
     from utils.pdf_report import generate_customer_report
     prices = _prices_for(invs) if charts else {}
     pdf = _generate_with_theme(theme, _tenant_branding(r), generate_customer_report,
                                cust, invs, prices,
                                chart_period=period, columns=cols, show_info=show_info,
-                               show_amount=show_amount, show_charts=charts)
+                               show_amount=show_amount, show_charts=charts, notes=note_map)
     return _pdf_response(pdf, f"report_{cust.get('name','customer')}_{date.today():%Y%m%d}.pdf")
 
 

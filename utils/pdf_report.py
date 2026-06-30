@@ -251,8 +251,10 @@ def _brand_footer(report_date: str):
     return out
 
 
-def _summary_table(investments, W):
-    """客戶報表用的「投資明細」摘要表 (6 欄, 綠表頭, 出場標綠)，回傳 flowables。"""
+def _summary_table(investments, W, notes=None):
+    """客戶報表用的「投資明細」摘要表 (6 欄, 綠表頭, 出場標綠)，回傳 flowables。
+    notes: {product_code: 備註文字} — 由使用者在產生報表前填入，顯示於「備註」欄。"""
+    notes = notes or {}
     from utils.money import format_money
     out = _sec("投資明細")
     HEAD_GREEN = GOLD_HEAD
@@ -288,12 +290,14 @@ def _summary_table(investments, W):
         amt = inv.get("amount_usd") or 0
         cur = inv.get("currency") or "USD"
         grand[cur] = grand.get(cur, 0) + amt
+        code = sn.get("product_code") or ""
+        note = notes.get(code) or ("出場" if exited else "")
         data.append([
-            _roc(td), sn.get("product_code") or "",
+            _roc(td), code,
             _tenor_ym(sn.get("trade_date"), sn.get("exit_date")),
             f"{cp*100:g}%" if cp else "",
             format_money(amt, cur),
-            "出場" if exited else "",
+            note,
         ])
         ri = len(data) - 1
         styles += [("FONTNAME", (1, ri), (1, ri), FONT_BOLD),
@@ -365,7 +369,8 @@ def _decorate(canvas, doc):
 def generate_customer_report(customer: dict, investments: list, prices: dict,
                              chart_period: str = "6mo",
                              columns: list = None, show_info: bool = True,
-                             show_amount: bool = True, show_charts: bool = True) -> bytes:
+                             show_amount: bool = True, show_charts: bool = True,
+                             notes: dict = None) -> bytes:
     """
     產生單一客戶的完整投資報表
 
@@ -470,7 +475,7 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
     story.append(Spacer(1, 8*mm))
 
     # ── 投資明細 摘要表 (與明細表整合) ──────────────────────
-    for f in _summary_table(investments, W):
+    for f in _summary_table(investments, W, notes):
         story.append(f)
 
     # ── 各持倉明細 ──────────────────────────────────────────
