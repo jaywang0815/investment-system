@@ -423,21 +423,22 @@ def generate_customer_report(customer: dict, investments: list, prices: dict,
 
     # 美元總額度 = ผลรวม持倉จริง (ให้ตรงกับ 投資概覽/LIST ทุกที่); ลูกค้าที่ไม่มี持倉 ค่อย fallback usd_amount (วงเงินกรอกเอง)
     total_invested = sum(inv.get("amount_usd", 0) or 0 for inv in investments)
+    # ลบ 中信部位 ออก — เลขนี้ทำให้นักลงทุนสับสน/ถูกถามจนเกิดเรื่อง; เหลือ 美元總額度 ที่ตรงยอดลงทุนจริง
     info_data = [
         ["客戶姓名", customer.get("name", "—"), "報表日期", report_date],
-        ["美元總額度", _fmt_usd(total_invested if total_invested else customer.get("usd_amount")),
-         "中信部位",  _fmt_usd(customer.get("ctbc_position"))],
+        ["美元總額度", _fmt_usd(total_invested if total_invested else customer.get("usd_amount")), "", ""],
     ]
     info_table = Table(info_data, colWidths=[35*mm, 65*mm, 35*mm, 40*mm])
     info_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
-        ("FONTNAME", (2, 0), (2, -1), FONT_BOLD),
+        ("FONTNAME", (2, 0), (2, 0), FONT_BOLD),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("BACKGROUND", (0, 0), (0, -1), BLUE_LIGHT),
-        ("BACKGROUND", (2, 0), (2, -1), BLUE_LIGHT),
+        ("BACKGROUND", (2, 0), (2, 0), BLUE_LIGHT),
         ("TEXTCOLOR", (0, 0), (0, -1), BLUE_DARK),
-        ("TEXTCOLOR", (2, 0), (2, -1), BLUE_DARK),
+        ("TEXTCOLOR", (2, 0), (2, 0), BLUE_DARK),
+        ("SPAN", (1, 1), (3, 1)),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E7D9D6")),
         ("ROWBACKGROUNDS", (0, 0), (-1, -1), [WHITE, GRAY_LIGHT]),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
