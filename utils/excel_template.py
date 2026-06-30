@@ -197,8 +197,9 @@ def build_unidos_workbook(rows: list) -> Workbook:
     มีกรอบเส้น + แถบสลับสี + freeze หัวตาราง เพื่อให้อ่านง่าย。"""
     wb = Workbook(); wb.remove(wb.active)
     ws = wb.create_sheet("庫存查詢")
-    ws.sheet_view.showGridLines = False
-    border = _thin()
+    ws.sheet_view.showGridLines = True  # gridline เป็น fallback ให้เห็นตารางแน่นอน
+    _bs = Side(style="thin", color="9AA0A6")  # เทาเข้มพอให้เห็นชัดบนพื้นขาว
+    border = Border(left=_bs, right=_bs, top=_bs, bottom=_bs)
     ncol = len(UNIDOS_HEADERS)
 
     ws.append(UNIDOS_HEADERS)
