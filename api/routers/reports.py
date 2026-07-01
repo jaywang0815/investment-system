@@ -179,15 +179,27 @@ def customers_batch_pdf(customer_ids: Optional[str] = None, charts: bool = False
     cols = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
     branding = _tenant_branding(r)
     writer = PdfWriter()
+    failed = []
     for cid in order:
         cust, invs = cust_by_id.get(cid), invs_by_cust.get(cid)
         if not cust or not invs:
             continue
-        prices = _prices_for(invs) if charts else {}
-        pdf = _generate_with_theme(theme, branding, generate_customer_report,
-                                   cust, invs, prices, chart_period=period, columns=cols,
-                                   show_info=show_info, show_amount=show_amount, show_charts=charts)
-        writer.append(PdfReader(_io.BytesIO(pdf)))
+        # กัน error ต่อคน — ถ้าของใครพัง (เช่น yfinance ถูกบล็อก/ช้าบน Render, ข้อมูลผิด)
+        # ข้ามคนนั้นแล้วทำต่อ ไม่ให้ทั้ง batch ล่ม
+        try:
+            prices = _prices_for(invs) if charts else {}
+            pdf = _generate_with_theme(theme, branding, generate_customer_report,
+                                       cust, invs, prices, chart_period=period, columns=cols,
+                                       show_info=show_info, show_amount=show_amount, show_charts=charts)
+            writer.append(PdfReader(_io.BytesIO(pdf)))
+        except Exception as e:
+            import logging
+            logging.exception("[batch_pdf] customer %s (%s) failed: %s", cust.get("name"), cid, e)
+            failed.append(cust.get("name") or cid)
+
+    if len(writer.pages) == 0:
+        raise HTTPException(status_code=500,
+                            detail="報表全部產生失敗：" + "、".join(failed[:20]))
 
     out = _io.BytesIO()
     writer.write(out)
