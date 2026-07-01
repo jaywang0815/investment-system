@@ -1,0 +1,23 @@
+name: 每日報告觸發 (daily report)
+
+# ยิง /trigger-report ของบอต → _run_for_all_bots(_run_daily_report) ส่ง 日報 ให้ทุก tenant
+# (แทน cron-job.org ที่ไม่เสถียร) — บอตทำ background task ตอบเร็ว, endpoint กัน REPORT_SECRET
+on:
+  schedule:
+    - cron: '0 0 * * *'    # 08:00 台灣 (早盤報告)
+    - cron: '0 14 * * *'   # 22:00 台灣 (夜盤報告)
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warm up Render (wake if asleep)
+        run: curl -s -m 90 "https://investment-line-bot.onrender.com/" || true
+
+      - name: Trigger daily report
+        run: |
+          code=$(curl -s -m 120 -o /dev/null -w "%{http_code}" \
+            "https://investment-line-bot.onrender.com/trigger-report?secret=${{ secrets.REPORT_SECRET }}")
+          echo "trigger-report → HTTP $code"
+          test "$code" = "200"
