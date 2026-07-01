@@ -1108,22 +1108,45 @@ def _do_excel_import(user_id: str, file_bytes: bytes, action: str) -> None:
         _excel_cache.pop(user_id, None)
 
 
+def _split_chunks(text: str, limit: int = 4800) -> list:
+    """แบ่งข้อความยาวเป็นชิ้น ≤ limit (LINE จำกัด 5000/ข้อความ) โดยไม่ตัดกลางบรรทัด。"""
+    chunks, cur = [], ""
+    for line in text.split("\n"):
+        add = line if not cur else "\n" + line
+        if cur and len(cur) + len(add) > limit:
+            chunks.append(cur)
+            cur = line
+        else:
+            cur += add
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
 def _push_to_admins(text: str) -> None:
     # select * → ไม่ error ถ้ายังไม่มีคอลัมน์ receive_push; ข้ามเฉพาะคนที่ตั้ง receive_push=false (ค่าว่าง/true = รับ)
     admins = sb_get("admins", {"select": "*"})  # auto-scoped ตาม tenant context
     token = _bot_token()
+    # ยาวเกิน 5000 → แบ่งหลายข้อความ (เดิม text[:4000] ตัดทิ้ง → 日報 ขาดตอน)
+    parts = _split_chunks(text)
+    n = len(parts)
+    if n > 1:
+        parts = [(p if i == 0 else f"（{i + 1}/{n}）\n{p}") for i, p in enumerate(parts)]
     for a in admins:
         if a.get("receive_push") is False:
             continue
         uid = a.get("line_user_id", "")
-        if uid:
+        if not uid:
+            continue
+        for i in range(0, len(parts), 5):  # LINE push ≤5 ข้อความ/คำขอ
+            batch = [{"type": "text", "text": p} for p in parts[i:i + 5]]
             requests.post(
                 "https://api.line.me/v2/bot/message/push",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json"
                 },
-                json={"to": uid, "messages": [{"type": "text", "text": text[:4000]}]},
+                json={"to": uid, "messages": batch},
                 timeout=10
             )
 
