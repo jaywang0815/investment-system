@@ -27,3 +27,6 @@ backups/
 
 # unrelated local folder
 Jay live tools/
+
+# local secrets (ห้าม commit)
+.env

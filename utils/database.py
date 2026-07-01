@@ -1,16 +1,54 @@
 """
 Supabase 資料庫操作模組
+secrets อ่านจาก .env (มาตรฐาน) → os.environ ; ไม่ผูก Streamlit อีกต่อไป
+(st.secrets เหลือเป็น fallback เผื่อรันบน Streamlit Cloud เท่านั้น)
 """
-import streamlit as st
+import os
 from supabase import create_client, Client
 import pandas as pd
 from typing import Optional
 
-@st.cache_resource
+
+def _load_dotenv():
+    """โหลด .env → os.environ (parser ง่ายๆ ไม่ต้องพึ่ง python-dotenv)"""
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    if os.path.exists(p):
+        for line in open(p, encoding="utf-8"):
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
+
+# streamlit เป็น optional (แอปเก่าเลิกใช้แล้ว) — เก็บไว้เป็น fallback เฉยๆ
+try:
+    import streamlit as st  # noqa: F401
+except Exception:
+    st = None
+
+
+def _secret(key: str) -> str:
+    v = os.environ.get(key)
+    if v:
+        return v
+    if st is not None:
+        try:
+            return st.secrets[key]
+        except Exception:
+            pass
+    raise KeyError(f"missing secret: {key} (ใส่ใน .env)")
+
+
+_SB: Optional[Client] = None
+
+
 def get_supabase() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    global _SB
+    if _SB is None:
+        _SB = create_client(_secret("SUPABASE_URL"), _secret("SUPABASE_KEY"))
+    return _SB
 
 # ============================================================
 # 客戶操作
