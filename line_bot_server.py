@@ -708,25 +708,24 @@ def handle_command(text: str, user_id: str = "") -> tuple[str, str]:
             ko        = sn.get("ko_barrier")
             ki        = sn.get("ki_barrier")
             order_amt = sn.get("total_order_amount")
-            temp_set  = sn.get("temp_settlement")
             chu       = sn.get("chu") or ""
 
             coupon_str = f"  配息 {coupon*100:.1f}%" if coupon else ""
             ko_str     = f"KO {ko*100:.0f}%" if ko else ""
             ki_str     = f"KI {ki*100:.0f}%" if ki else ""
-            barrier_str = "  ".join(b for b in [ko_str, ki_str] if b)
+            strike     = sn.get("strike_pct")
+            strike_str = f"執行價 {strike*100:.0f}%" if (ki and strike) else ""  # มี KI → โชว์ 執行價 ด้วย
+            barrier_str = "  ".join(b for b in [ko_str, ki_str, strike_str] if b)
 
             lines.append(f"📌 {code}")
             lines.append(f"   金額: {format_money(amount, ccy)}{coupon_str}")
             if order_amt:
                 lines.append(f"   下單金: USD {order_amt:,.0f}")
             if barrier_str:
-                lines.append(f"   障礙: {barrier_str}")
+                lines.append(f"   障壁: {barrier_str}")
             lines.append(f"   比價日: {obs}")
             if exit_date:
                 lines.append(f"   出場日: {exit_date}")
-            if temp_set:
-                lines.append(f"   暫結: {temp_set:,.0f}")
             if chu:
                 lines.append(f"   CHU: {chu}")
 
