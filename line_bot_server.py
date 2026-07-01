@@ -1546,12 +1546,25 @@ def _build_daily_report() -> str:
         for sn in sorted(sns, key=lambda s: s.get("observation_date") or ""):
             code = sn.get("product_code", "—")
             obs = str(sn.get("observation_date") or "")[:10]
+            final = str(sn.get("final_pricing_date") or "")[:10]
             sn_id = sn.get("id", "")
+            label = "比價日"   # หัวข้อบรรทัดนับถอยหลัง
+            date_str = obs
             if obs:
                 try:
                     days_left = (date.fromisoformat(obs) - today_date).days
-                    if days_left < 0:
-                        # 比價日ผ่านไปแล้ว → โชว์ "已過 X 天" แทน "剩-X天" (กันเข้าใจผิด)
+                    if days_left < 0 and final:
+                        # 比價日ผ่านแล้ว (Daily Memory ยัง比價ทุกวัน) → นับถอยหลัง 期末訂價日 แทน
+                        label = "期末訂價日"
+                        date_str = final
+                        fd = (date.fromisoformat(final) - today_date).days
+                        if fd < 0:
+                            badge = "✅"; days_str = f"已過{-fd}天"
+                        else:
+                            badge = "🔴" if fd <= 3 else "⚠️" if fd <= 7 else "📅"
+                            days_str = f"剩{fd}天"
+                    elif days_left < 0:
+                        # 比價日ผ่านแล้วแต่ยังไม่มี 期末訂價日 → คงเดิม
                         badge = "✅"
                         days_str = f"已過{-days_left}天"
                     else:
@@ -1587,7 +1600,7 @@ def _build_daily_report() -> str:
 
             if worst_pct is None:
                 names = sn_customers.get(sn_id, [])
-                pending_sns.append((code, obs[5:], badge, days_str, names))
+                pending_sns.append((code, (date_str[5:] if date_str else ""), badge, days_str, names, label))
                 continue
             elif ko and worst_pct >= ko:
                 overall = "🟢 KO觸發"
@@ -1604,14 +1617,14 @@ def _build_daily_report() -> str:
             lines.append(f"\n{overall} {code}")
             if names:
                 lines.append(f"  👤 {' / '.join(names)}")
-            lines.append(f"  {badge} 比價日: {obs} ({days_str})" if obs else f"  {badge} 比價日: {days_str}")
+            lines.append(f"  {badge} {label}: {date_str} ({days_str})" if date_str else f"  {badge} {label}: {days_str}")
             lines.extend(detail_lines)
 
         if pending_sns:
             lines.append("\n─────────────")
             lines.append(f"📋 待補資料 ({len(pending_sns)}筆):")
-            for (code, obs_short, badge, days_str, names) in pending_sns:
-                lines.append(f"  {code}  {badge} {obs_short} ({days_str})" if obs_short else f"  {code}  {badge} {days_str}")
+            for (code, obs_short, badge, days_str, names, label) in pending_sns:
+                lines.append(f"  {code}  {badge} {label} {obs_short} ({days_str})" if obs_short else f"  {code}  {badge} {days_str}")
                 if names:
                     lines.append(f"    👤 {', '.join(names)}")
 
