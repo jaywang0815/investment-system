@@ -239,7 +239,9 @@ def _run_for_all_bots(fn) -> None:
 
 # ── 回覆 LINE 訊息 ─────────────────────────────────────────────
 def reply(reply_token: str, text: str, chart_url: str = "") -> None:
-    messages = [{"type": "text", "text": text[:4000]}]
+    # ยาวเกิน 5000 → หลายข้อความ (LINE reply สูงสุด 5 ข้อความ/ครั้ง) — กัน 日報 ขาดตอน
+    parts = _split_chunks(text)
+    messages = [{"type": "text", "text": p} for p in parts[:(4 if chart_url else 5)]]
     if chart_url:
         messages.append({
             "type": "image",
