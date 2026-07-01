@@ -91,6 +91,26 @@ _PERIOD_LABELS = {
     "4y": "4-Year", "4y6mo": "4.5-Year", "5y": "5-Year",
 }
 
+# cache ราคาย้อนหลัง (ticker, days) → กัน yfinance ซ้ำภายใน batch (หลายคนถือ ticker เดียวกัน)
+# → เร็วขึ้นมาก + กัน timeout/rate-limit บน Render โดยเก็บชาร์ตไว้ครบ
+import time as _time
+_HIST_CACHE: dict = {}
+_HIST_TTL = 600  # 10 นาที
+
+
+def _history_cached(ticker: str, days: int):
+    import yfinance as yf
+    from datetime import timedelta
+    key = (ticker, days)
+    ent = _HIST_CACHE.get(key)
+    now = _time.time()
+    if ent and now - ent[0] < _HIST_TTL:
+        return ent[1]
+    hist = yf.Ticker(ticker).history(start=datetime.today() - timedelta(days=days))
+    _HIST_CACHE[key] = (now, hist)
+    return hist
+
+
 def _generate_price_chart(ticker: str, initial_price: float,
                           ko_barrier: float, ki_barrier: float,
                           strike_pct: float, width_mm: float = 155,
@@ -108,9 +128,8 @@ def _generate_price_chart(ticker: str, initial_price: float,
 
         days = _PERIOD_DAYS.get(period, 180)
         period_label = _PERIOD_LABELS.get(period, "Performance")
-        start = datetime.today() - timedelta(days=days)
-        hist = yf.Ticker(ticker).history(start=start)
-        if hist.empty:
+        hist = _history_cached(ticker, days)  # cache → ไม่ดึงซ้ำภายใน batch
+        if hist is None or hist.empty:
             return None
 
         closes = hist["Close"]
