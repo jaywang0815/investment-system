@@ -200,6 +200,11 @@ def _generate_price_chart(ticker: str, initial_price: float,
         buf.seek(0)
         return buf.read()
     except Exception:
+        try:
+            import matplotlib.pyplot as _plt
+            _plt.close("all")  # กัน figure รั่วเมื่อ error กลางคัน (batch หลายชาร์ต → OOM บน Render)
+        except Exception:
+            pass
         return None
 
 
